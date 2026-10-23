@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {Action,ErrorText,Status,Frame,Receipt,money,inputClass,api} from './components.jsx';
-function initialAccess(){const fragment=location.hash.slice(1);if(/^[\w-]{43}$/.test(fragment)){sessionStorage.setItem('rr_customer_access',fragment);history.replaceState(null,'',location.pathname);}return sessionStorage.getItem('rr_customer_access')||'';}
+import {initialCustomerAccess as initialAccess} from '../src/customer-access.mjs';
 export function CustomerClaim(){
   const [access,setAccess]=useState(initialAccess),[state,setState]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[lot,setLot]=useState(''),[ack,setAck]=useState(false),[photo,setPhoto]=useState(undefined),[fileName,setFileName]=useState(''),[loadingFile,setLoadingFile]=useState(false),[extra,setExtra]=useState({});
   const accept=value=>{setState(value);setLot(value.submission?.lot||'');setAck(value.submission?.acknowledged||false);setExtra(value.submission?.extra||{});setPhoto(undefined);setFileName('');};

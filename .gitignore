@@ -1,0 +1,15 @@
+node_modules/
+.cache/
+.local/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+
+__pycache__/
+*.pyc
+.wrangler/
+.dev.vars*
+worker-configuration.d.ts
+cloud-dist/

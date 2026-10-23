@@ -1,0 +1,37 @@
+{
+  "name": "recall-relay-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "spike": "node spike.mjs",
+    "dev": "node server.mjs",
+    "build": "vite build",
+    "build:cloud": "node scripts/build-cloud.mjs",
+    "catalog:check": "node check-catalog.mjs",
+    "start": "node server.mjs --production",
+    "doctor": "node scripts/doctor.mjs",
+    "ai:verify": "python3 scripts/setup-ai.py --verify-only",
+    "test:cloud": "wrangler deploy --config cloud/wrangler.jsonc --dry-run --outdir ../cloud-dist && node cloud/integration.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.9.0",
+    "@huggingface/transformers": "^4.3.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "ag-studio-react": "^3.0.0",
+    "clsx": "^2.1.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "miniflare": "5.20261019.2-beta",
+    "wrangler": "4.152.0"
+  }
+}

@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@layer base {
+  body { margin: 0; font-family: system-ui, sans-serif; }
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+  button, input, textarea { font: inherit; }
+}
+.studio-workspace { width: 100%; min-width: 0; }

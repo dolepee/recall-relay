@@ -10,8 +10,12 @@ export class HostedAI {
     let result;
     try{result=await this.binding.run(hostedModel,{messages:[{role:'system',content:system},{role:'user',content:data+'\n/no_think'}],max_tokens:900,temperature:0,stream:false,response_format:{type:'json_object'}});}
     catch{throw new Error('The AI service could not complete this request. No suggestion or payment was applied.');}
-    let text=result?.response??result?.choices?.[0]?.message?.content;
-    if(typeof text!=='string'||text.length>18000)throw new Error('The AI service returned an unusable draft. No suggestion was applied.');
+    let text=[result?.choices?.[0]?.message?.content,result?.response].find(value=>typeof value==='string');
+    if(typeof text!=='string'||text.length>18000){
+      const finish=result?.choices?.[0]?.finish_reason;
+      const reason=['length','stop','content_filter','tool_calls'].includes(finish)?finish:'unknown';
+      throw new Error(`The AI service returned no usable text (finish: ${reason}). No suggestion was applied.`);
+    }
     if(text.includes('</think>'))text=text.slice(text.lastIndexOf('</think>')+8);
     return text.trim();
   }

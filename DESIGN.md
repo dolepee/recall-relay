@@ -27,4 +27,6 @@ Keep customer claims separate from merchant controls. The customer page starts w
 
 Keep notice preparation and case resolution as distinct merchant steps. Show proposed claim fields beside the exact source excerpt that supports them. The merchant reviews the current source version before saving instructions; a prepared setup is not a published campaign or payment authorization. The Studio assistant may change the case view and explain recorded blockers. It has no tool to approve evidence or send a refund.
 
+Keep the merchant's ordinary case list and review controls usable while the optional interactive workspace downloads, or if it fails to load. Mobile uses those ordinary controls without loading Studio. The desktop Studio workspace retains its grid and custom review widget once ready; both reuse the same review and payment controls and server state.
+
 Publishing a reviewed source creates a sandbox scenario for future test purchases. Freeze each purchase’s campaign and evidence requirements when the purchase is created. Preserve earlier pending purchases and claims when the active scenario changes. Show the exact source-required responses to both the customer and the merchant; missing responses block evidence review. A public notice used in a sandbox scenario does not imply manufacturer affiliation.

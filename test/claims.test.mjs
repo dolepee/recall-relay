@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ClaimDesk} from '../src/claims.mjs';
 import {claimRoutes} from '../src/claims-http.mjs';
-import {SourceWorkspace} from '../src/source-workspace.mjs';
+import {SourceWorkspace,assistCases} from '../src/source-workspace.mjs';
 
 const photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD7kAAAAASUVORK5CYII=';
 function setup(path=':memory:') {
@@ -168,12 +168,16 @@ test('merchant correction invalidates approval, persists, and requires a new pho
     const nextPhoto='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp0kAAAAASUVORK5CYII=';
     const response=reopened.submit(a,{revision:2,lot:'LOT-A',acknowledged:true,photo:nextPhoto,correctionResponse:'I uploaded a closer photograph with a readable lot.'});
     assert.equal(response.correction.state,'RESPONDED');assert.equal(response.status.code,'SUBMITTED');assert.equal(response.revision,3);
+    const queueAI={generate:async()=>JSON.stringify({view:'REVIEW'}),status:()=>({model:'test-double'})};
+    assert.match((await assistCases(queueAI,reopened,'What needs my evidence review?')).message,/Needs evidence review: 1 claim/);
     assert.equal(reopened.merchantState().cases[0].correction.response,response.correction.response);
     assert.throws(()=>reopened.submit(a,{revision:3,lot:'LOT-A',acknowledged:true,photo}),/different photograph/);
     assert.throws(()=>reopened.submit(a,{revision:3,lot:'LOT-A',acknowledged:true,photo:null}),/different photograph/);
     assert.equal(reopened.claim(item.id).revision,3);
     await assert.rejects(reopened.approve(item.id,{digest:before.plan.digest}),/Approval/);
     const reviewed=reopened.review(item.id,{revision:3,confirmed:true});assert.notEqual(reviewed.plan.digest,before.plan.digest);
+    assert.match((await assistCases(queueAI,reopened,'What needs my evidence review?')).message,/Needs evidence review: 0 claims/);
+    queueAI.generate=async()=>JSON.stringify({view:'READY'});assert.match((await assistCases(queueAI,reopened,'What is ready for approval?')).message,/Ready for merchant approval: 1 claim/);
     assert.throws(()=>reopened.submit(a,{revision:3,lot:'LOT-A',acknowledged:true,photo}),/different photograph/);
     await reopened.approve(item.id,{digest:reviewed.plan.digest});assert.equal(s.counters.refund,1);
     assert.throws(()=>reopened.requestChanges(item.id,{revision:3,message:'Please update the photograph again.',replacePhoto:true}),/locked/);

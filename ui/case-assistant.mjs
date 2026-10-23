@@ -3,10 +3,10 @@ AgStudioModuleRegistry.registerModules([AgStudioAiModule]);
 
 export function caseAssistant(onView){
   return ({api})=>createAiHarness(api,()=>{
-    const viewTool=api.defineAiTool({name:'show_claim_view',description:'Change only the visible case list. No record or payment mutation.',params:s=>s.object({view:s.enum(['ALL','READY','WAITING','MANUAL','PAYMENT','COMPLETED'])}),execute:({view},ctx)=>{onView(view);return ctx.success('Case view changed.',{view});}});
+    const viewTool=api.defineAiTool({name:'show_claim_view',description:'Change only the visible case list. No record or payment mutation.',params:s=>s.object({view:s.enum(['ALL','REVIEW','READY','WAITING','MANUAL','PAYMENT','COMPLETED'])}),execute:({view},ctx)=>{onView(view);return ctx.success('Case view changed.',{view});}});
     return {
     primary:'case-guide',
-    promptStarters:[{label:'Who needs to send information?',prompt:'Show customers who still owe information.'},{label:'Ready for refund review',prompt:'Show claims ready for merchant refund approval.'}],
+    promptStarters:[{label:'Who needs to send information?',prompt:'Show customers who still owe information.'},{label:'Needs evidence review',prompt:'Show submitted claims waiting for my evidence review.'},{label:'Ready to approve',prompt:'Show claims ready for merchant refund approval.'}],
     agents:[{
       id:'case-guide',name:'Claim guide',description:'Find claims and explain recorded blockers. No payment authority.',
       tools:()=>[viewTool],

@@ -50,7 +50,14 @@ try{
   const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp0kAAAAASUVORK5CYII=';
   const submission=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:0,lot:'LOT-A',photo:image,acknowledged:true}});assert.equal(submission.status,200);
   const cross=await call('/api/merchant/review',{cookie:bob,body:{id:checkout.value.id,revision:1,confirmed:true}});assert.equal(cross.status,400);
-  const reviewed=await action('review',{id:checkout.value.id,revision:1,confirmed:true});assert.equal(reviewed.status,200);
+  const requested=await action('request-changes',{id:checkout.value.id,revision:1,message:'Please clarify the product label in your response.',replacePhoto:false});assert.equal(requested.status,200);
+  let correction=await call('/api/claim/state'+query,{authorization:'Bearer '+token});assert.equal(correction.value.correction.state,'REQUESTED');assert.equal(correction.value.correction.photoHash,undefined);
+  assert.equal((await call('/api/merchant/request-changes',{cookie:bob,body:{id:checkout.value.id,revision:2,message:'Try to replace another workspace request.',replacePhoto:false}})).status,400);
+  await mf.dispose();mf=new Miniflare(options());
+  correction=await call('/api/claim/state'+query,{authorization:'Bearer '+token});assert.equal(correction.value.correction.state,'REQUESTED');
+  assert.equal((await action('review',{id:checkout.value.id,revision:2,confirmed:true})).status,400);
+  const updated=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:2,lot:'LOT-A',acknowledged:true,correctionResponse:'The label clearly reads LOT-A.'}});assert.equal(updated.status,200);assert.equal(updated.value.correction.state,'RESPONDED');
+  const reviewed=await action('review',{id:checkout.value.id,revision:3,confirmed:true});assert.equal(reviewed.status,200);
   const approval={id:checkout.value.id,digest:reviewed.value.plan.digest};
   const concurrent=await Promise.all([action('approve',approval),action('approve',approval)]);assert(concurrent.every(r=>r.status===200));assert.equal(refundPosts,1);
   let customer=await call('/api/claim/state'+query,{authorization:'Bearer '+token});assert.equal(customer.value.receipt.refundId,'FAKE-REFUND');assert.equal(customer.value.receipt.amountCents,2599);
@@ -58,5 +65,5 @@ try{
   const replay=await action('approve',approval);assert.equal(replay.status,200,JSON.stringify(replay));assert.equal(replay.value.receipt.refundId,'FAKE-REFUND');assert.equal(refundPosts,1);
   customer=await call('/api/claim/state'+query,{authorization:'Bearer '+token});assert.equal(customer.value.receipt.status,'COMPLETED');
   assert.equal(unexpected,0);
-  console.log(JSON.stringify({runtime:'Actual workerd + SQLite Durable Objects',provider:'Injected fake transport; no external requests',crossWorkspaceDenied:true,customerAuthorizationChecked:true,concurrentRefundPosts:refundPosts,reopenedReceiptVerified:true}));
+  console.log(JSON.stringify({runtime:'Actual workerd + SQLite Durable Objects',provider:'Injected fake transport; no external requests',crossWorkspaceDenied:true,customerAuthorizationChecked:true,correctionSurvivesReopen:true,correctionRequiresFreshReview:true,concurrentRefundPosts:refundPosts,reopenedReceiptVerified:true}));
 }finally{await mf.dispose();await rm(state,{recursive:true,force:true});}

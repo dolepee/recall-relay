@@ -115,8 +115,11 @@ The local server does not fall back to hosted inference.
 5. Open the private customer link. Submit a disposable PNG/JPEG image under
    2 MB, the test lot, purchase confirmation and the required scenario responses.
    Missing information can be saved and completed later.
-6. Return to the merchant desk, refresh, inspect all submitted evidence, and
-   confirm the review. Approve the exact **$25.99** item refund in its dialog.
+6. Return to the merchant desk, refresh and inspect the submitted evidence.
+   If it needs correction, ask for an update with a specific message and,
+   optionally, a required replacement photo. The customer responds on the same
+   private page. This does not send an email. After the update, confirm a fresh
+   evidence review, then approve the exact **$25.99** item refund in its dialog.
 7. Refresh the customer's page. A receipt appears only after authenticated
    PayPal readback verifies refund status, amount, currency and original capture.
 
@@ -134,6 +137,10 @@ evidence-review or record-edit tool. Mobile uses the ordinary case controls.
 - Publishing changes future purchases only. Pending purchases and existing
   claims retain their original campaign. This version supports one required
   photograph plus text/confirmation fields, USD and one refundable line.
+- A merchant correction request clears the earlier approval and blocks payment
+  until the customer responds and the merchant reviews again. A required
+  replacement image must differ from the previous upload; that comparison does
+  not prove image authenticity. The latest request and response remain visible.
 - A changed submission invalidates the earlier review. Approval binds to the
   current plan. A durable SQLite reservation blocks duplicate/concurrent
   dispatch for that claim. Ambiguous provider responses stay unresolved.

@@ -28,6 +28,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
           '/api/merchant/checkout':()=>desk.createCheckout(),
           '/api/merchant/capture':()=>desk.captureCheckout(input.id),
           '/api/merchant/review':()=>desk.review(input.id,input),
+          '/api/merchant/request-changes':()=>desk.requestChanges(input.id,input),
           '/api/merchant/approve':()=>desk.approve(input.id,input),
           '/api/merchant/reconcile':()=>desk.reconcile(input.id),
           '/api/merchant/source-import':()=>sourceWorkspace.import(input.recallNumber),

@@ -143,10 +143,12 @@ export class ClaimDeskCore {
     const fields=this.campaignFor(claim).fields||[];
     if(!extra||Array.isArray(extra)||typeof extra!=='object'||Object.keys(extra).some(id=>!fields.some(f=>f.id===id&&f.kind!=='PHOTO')))throw new Error('Unexpected claim fields. Refresh this claim.');
     for(const field of fields){const v=extra[field.id];if(v!==undefined&&((field.kind==='CONFIRMATION'&&typeof v!=='boolean')||(field.kind==='TEXT'&&(typeof v!=='string'||v.length>500))))throw new Error('Check the source requirement responses; text must be under 500 characters.');}
+    // Later edits must not silently restore the photograph the merchant returned.
+    // Keep this constraint until a new correction supersedes the current request.
+    if(claim.correction?.replacePhoto&&(!photo||hash(photo)===claim.correction.photoHash))throw new Error('Upload a different photograph to answer the merchant’s request. Your previous photograph is still saved.');
     if(claim.correction?.state==='REQUESTED'){
       const response=typeof input.correctionResponse==='string'?input.correctionResponse.trim():'';
       if(response.length<3||response.length>1000)throw new Error('Describe your response to the merchant in 3–1,000 characters.');
-      if(claim.correction.replacePhoto&&(!photo||hash(photo)===claim.correction.photoHash))throw new Error('Upload a different photograph to answer the merchant’s request. Your previous photograph is still saved.');
       claim.correction={...claim.correction,state:'RESPONDED',response,respondedAt:this.now()};
     }
     claim.revision++;claim.review=null;

@@ -169,8 +169,12 @@ test('merchant correction invalidates approval, persists, and requires a new pho
     const response=reopened.submit(a,{revision:2,lot:'LOT-A',acknowledged:true,photo:nextPhoto,correctionResponse:'I uploaded a closer photograph with a readable lot.'});
     assert.equal(response.correction.state,'RESPONDED');assert.equal(response.status.code,'SUBMITTED');assert.equal(response.revision,3);
     assert.equal(reopened.merchantState().cases[0].correction.response,response.correction.response);
+    assert.throws(()=>reopened.submit(a,{revision:3,lot:'LOT-A',acknowledged:true,photo}),/different photograph/);
+    assert.throws(()=>reopened.submit(a,{revision:3,lot:'LOT-A',acknowledged:true,photo:null}),/different photograph/);
+    assert.equal(reopened.claim(item.id).revision,3);
     await assert.rejects(reopened.approve(item.id,{digest:before.plan.digest}),/Approval/);
     const reviewed=reopened.review(item.id,{revision:3,confirmed:true});assert.notEqual(reviewed.plan.digest,before.plan.digest);
+    assert.throws(()=>reopened.submit(a,{revision:3,lot:'LOT-A',acknowledged:true,photo}),/different photograph/);
     await reopened.approve(item.id,{digest:reviewed.plan.digest});assert.equal(s.counters.refund,1);
     assert.throws(()=>reopened.requestChanges(item.id,{revision:3,message:'Please update the photograph again.',replacePhoto:true}),/locked/);
   }finally{if(reopened)reopened.close();else s.desk.close();rmSync(dir,{recursive:true,force:true});}

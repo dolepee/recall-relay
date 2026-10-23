@@ -114,6 +114,7 @@ test('HTTP boundary separates merchant sessions, customer links and cross-origin
     async function request(path,{method='GET',token,origin='http://127.0.0.1:4318',input}={}){headers={};await handler({method,headers:{authorization:token?`Bearer ${token}`:'',origin,'content-type':'application/json'},input},{setHeader:(k,v)=>headers[k]=v},path);return output;}
     assert.equal((await request('/api/merchant/state')).status,401);
     assert.equal((await request('/api/merchant/state',{token:access(item)})).status,401);
+    assert.equal((await request('/api/merchant/request-changes',{method:'POST',token:access(item),input:{id:item.id,revision:0,message:'Please replace the photograph.',replacePhoto:true}})).status,401);
     assert.equal((await request('/api/claim/state',{token:s.desk.merchantKey()})).status,401);
     assert.equal((await request('/api/claim/state',{token:access(item)})).status,200);
     assert.equal((await request('/api/merchant/approve',{method:'POST',token:s.desk.merchantKey(),origin:'https://other.example'})).status,403);
@@ -148,4 +149,43 @@ test('source-required responses block review until supplied and are bound into r
 });
 test('unsupported source remedy cannot publish an automatic original-payment scenario',async()=>{
   const s=setup();try{const source=await publishScenario(s.desk,{route:'NON_REFUND_REMEDY'});assert.throws(source.activate,/manual remedy/);assert.equal(s.desk.activeCampaign().sku,'CUP-01');}finally{s.desk.close();}
+});
+
+test('merchant correction invalidates approval, persists, and requires a new photograph and review',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'recall-correction-')),path=join(dir,'claims.sqlite');
+  const s=setup(path);let reopened;
+  try{
+    const item=await create(s.desk),before=ready(s.desk,item),a=access(item);
+    const request=s.desk.requestChanges(item.id,{revision:1,message:'The lot is blurred. Please send a clearer photograph.',replacePhoto:true});
+    assert.equal(request.revision,2);assert.equal(request.review,null);assert.equal(request.status.code,'NEEDS_INFORMATION');
+    await assert.rejects(s.desk.approve(item.id,{digest:before.plan.digest}),/Approval/);assert.equal(s.counters.refund,0);
+    assert.throws(()=>s.desk.review(item.id,{revision:2,confirmed:true}),/Review/);
+    assert.throws(()=>s.desk.submit(a,{revision:1,lot:'LOT-A',acknowledged:true,photo,correctionResponse:'Updated'}),/changed/);
+    assert.throws(()=>s.desk.submit(a,{revision:2,lot:'LOT-A',acknowledged:true,correctionResponse:'Updated'}),/different photograph/);
+    assert.equal(s.desk.claim(item.id).correction.state,'REQUESTED');
+    s.desk.close();reopened=new ClaimDesk({path,provider:async()=>s.provider});
+    const customer=reopened.customerState(a);assert.equal(customer.correction.message,request.correction.message);assert.equal(customer.correction.photoHash,undefined);
+    const nextPhoto='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp0kAAAAASUVORK5CYII=';
+    const response=reopened.submit(a,{revision:2,lot:'LOT-A',acknowledged:true,photo:nextPhoto,correctionResponse:'I uploaded a closer photograph with a readable lot.'});
+    assert.equal(response.correction.state,'RESPONDED');assert.equal(response.status.code,'SUBMITTED');assert.equal(response.revision,3);
+    assert.equal(reopened.merchantState().cases[0].correction.response,response.correction.response);
+    await assert.rejects(reopened.approve(item.id,{digest:before.plan.digest}),/Approval/);
+    const reviewed=reopened.review(item.id,{revision:3,confirmed:true});assert.notEqual(reviewed.plan.digest,before.plan.digest);
+    await reopened.approve(item.id,{digest:reviewed.plan.digest});assert.equal(s.counters.refund,1);
+    assert.throws(()=>reopened.requestChanges(item.id,{revision:3,message:'Please update the photograph again.',replacePhoto:true}),/locked/);
+  }finally{if(reopened)reopened.close();else s.desk.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('clarification requests preserve the photo, require a response, and reject stale or malformed requests',async()=>{
+  const {desk,counters}=setup();try{
+    const item=await create(desk),a=access(item);
+    assert.throws(()=>desk.requestChanges(item.id,{revision:0,message:'Please clarify this item.',replacePhoto:false}),/current submission/);
+    desk.submit(a,{revision:0,lot:'LOT-A',acknowledged:true,photo});
+    for(const input of [{revision:0,message:'Please clarify this item.',replacePhoto:false},{revision:1,message:'short',replacePhoto:false},{revision:1,message:'x'.repeat(601),replacePhoto:false},{revision:1,message:'Please clarify this item.',replacePhoto:'yes'}])assert.throws(()=>desk.requestChanges(item.id,input));
+    desk.requestChanges(item.id,{revision:1,message:'Please clarify the product marking in your response.',replacePhoto:false});
+    assert.throws(()=>desk.requestChanges(item.id,{revision:2,message:'A second pending request should not replace the first.',replacePhoto:false}),/already waiting/);
+    for(const response of ['', 'x'.repeat(1001)])assert.throws(()=>desk.submit(a,{revision:2,lot:'LOT-A',acknowledged:true,correctionResponse:response}),/Describe/);
+    const result=desk.submit(a,{revision:2,lot:'LOT-A',acknowledged:true,correctionResponse:'The marking reads LOT-A.'});
+    assert.equal(result.status.code,'SUBMITTED');assert.equal(desk.claim(item.id).submission.photo,photo);assert.equal(result.correction.state,'RESPONDED');assert.equal(counters.refund,0);
+  }finally{desk.close();}
 });

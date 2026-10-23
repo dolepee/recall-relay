@@ -110,6 +110,7 @@ export class ClaimDeskCore {
     return missing;
   }
   plan(claim) {
+    if(claim.correction?.state==='REQUESTED')return {status:'REVIEW',reason:'The customer must respond to the requested changes before a fresh evidence review.',purchaseId:claim.purchase.id};
     const policy=this.campaignFor(claim);
     const review=claim.review && claim.review.revision===claim.revision ? {label:{reviewedBy:'local-merchant',revision:claim.revision,submissionHash:claim.review.submissionHash}} : {};
     return planClaim({policy:{...policy,reviewedBy:this.setting('published')==='yes'?'local-merchant':null,settlingMerchantId:claim.purchase.merchantId,skus:[policy.sku],lots:[policy.lot],requiredEvidence:['label']},purchase:{...claim.purchase,lot:claim.submission?.lot||null},evidence:review,now:this.now()});
@@ -118,6 +119,7 @@ export class ClaimDeskCore {
     const row=this.reservation(claim);
     if(row)return {code:row.state,reason:row.state==='COMPLETED'?'PayPal confirmed your refund.':row.state==='PENDING'?'PayPal is processing your refund.':'The merchant is checking the payment result. No additional refund has been sent.'};
     if(!claim.submission)return {code:'AWAITING_CUSTOMER',reason:'Complete your claim below.'};
+    if(claim.correction?.state==='REQUESTED')return {code:'NEEDS_INFORMATION',reason:'The merchant requested a change. Read the message and update your claim below.'};
     if(this.missing(claim).length)return {code:'NEEDS_INFORMATION',reason:'Your claim is saved. Add the missing information below.'};
     if(claim.submission.lot!==this.campaignFor(claim).lot)return {code:'MANUAL',reason:'The lot differs from this campaign. The merchant must review your case manually.'};
     const plan=this.plan(claim);
@@ -126,7 +128,8 @@ export class ClaimDeskCore {
   }
   customerView(claim) {
     const row=this.reservation(claim);
-    return {id:claim.id,order:claim.purchase.id,campaign:this.campaignFor(claim),amountCents:ITEM,currency:'USD',status:this.status(claim),missing:this.missing(claim),revision:claim.revision,submittedAt:claim.submission?.submittedAt||null,submission:claim.submission?{lot:claim.submission.lot,acknowledged:claim.submission.acknowledged,hasPhoto:!!claim.submission.photo,extra:claim.submission.extra||{}}:null,locked:!!row,receipt:row?.state==='COMPLETED'?{refundId:row.refund_id,amountCents:row.cents,currency:row.currency,status:'COMPLETED',destination:'Original PayPal payment'}:null};
+    const correction=claim.correction?(({photoHash,...visible})=>visible)(claim.correction):null;
+    return {id:claim.id,order:claim.purchase.id,campaign:this.campaignFor(claim),amountCents:ITEM,currency:'USD',status:this.status(claim),missing:this.missing(claim),revision:claim.revision,correction,submittedAt:claim.submission?.submittedAt||null,submission:claim.submission?{lot:claim.submission.lot,acknowledged:claim.submission.acknowledged,hasPhoto:!!claim.submission.photo,extra:claim.submission.extra||{}}:null,locked:!!row,receipt:row?.state==='COMPLETED'?{refundId:row.refund_id,amountCents:row.cents,currency:row.currency,status:'COMPLETED',destination:'Original PayPal payment'}:null};
   }
   customerState(access) {return this.customerView(this.authorizeCustomer(access));}
   submit(access,input) {
@@ -140,6 +143,12 @@ export class ClaimDeskCore {
     const fields=this.campaignFor(claim).fields||[];
     if(!extra||Array.isArray(extra)||typeof extra!=='object'||Object.keys(extra).some(id=>!fields.some(f=>f.id===id&&f.kind!=='PHOTO')))throw new Error('Unexpected claim fields. Refresh this claim.');
     for(const field of fields){const v=extra[field.id];if(v!==undefined&&((field.kind==='CONFIRMATION'&&typeof v!=='boolean')||(field.kind==='TEXT'&&(typeof v!=='string'||v.length>500))))throw new Error('Check the source requirement responses; text must be under 500 characters.');}
+    if(claim.correction?.state==='REQUESTED'){
+      const response=typeof input.correctionResponse==='string'?input.correctionResponse.trim():'';
+      if(response.length<3||response.length>1000)throw new Error('Describe your response to the merchant in 3–1,000 characters.');
+      if(claim.correction.replacePhoto&&(!photo||hash(photo)===claim.correction.photoHash))throw new Error('Upload a different photograph to answer the merchant’s request. Your previous photograph is still saved.');
+      claim.correction={...claim.correction,state:'RESPONDED',response,respondedAt:this.now()};
+    }
     claim.revision++;claim.review=null;
     claim.submission={lot,photo,extra,acknowledged:input.acknowledged===true,submittedAt:this.now()};
     this.saveClaim(claim);return this.customerView(claim);
@@ -148,10 +157,22 @@ export class ClaimDeskCore {
   merchantState() {
     return {mode:'real-sandbox',campaign:this.activeCampaign(),published:this.setting('published')==='yes',cases:this.db.prepare('SELECT data FROM claims ORDER BY rowid DESC').all().map(row=>this.merchantView(JSON.parse(row.data))),checkouts:this.db.prepare('SELECT data FROM checkouts ORDER BY rowid DESC').all().map(row=>JSON.parse(row.data))};
   }
+  requestChanges(id,{revision,message,replacePhoto}) {
+    const claim=this.claim(id);
+    if(this.reservation(claim))throw new Error('This claim is already in payment review. Its submitted evidence is locked.');
+    if(!claim.submission||revision!==claim.revision)throw new Error('Refresh and inspect the current submission before requesting a change.');
+    if(claim.correction?.state==='REQUESTED')throw new Error('A change request is already waiting for the customer.');
+    const text=typeof message==='string'?message.trim():'';
+    if(text.length<10||text.length>600||/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text))throw new Error('Explain the needed change in 10–600 characters.');
+    if(typeof replacePhoto!=='boolean')throw new Error('Choose whether a replacement photograph is required.');
+    claim.revision++;claim.review=null;
+    claim.correction={state:'REQUESTED',message:text,replacePhoto,requestedAt:this.now(),revision:claim.revision,photoHash:claim.submission.photo?hash(claim.submission.photo):null};
+    this.saveClaim(claim);return this.merchantView(claim);
+  }
   review(id,{revision,confirmed}) {
     const claim=this.claim(id);
     if(this.reservation(claim))throw new Error('The approved payment has already been recorded.');
-    if(confirmed!==true || revision!==claim.revision || this.missing(claim).length || claim.submission?.lot!==this.campaignFor(claim).lot)throw new Error('Review the current label photo and matching lot before confirming this case.');
+    if(claim.correction?.state==='REQUESTED'||confirmed!==true || revision!==claim.revision || this.missing(claim).length || claim.submission?.lot!==this.campaignFor(claim).lot)throw new Error('Review the current label photo and matching lot before confirming this case.');
     claim.review={revision,submissionHash:hash(JSON.stringify(claim.submission)),reviewedAt:this.now()};
     this.saveClaim(claim);return this.merchantView(claim);
   }

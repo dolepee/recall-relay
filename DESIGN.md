@@ -21,7 +21,7 @@ Use accessible Base UI primitives for interactive controls and native form seman
 
 ## Do's and Don'ts
 
-The existing plan and journal modules distinguish reviewed scope, approval, reserved refunds, unresolved attempts, and provider-confirmed completion. Preserve those states in the interface. Purchase fixture records are invented; imported CPSC notices are public source material and cannot silently become approved policies for those purchases. No public deployment exists. The sponsor has explicitly allowed AG Studio's evaluation watermark during hackathon judging; retain it.
+The existing plan and journal modules distinguish reviewed scope, approval, reserved refunds, unresolved attempts, and provider-confirmed completion. Preserve those states in the interface. Purchase fixture records are invented; imported CPSC notices are public source material and cannot silently become approved policies for those purchases. The hosted sandbox keeps each browser's merchant workspace separate; local launch links remain a separate access method. The sponsor has explicitly allowed AG Studio's evaluation watermark during hackathon judging; retain it.
 
 Keep customer claims separate from merchant controls. The customer page starts with the item and required next action, collects evidence inline, and retains a case status and receipt after submission. Merchant controls require the private local merchant session. Mark sandbox money and invented merchandise beside the transaction. The merchant reviews the exact evidence revision before the payment confirmation dialog. Never render a payment as completed before authenticated provider readback. Preserve the same white, slate and teal direction on both surfaces.
 

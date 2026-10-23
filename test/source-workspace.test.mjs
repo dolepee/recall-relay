@@ -36,6 +36,7 @@ test('merchant can supply a missing source field without AI and cannot introduce
 });
 test('case assistant has a closed view vocabulary and computes its answer from current states',async()=>{
   assert.equal(validateView('WAITING'),'WAITING');
+  assert.equal(validateView('REVIEW'),'REVIEW');
   assert.throws(()=>validateView('WAITING; send_refund()'));
   assert.throws(()=>validateView('{"view":"READY","refund":true}'));
   assert.throws(()=>validateView('{"view":"delete_all"}'));

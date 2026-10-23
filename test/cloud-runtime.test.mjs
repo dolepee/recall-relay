@@ -42,7 +42,7 @@ test('Cloudflare SQL adapter uses real rollback and persists the same core schem
 
 test('hosted AI consumes its budget before inference and reports only actual provider text',async()=>{
   let reserved=false,called=0;
-  const ai=new HostedAI({async run(model,input){assert(reserved);assert.equal(model,hostedModel);assert.equal(input.response_format.type,'json_object');called++;return {choices:[{message:{content:'{"view":"WAITING"}'}}]};}},async()=>{reserved=true;},true);
+  const ai=new HostedAI({async run(model,input){assert(reserved);assert.equal(model,hostedModel);assert.equal(input.response_format.type,'json_object');called++;return {response:{},choices:[{message:{content:'{"view":"WAITING"}'}}]};}},async()=>{reserved=true;},true);
   assert.equal(await ai.generate('System',{question:'Show waiting claims'}),'{"view":"WAITING"}');assert.equal(called,1);
   const blocked=new HostedAI({run(){called++;}},async()=>{throw new Error('quota');},true);
   await assert.rejects(()=>blocked.generate('System',{}),/quota/);assert.equal(called,1);

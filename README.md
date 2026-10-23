@@ -11,8 +11,9 @@ relationship or register a real recall claim.
 ## Browser hosting
 
 The Cloudflare build runs AI on the server and works in a normal browser;
-visitors do not need a Mac or a local model. Deployment configuration is in
-`cloud/`. The intended public hostname is `recall-relay.dolepee.com`.
+visitors do not need a Mac or a local model. The hosted interface is at
+[recall-relay.dolepee.com](https://recall-relay.dolepee.com).
+Backend configuration is in `cloud/`; Pages uses the root `wrangler.jsonc`.
 
 Each browser receives an isolated sandbox merchant workspace in an HttpOnly
 cookie. Keep that browser session: clearing its cookie loses access to its desk.

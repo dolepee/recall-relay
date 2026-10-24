@@ -49,6 +49,10 @@ try{
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+'x'.repeat(43)})).status,401);
   const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp0kAAAAASUVORK5CYII=';
   const submission=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:0,lot:'LOT-A',photo:image,acknowledged:true}});assert.equal(submission.status,200);
+  const summaries=await call('/api/merchant/state',{cookie:alice});assert.equal(summaries.value.cases[0].photo,undefined);assert(!JSON.stringify(summaries.value).includes(image));
+  const evidence=await action('photograph',{id:checkout.value.id,revision:1});assert.equal(evidence.status,200);assert.equal(evidence.value.photo,image);
+  assert.equal((await call('/api/merchant/photograph',{cookie:bob,body:{id:checkout.value.id,revision:1}})).status,400);
+  assert.equal((await action('photograph',{id:checkout.value.id,revision:0})).status,400);
   const cross=await call('/api/merchant/review',{cookie:bob,body:{id:checkout.value.id,revision:1,confirmed:true}});assert.equal(cross.status,400);
   const requested=await action('request-changes',{id:checkout.value.id,revision:1,message:'Please clarify the product label in your response.',replacePhoto:false});assert.equal(requested.status,200);
   let correction=await call('/api/claim/state'+query,{authorization:'Bearer '+token});assert.equal(correction.value.correction.state,'REQUESTED');assert.equal(correction.value.correction.photoHash,undefined);

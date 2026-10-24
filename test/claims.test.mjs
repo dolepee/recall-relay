@@ -197,3 +197,21 @@ test('clarification requests preserve the photo, require a response, and reject 
     assert.equal(result.status.code,'SUBMITTED');assert.equal(desk.claim(item.id).submission.photo,photo);assert.equal(result.correction.state,'RESPONDED');assert.equal(counters.refund,0);
   }finally{desk.close();}
 });
+
+test('merchant summaries omit photographs while evidence reads bind to the current authorized revision',async()=>{
+  const {desk}=setup();try{
+    const item=await create(desk),a=access(item);
+    desk.submit(a,{revision:0,lot:'LOT-A',acknowledged:true,photo});
+    const summary=desk.merchantState().cases[0];
+    assert.equal(summary.photo,undefined);assert.equal(summary.submission.hasPhoto,true);
+    assert.equal(JSON.stringify(desk.merchantState()).includes(photo),false);
+    assert.deepEqual(desk.photograph(item.id,{revision:1}),{id:item.id,revision:1,photo});
+    assert.throws(()=>desk.photograph(item.id,{revision:0}),/changed/);
+    assert.throws(()=>desk.photograph('another-claim',{revision:1}),/not found/);
+    let output;
+    const handler=claimRoutes(desk,{origin:'http://127.0.0.1:4318',json:(_res,status,value)=>{output={status,value};},body:async req=>req.input});
+    const req={method:'POST',headers:{origin:'http://127.0.0.1:4318','content-type':'application/json',authorization:'Bearer '+a},input:{id:item.id,revision:1}};
+    await handler(req,{setHeader(){}},'/api/merchant/photograph');assert.equal(output.status,401);
+    req.headers.authorization='Bearer '+desk.merchantKey();await handler(req,{setHeader(){}},'/api/merchant/photograph');assert.equal(output.status,200);assert.equal(output.value.photo,photo);
+  }finally{desk.close();}
+});

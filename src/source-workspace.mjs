@@ -21,7 +21,10 @@ export class SourceWorkspace {
   constructor(db,{loadSource=fetchRecallDraft,ai}={}){this.db=db;this.loadSource=loadSource;this.ai=ai;db.exec('CREATE TABLE IF NOT EXISTS source_setups (id TEXT PRIMARY KEY, data TEXT NOT NULL)');}
   save(row){this.db.prepare('INSERT INTO source_setups VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(row.id,JSON.stringify(row));return row;}
   get(id){const r=this.db.prepare('SELECT data FROM source_setups WHERE id=?').get(id);if(!r)throw new Error('Notice setup not found.');return JSON.parse(r.data);}
-  state(){return {ai:this.ai.status(),setups:this.db.prepare('SELECT data FROM source_setups ORDER BY rowid DESC LIMIT 20').all().map(r=>JSON.parse(r.data))};}
+  // Availability is reported from the admission counters when the assistant can supply them, so the
+  // interface never offers a control whose allowance is already gone.
+  availability(){return typeof this.ai.availability==='function'?this.ai.availability():this.ai.status();}
+  async state(){return {ai:await this.availability(),setups:this.db.prepare('SELECT data FROM source_setups ORDER BY rowid DESC LIMIT 20').all().map(r=>JSON.parse(r.data))};}
   async import(number){const source=await this.loadSource(number);return this.save({id:randomUUID(),revision:1,source,suggestion:null,review:null,createdAt:new Date().toISOString()});}
   async suggest(id,revision){
     const row=this.get(id);if(row.revision!==revision)throw new Error('This notice changed. Reload before drafting.');

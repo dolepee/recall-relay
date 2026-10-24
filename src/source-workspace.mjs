@@ -31,6 +31,17 @@ export class SourceWorkspace {
     const raw=await this.ai.generate(sourcePrompt,{title:row.source.title,remedies:row.source.remedies});
     const suggestion=validateSourceSuggestion(raw,row.source);
     if(this.get(id).revision!==revision)throw new Error('This notice changed while drafting. No suggestion was applied.');
+    const previous=row.suggestion?.requirements||[];
+    // Assistant regeneration cannot replace a merchant's exact-source selection,
+    // even when it suggests a different kind for the same quotation.
+    const requirements=previous.filter(f=>f.origin==='MERCHANT_SOURCE_SELECTION');
+    for(const field of suggestion.requirements){
+      if(requirements.some(f=>f.quote===field.quote))continue;
+      const unchanged=previous.find(f=>f.quote===field.quote&&f.kind===field.kind);
+      requirements.push(unchanged||{...field,id:row.suggestion?randomUUID():field.id});
+    }
+    if(requirements.length>6)throw new Error('The draft plus your selected requirements exceeds six fields. No changes were saved; keep your fields and review them manually.');
+    suggestion.requirements=requirements;
     return this.save({...row,revision:row.revision+1,suggestion:{...suggestion,model:this.ai.status().model,createdAt:new Date().toISOString()},review:null});
   }
   addField(id,{revision,kind,quote}){

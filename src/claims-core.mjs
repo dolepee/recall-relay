@@ -117,7 +117,7 @@ export class ClaimDeskCore {
   }
   status(claim) {
     const row=this.reservation(claim);
-    if(row)return {code:row.state,reason:row.state==='COMPLETED'?'PayPal confirmed your refund.':row.state==='PENDING'?'PayPal is processing your refund.':'The merchant is checking the payment result. No additional refund has been sent.'};
+    if(row)return {code:row.state,reason:row.state==='COMPLETED'?'PayPal confirmed your refund.':row.state==='PENDING'?'PayPal is processing your refund.':row.state==='RESERVED'?'The refund is reserved but has not been sent. The merchant can resume it after checking the original payment.':'The merchant is checking the payment result. No additional refund has been sent.'};
     if(!claim.submission)return {code:'AWAITING_CUSTOMER',reason:'Complete your claim below.'};
     if(claim.correction?.state==='REQUESTED')return {code:'NEEDS_INFORMATION',reason:'The merchant requested a change. Read the message and update your claim below.'};
     if(this.missing(claim).length)return {code:'NEEDS_INFORMATION',reason:'Your claim is saved. Add the missing information below.'};
@@ -187,14 +187,17 @@ export class ClaimDeskCore {
     let claim=this.claim(id),previous=this.reservation(claim);
     if(previous) {
       if(previous.digest!==digest)throw new Error('Approval does not match the recorded refund.');
-      return this.merchantView(claim);
+      if(previous.state!=='RESERVED')return this.merchantView(claim);
     }
     const provider=await this.provider();
     const capture=await provider.captureDetails(claim.purchase.captureId);
     if(capture.id!==claim.purchase.captureId || capture.status!=='COMPLETED' || usdCents(capture.amount)!==TOTAL)throw new Error('The capture changed or has another refund. Reconciliation is required.');
     claim=this.claim(id);
     const row=this.journal.reserve(this.plan(claim),{actor:'local-merchant',digest},TOTAL);
-    if(row.replay)return this.merchantView(claim);
+    // RESERVED is durable proof that begin has never won. Revalidate the
+    // current capture and exact approval above before resuming the same request.
+    // There is no await between reserve's replay check and begin's atomic CAS.
+    if(row.state!=='RESERVED')return this.merchantView(claim);
     const attempt=this.journal.begin(row.request_id);
     const response=await provider.refund(attempt);
     if(typeof response.id!=='string' || !/^[A-Za-z0-9_-]{1,128}$/.test(response.id))throw new Error('The refund result is unresolved. No repeat refund will be sent.');

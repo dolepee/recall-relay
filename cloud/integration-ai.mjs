@@ -13,7 +13,7 @@ import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {workspaceHash} from '../src/cloud-routing.mjs';
-import {dayResetInstant,burstBucket} from '../src/cloud-budget.mjs';
+import {DEFAULT_BUDGET_LIMITS,dayResetInstant,burstBucket} from '../src/cloud-budget.mjs';
 
 // Counts every assertion so the run reports exact numbers.
 let assertions=0;
@@ -38,6 +38,7 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 let script=[],inferenceCalls=0,unexpected=0,reference=null,captured=false,inFlight=0,peakInFlight=0;
 const usableView={mode:'text',result:{response:'{"view":"WAITING"}'}};
 const noUsableText={mode:'text',result:{choices:[{finish_reason:'length',message:{}}]}};
+const emptyResponse={mode:'text',result:{response:''}};
 const thrownInference={mode:'throw',message:'Injected inference failure.'};
 const scripted=(...steps)=>script.push(...steps);
 const nextStep=()=>script.length?script.shift():usableView;
@@ -90,9 +91,6 @@ try{
     for(const row of rows)map[`${row.day}|${row.scope}`]=row.count;
     return map;
   };
-  // A refunded admission leaves its counter rows at zero, so "nothing was consumed" is compared on the
-  // effective counts: a row at zero has consumed nothing, every other value must be identical.
-  const live=async()=>Object.fromEntries(Object.entries(await counters()).filter(([,count])=>count>0));
   // Deterministic clock, adjustable limits and a clean counter table. Only the clock, the limits and
   // the seed rows are set here; every admission in the tests below is a real request.
   async function configure({clock=DAY1,limits}={}){
@@ -234,53 +232,70 @@ try{
     A.equal(Object.keys(rows).filter(key=>key.startsWith(DAY1_KEY+'|')).length,0); // both scopes pruned together
   });
 
-  // 6. Refund behaviour: refund on no usable text, keep on usable text, fail closed otherwise.
-  await area('refund behaviour: no usable text refunds idempotently, usable text stays consumed, retries fail closed',async()=>{
-    await configure({limits:{aiPerWorkspacePerDay:20,aiGlobalPerDay:20,aiPerWorkspacePerBurst:20,aiGlobalPerBurst:20}});
-    const d=await desk();
-    const before=await live();
-    scripted(noUsableText);
-    const empty=await assist(d);
-    A.equal(empty.status,400,JSON.stringify(empty));
-    A.match(empty.value.error,/no usable text/);
-    A.deepEqual(await live(),before); // the consumed unit is refunded
-    // The refund itself is idempotent: a repeated refund of the same admission is a no-op.
-    const admission=(await control('admit',{workspace:d.id})).value.receipt;
-    A.equal(admission.admitted,true);
-    A.equal((await counters())[`${DAY1_KEY}|ai-workspace-${d.id}`],1);
-    A.equal((await control('refund',{receipt:admission})).value.refunded,true);
-    const refunded=await counters();
-    A.equal(refunded[`${DAY1_KEY}|ai-workspace-${d.id}`]??0,0);
-    A.equal(refunded[`${DAY1_KEY}|ai-total`]??0,0);
-    A.equal((await control('refund',{receipt:admission})).value.refunded,false);
-    A.deepEqual(await counters(),refunded);
-    // A generation that yields usable text leaves its unit consumed.
-    scripted(usableView);
-    A.equal((await assist(d)).status,200);
-    const consumed=await counters();
-    A.equal(consumed[`${DAY1_KEY}|ai-workspace-${d.id}`],1);
-    A.equal(consumed[`${DAY1_KEY}|ai-total`],1);
-    // A plain retry of a committed request is admitted again: it never becomes free.
-    scripted(usableView);
-    A.equal((await assist(d)).status,200);
-    A.equal((await counters())[`${DAY1_KEY}|ai-total`],2);
-    // An inference that throws also refunds, so a failed provider call costs nothing.
-    const beforeThrow=await live();
-    scripted(thrownInference);
-    const failed=await assist(d);
-    A.equal(failed.status,400,JSON.stringify(failed));
-    A.match(failed.value.error,/could not complete this request/);
-    A.deepEqual(await live(),beforeThrow);
-    // A refund presented after the UTC day moved fails closed instead of guessing.
-    const carried=(await control('admit',{workspace:d.id})).value.receipt;
-    A.equal(carried.admitted,true);
-    A.equal((await control('clock',{value:DAY2})).status,200);
-    A.equal((await control('refund',{receipt:carried})).value.refunded,false);
-    A.equal((await counters())[`${DAY2_KEY}|ai-total`]??0,0);
-    A.equal((await control('clock',{value:DAY1})).status,200);
+  // 6. A dispatched provider attempt is never returned, whatever shape the response takes: the
+  // counters stay spent, the burst ceiling bounds the workspace, and the refusal carries the server's
+  // own reset instant until the next window admits again.
+  await area('dispatched attempts are never refunded and stay bounded for truncated, thrown and empty responses',async()=>{
+    const bucket=burstBucket(DAY1,60),burstReset=new Date((bucket+1)*60000).toISOString();
+    const shapes=[
+      {name:'truncated response',step:noUsableText},
+      {name:'thrown inference error',step:thrownInference},
+      {name:'empty response',step:emptyResponse},
+    ];
+    for(const shape of shapes){
+      await configure({limits:null}); // a fresh workspace, a clean counter table and the shipped defaults
+      const d=await desk();
+      scripted(...Array.from({length:100},()=>shape.step));
+      const before=inferenceCalls;
+      let refused=0;
+      for(let i=0;i<100;i++){const outcome=await assist(d);if(outcome.value?.reason==='burst')refused++;}
+      A.equal(refused,98,`${shape.name}: requests refused before dispatch`);
+      A.equal(inferenceCalls-before,2,`${shape.name}: requests that reached the provider`);
+      const rows=await counters();
+      A.equal(rows[`${DAY1_KEY}|ai-workspace-${d.id}`],2,`${shape.name}: per workspace daily counter`);
+      A.equal(rows[`${DAY1_KEY}|ai-total`],2,`${shape.name}: global daily counter`);
+      A.equal(rows[`${DAY1_KEY}|ai-burst-workspace-${d.id}#${bucket}`],2,`${shape.name}: per workspace burst counter`);
+      A.equal(rows[`${DAY1_KEY}|ai-burst-total#${bucket}`],2,`${shape.name}: global burst counter`);
+      const view=await sources(d);
+      A.equal(view.value.ai.available,false,`${shape.name}: availability after the burst ceiling`);
+      A.equal(view.value.ai.reason,'burst');
+      A.equal(view.value.ai.resetAt,burstReset,`${shape.name}: server supplied reset instant`);
+      // The next window admits again, and the daily counters stay spent.
+      A.equal((await control('clock',{value:DAY1+61000})).status,200);
+      A.equal((await sources(d)).value.ai.available,true,`${shape.name}: availability recovers`);
+      const dispatched=inferenceCalls;
+      await assist(d);
+      A.equal(inferenceCalls-dispatched,1,`${shape.name}: one further request is admitted`);
+      A.equal((await counters())[`${DAY1_KEY}|ai-total`],3);
+    }
   });
 
-  // 7. Burst behaviour at both scopes, including cookie churn.
+  // 7. The daily ceilings bind dispatched attempts: the last unit of both ceilings is spent by a real
+  // generation, and the next attempt is refused before the provider is ever contacted.
+  await area('the daily ceilings bound dispatched attempts',async()=>{
+    A.deepEqual(DEFAULT_BUDGET_LIMITS,{workspacesPerDay:200,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
+    await configure({limits:null});
+    const d=await desk();
+    const perWorkspace=DEFAULT_BUDGET_LIMITS.aiPerWorkspacePerDay,global=DEFAULT_BUDGET_LIMITS.aiGlobalPerDay;
+    A.equal((await control('seed',{day:DAY1_KEY,scope:`ai-workspace-${d.id}`,count:perWorkspace-1})).status,200);
+    A.equal((await control('seed',{day:DAY1_KEY,scope:'ai-total',count:global-1})).status,200);
+    scripted(noUsableText);
+    const before=inferenceCalls;
+    await assist(d);
+    A.equal(inferenceCalls-before,1); // the final unit of both ceilings is consumed by a dispatched attempt
+    const spent=await counters();
+    A.equal(spent[`${DAY1_KEY}|ai-workspace-${d.id}`],perWorkspace);
+    A.equal(spent[`${DAY1_KEY}|ai-total`],global);
+    const refused=await assist(d);
+    A.equal(refused.status,400,JSON.stringify(refused));
+    A.equal(refused.value.reason,'daily');
+    A.equal(refused.value.resetAt,dayResetInstant(DAY1_KEY));
+    A.match(refused.value.error,/used for today/);
+    A.equal(inferenceCalls-before,1); // refused before dispatch
+    A.deepEqual(await counters(),spent);
+  });
+
+  // 8. Burst behaviour at both scopes, including cookie churn.
   await area('burst behaviour: the per workspace bucket is defeated by cookie churn, the shared bucket is not',async()=>{
     await configure({limits:{aiPerWorkspacePerDay:50,aiGlobalPerDay:50,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5}});
     const bucket=burstBucket(DAY1,60);
@@ -311,7 +326,7 @@ try{
     A.equal((await counters())[`${DAY1_KEY}|ai-burst-total#${bucket+1}`],1);
   });
 
-  // 8. Assistant unavailability never blocks a non-AI action.
+  // 9. Assistant unavailability never blocks a non-AI action.
   await area('assistant unavailability never blocks a non-AI merchant action',async()=>{
     await configure({limits:{aiPerWorkspacePerDay:1,aiGlobalPerDay:1,aiPerWorkspacePerBurst:10,aiGlobalPerBurst:10}});
     const d=await desk();
@@ -358,6 +373,6 @@ try{
     assistant:'Injected test double; no model call',
     areas:areas.length,assertions,inferenceCalls,peakConcurrentGenerations:peakInFlight,
     crossWorkspaceIsolation:true,globalExhaustion:true,noPartialConsumption:true,racingRequests:true,
-    utcDayBoundary:true,refundBehaviour:true,burstBothScopes:true,nonAIActionsUnaffected:true,
+    utcDayBoundary:true,neverRefundedAcrossShapes:true,dailyCeilingsBind:true,burstBothScopes:true,nonAIActionsUnaffected:true,
   }));
 }finally{await mf.dispose();await rm(state,{recursive:true,force:true});}

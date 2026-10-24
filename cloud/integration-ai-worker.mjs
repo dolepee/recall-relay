@@ -45,7 +45,6 @@ export class UsageBudget extends Budget {
   }
   clear(){this.core.storage.sql.exec('DELETE FROM daily_budget');return true;}
   counters(){return this.core.storage.sql.exec('SELECT day,scope,count FROM daily_budget ORDER BY day,scope').toArray();}
-  admitForTest(workspace){return this.core.admitAI(workspace);}
 }
 
 export class RecallWorkspace extends Workspace {
@@ -63,7 +62,6 @@ export default {
         case 'seed':await budget.seed(input.day,input.scope,input.count);return Response.json({ok:true});
         case 'clear':await budget.clear();return Response.json({ok:true});
         case 'counters':return Response.json({rows:await budget.counters()});
-        case 'admit':return Response.json({receipt:await budget.admitForTest(input.workspace)});
         default:return Response.json({error:'Unknown control operation.'},{status:400});
       }
     }

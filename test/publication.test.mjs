@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {campaignIdFor,setupCampaignId,publicationState,publicationNotice,activeScenarioLabel} from '../src/publication.mjs';
+import {campaignIdFor,setupCampaignId,publicationState,publicationNotice,activeScenarioLabel,focusAfterPublication} from '../src/publication.mjs';
 
 const row=(recallNumber,digest,publishedCampaign)=>({source:{recallNumber},review:{digest},...(publishedCampaign?{publishedCampaign}:{})});
 const digest=n=>String(n).repeat(64).slice(0,64);
@@ -44,6 +44,19 @@ test('inactive, unpublished and draft setups never present as currently publishe
   // No scenario active at all: a historical record is still not a current publication.
   assert.equal(publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'}).code,'PUBLISHED_EARLIER');
   assert.equal(publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'}).active,false);
+});
+
+test('publishing moves focus to the published heading, and no other action moves focus',()=>{
+  const active=activeFor(A,'FIXTURE-A','LOT-A');
+  const published=publicationState(A,active,{sku:'FIXTURE-A',lot:'LOT-A'});
+  assert.equal(published.active,true);
+  // Publishing removes the control that was used, so focus follows the outcome.
+  assert.equal(focusAfterPublication('source-activate',published),'PUBLISHED_HEADING');
+  // Importing, drafting, adding a field or reviewing leaves the current control in place.
+  for(const action of ['source-import','source-suggest','source-add','source-review'])assert.equal(focusAfterPublication(action,published),null,action);
+  // A publication that did not make this setup active, and a missing state, must not steal focus.
+  assert.equal(focusAfterPublication('source-activate',publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'})),null);
+  assert.equal(focusAfterPublication('source-activate',null),null);
 });
 
 test('historical wording never reads as a present-tense publication success',()=>{

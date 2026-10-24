@@ -15,6 +15,11 @@ export function publicationState(row,active,{sku,lot}={}){
   return {code:activeNow?'ACTIVE':publishedBefore?'PUBLISHED_EARLIER':'NOT_PUBLISHED',active:activeNow,publishedBefore,sameFields,campaignId};
 }
 export function activeScenarioLabel(active){return active?`${active.product||active.title} · ${active.sku} · ${active.lot}`:null;}
+// Publishing replaces the section that held the control the merchant used, so the interface has to
+// move focus somewhere stable instead of leaving it on the document. Nothing else moves focus.
+export function focusAfterPublication(action,publication){
+  return action==='source-activate'&&publication?.active===true?'PUBLISHED_HEADING':null;
+}
 // Historical wording: it must never read as a present-tense success.
 export function publicationNotice(publication,active){
   const label=activeScenarioLabel(active);

@@ -157,7 +157,12 @@ export class ClaimDeskCore {
   }
   merchantView(claim) {return {...this.customerView(claim),plan:this.plan(claim),review:claim.review,photo:claim.submission?.photo||null,claimUrl:`/claim#${claim.access}`,payment:this.reservation(claim)};}
   merchantState() {
-    return {mode:'real-sandbox',campaign:this.activeCampaign(),published:this.setting('published')==='yes',cases:this.db.prepare('SELECT data FROM claims ORDER BY rowid DESC').all().map(row=>this.merchantView(JSON.parse(row.data))),checkouts:this.db.prepare('SELECT data FROM checkouts ORDER BY rowid DESC').all().map(row=>JSON.parse(row.data))};
+    return {mode:'real-sandbox',campaign:this.activeCampaign(),published:this.setting('published')==='yes',cases:this.db.prepare('SELECT data FROM claims ORDER BY rowid DESC').all().map(row=>{const {photo,...summary}=this.merchantView(JSON.parse(row.data));return summary;}),checkouts:this.db.prepare('SELECT data FROM checkouts ORDER BY rowid DESC').all().map(row=>JSON.parse(row.data))};
+  }
+  photograph(id,{revision}) {
+    const claim=this.claim(id);
+    if(revision!==claim.revision)throw new Error('This claim changed. Refresh the claim list before reviewing its photograph.');
+    return {id:claim.id,revision:claim.revision,photo:claim.submission?.photo||null};
   }
   requestChanges(id,{revision,message,replacePhoto}) {
     const claim=this.claim(id);

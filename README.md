@@ -124,10 +124,14 @@ The local server does not fall back to hosted inference.
    PayPal readback verifies refund status, amount, currency and original capture.
 
 The desktop merchant workspace uses AG Studio's Agent Framework, a custom
-runner, case-review widget and view-only tool. Ask which customers owe
+runner, case-review widget and view-only tool. Its fixed layout opens in review
+mode. Open **Claim guide** when needed; **Arrange workspace** exposes optional
+layout editing, without changing payment authority. Ask which customers owe
 information or which claims are ready for review. The model selects a closed
 view; counts and explanations come from stored states. It has no payment,
-evidence-review or record-edit tool. Mobile uses the ordinary case controls.
+evidence-review or record-edit tool. Mobile uses the ordinary case controls. Claim-list responses omit full
+photographs; selecting a claim retrieves only that revision’s image through an
+authorized endpoint. Evidence confirmation stays disabled until it displays.
 
 ## Correctness and scope
 

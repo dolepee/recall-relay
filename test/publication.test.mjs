@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {campaignIdFor,setupCampaignId,publicationState,publicationNotice,activeScenarioLabel} from '../src/publication.mjs';
+
+const row=(recallNumber,digest,publishedCampaign)=>({source:{recallNumber},review:{digest},...(publishedCampaign?{publishedCampaign}:{})});
+const digest=n=>String(n).repeat(64).slice(0,64);
+const A=row('27026',digest('a'),{id:campaignIdFor('27026',digest('a')),sku:'FIXTURE-A',lot:'LOT-A'});
+const B=row('27027',digest('b'),{id:campaignIdFor('27027',digest('b')),sku:'FIXTURE-B',lot:'LOT-B'});
+const activeFor=(r,sku,lot)=>({id:setupCampaignId(r),sku,lot,product:'Fixture product',title:'Sandbox scenario'});
+
+test('a previously published setup is not currently published once another scenario is active',()=>{
+  const active=activeFor(B,'FIXTURE-B','LOT-B');
+  const state=publicationState(A,active,{sku:'FIXTURE-A',lot:'LOT-A'});
+  assert.equal(state.active,false);
+  assert.equal(state.publishedBefore,true);
+  assert.equal(state.code,'PUBLISHED_EARLIER');
+  assert.equal(state.sameFields,false);
+  // The setup keeps its historical record; only the presentation is derived from the active campaign.
+  assert.equal(A.publishedCampaign.id,campaignIdFor('27026',digest('a')));
+  assert.equal(publicationState(B,active,{sku:'FIXTURE-B',lot:'LOT-B'}).code,'ACTIVE');
+});
+
+test('a matching campaign id is not enough: the active product and lot must match too',()=>{
+  // Same recall number and same reviewed digest, so the id is identical, but the active
+  // scenario carries a different SKU and lot.
+  const active=activeFor(A,'FIXTURE-A2','LOT-A2');
+  for(const selection of [{sku:'FIXTURE-A',lot:'LOT-A'},{sku:'FIXTURE-A2',lot:'LOT-A'},{sku:'FIXTURE-A',lot:'LOT-A2'}]){
+    const state=publicationState(A,active,selection);
+    assert.equal(state.campaignId,active.id,JSON.stringify(selection));
+    assert.equal(state.active,false,JSON.stringify(selection));
+    assert.equal(state.sameFields,true,JSON.stringify(selection));
+    assert.notEqual(state.code,'ACTIVE');
+  }
+  assert.equal(publicationState(A,active,{sku:'FIXTURE-A2',lot:'LOT-A2'}).code,'ACTIVE');
+  // An edited review changes the id, so the saved setup no longer matches the active scenario.
+  const edited={...A,review:{digest:digest('c')}};
+  assert.equal(publicationState(edited,active,{sku:'FIXTURE-A2',lot:'LOT-A2'}).active,false);
+});
+
+test('inactive, unpublished and draft setups never present as currently published',()=>{
+  const active=activeFor(B,'FIXTURE-B','LOT-B');
+  assert.equal(publicationState({...A,publishedCampaign:undefined},active,{sku:'FIXTURE-A',lot:'LOT-A'}).code,'NOT_PUBLISHED');
+  assert.equal(publicationState({...A,review:null,publishedCampaign:A.publishedCampaign},active,{sku:'FIXTURE-A',lot:'LOT-A'}).code,'NOT_REVIEWED');
+  // No scenario active at all: a historical record is still not a current publication.
+  assert.equal(publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'}).code,'PUBLISHED_EARLIER');
+  assert.equal(publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'}).active,false);
+});
+
+test('historical wording never reads as a present-tense publication success',()=>{
+  const active=activeFor(B,'FIXTURE-B','LOT-B');
+  const earlier=publicationNotice(publicationState(A,active,{sku:'FIXTURE-A',lot:'LOT-A'}),active);
+  assert.match(earlier,/published earlier/);
+  assert.match(earlier,/not the active sandbox scenario/);
+  assert.match(earlier,/Active now: Fixture product · FIXTURE-B · LOT-B/);
+  assert.doesNotMatch(earlier,/Sandbox scenario published\./);
+  const sameFields=publicationNotice(publicationState(A,activeFor(A,'FIXTURE-A2','LOT-A2'),{sku:'FIXTURE-A',lot:'LOT-A'}),activeFor(A,'FIXTURE-A2','LOT-A2'));
+  assert.match(sameFields,/different test product/);
+  assert.doesNotMatch(sameFields,/^Sandbox scenario published/);
+  assert.match(publicationNotice(publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'}),null),/No sandbox scenario is active/);
+  assert.equal(activeScenarioLabel(active),'Fixture product · FIXTURE-B · LOT-B');
+});

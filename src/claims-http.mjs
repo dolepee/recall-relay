@@ -20,7 +20,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
         const cookie=/(?:^|;\s*)rr_merchant=([\w-]+)/.exec(req.headers.cookie||'')?.[1];
         if(!desk.authenticateMerchant(cookie||bearer)){json(res,401,{error:'Open the private local merchant launch link to access this desk.'});return true;}
         if(path==='/api/merchant/state' && req.method==='GET'){json(res,200,desk.merchantState());return true;}
-        if(path==='/api/merchant/sources' && req.method==='GET'){json(res,200,sourceWorkspace?await sourceWorkspace.state():{ai:{available:false},setups:[]});return true;}
+        if(path==='/api/merchant/sources' && req.method==='GET'){json(res,200,sourceWorkspace?await sourceWorkspace.state(desk):{ai:{available:false},activeCampaign:null,setups:[]});return true;}
         if(req.method!=='POST'){json(res,405,{error:'Use the action button to continue.'});return true;}
         const input=await body(req);
         const actions={

@@ -11,7 +11,8 @@
 // Invariant for every admission: a request may perform an AI generation only if, within one serialized
 // storage transaction, both the per workspace daily counter and the global daily counter were below
 // their existing ceilings and both were incremented together; if either ceiling is reached, neither
-// counter changes.
+// counter changes. An admitted request is then consumed permanently for its day and burst window: the
+// allowance is never returned, because a dispatched provider attempt cannot be restored.
 
 export const DEFAULT_BUDGET_LIMITS=Object.freeze({
   workspacesPerDay:200,
@@ -24,7 +25,6 @@ export const DEFAULT_BUDGET_LIMITS=Object.freeze({
 
 const dayPattern=/^\d{4}-\d{2}-\d{2}$/;
 const BURST_PREFIX='ai-burst-';
-const ADMISSION_PREFIX='ai-admit-';
 
 // The UTC day key is derived from one clock reading so every scope in a transaction agrees.
 export function utcDay(now){
@@ -90,23 +90,7 @@ export class UsageBudgetCore {
       for(const {scope,limit} of burstScopes)if(this.count(day,scope)>=limit)return {admitted:false,reason:'burst',scope,resetAt:burstResetInstant(bucket,limits.burstWindowSeconds)};
       const admissionId=crypto.randomUUID(),scopes=[...daily,...burstScopes].map(entry=>entry.scope);
       for(const scope of scopes)this.bump(day,scope);
-      // The marker row is the durable proof that this admission consumed a unit. Its removal is the
-      // refund, so a repeated refund finds no row and cannot decrement twice.
-      this.bump(day,ADMISSION_PREFIX+admissionId);
       return {admitted:true,admissionId,day,resetAt:dayResetInstant(day),scopes};
-    });
-  }
-  // Idempotent compensation for an admission whose generation produced no usable text. Fail closed:
-  // an admission from another UTC day, or one already refunded, leaves the unit consumed.
-  refund(receipt){
-    if(!receipt||typeof receipt.admissionId!=='string'||!Array.isArray(receipt.scopes))return false;
-    return this.storage.transactionSync(()=>{
-      const day=utcDay(Number(this.clock()));
-      if(day===null||receipt.day!==day)return false;
-      const marker=this.storage.sql.exec('DELETE FROM daily_budget WHERE day=? AND scope=?',day,ADMISSION_PREFIX+receipt.admissionId);
-      if((marker.rowsWritten||0)!==1)return false;
-      for(const scope of receipt.scopes)this.storage.sql.exec('UPDATE daily_budget SET count=MAX(count-1,0) WHERE day=? AND scope=?',day,scope);
-      return true;
     });
   }
   // Read only: what `admit` would decide right now, without consuming anything.

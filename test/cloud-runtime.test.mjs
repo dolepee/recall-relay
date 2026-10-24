@@ -132,21 +132,16 @@ test('burst pacing refuses the third request in a window without touching the da
   assert.equal(core.aiAllowance('w4').available,true);sqlite.close();
 });
 
-test('a refund is idempotent and fails closed across the day boundary',()=>{
+test('an admitted request stays consumed and no refund path exists across the day boundary',()=>{
   const {core,sqlite,clock,count}=budgetFixture();
   const receipt=core.admitAI('w1');assert.equal(receipt.admitted,true);
   assert.equal(count(DAY1_KEY,'ai-total'),1);assert.equal(count(DAY1_KEY,'ai-workspace-w1'),1);
-  assert.equal(core.refund(receipt),true);
-  assert.equal(count(DAY1_KEY,'ai-total'),0);assert.equal(count(DAY1_KEY,'ai-workspace-w1'),0);
-  assert.equal(core.refund(receipt),false);
-  assert.equal(count(DAY1_KEY,'ai-total'),0);assert.equal(count(DAY1_KEY,'ai-workspace-w1'),0);
-  // A forged or already refunded receipt never decrements anything.
-  assert.equal(core.refund({admissionId:'invented',day:DAY1_KEY,scopes:['ai-total','ai-workspace-w1']}),false);
-  assert.equal(core.refund(null),false);
-  // An admission committed on the previous UTC day stays consumed: fail closed, never guess.
+  // There is no compensation: a dispatched attempt cannot be restored, so the unit stays consumed.
+  assert.equal(typeof core.refund,'undefined');
+  assert.equal(count(DAY1_KEY,'ai-total'),1);assert.equal(count(DAY1_KEY,'ai-workspace-w1'),1);
+  // An admission committed on the previous UTC day also stays consumed: nothing is ever returned.
   const carried=core.admitAI('w1');assert.equal(carried.admitted,true);
   clock.value=Date.UTC(2026,9,25,0,0,30);
-  assert.equal(core.refund(carried),false);
   assert.equal(count('2026-10-25','ai-total'),0);assert.equal(count('2026-10-25','ai-workspace-w1'),0);
   sqlite.close();
 });
@@ -187,23 +182,35 @@ test('workspace creation counts and registers inside one transaction',()=>{
   sqlite.close();full.sqlite.close();
 });
 
-test('hosted AI refunds only a generation that produced no usable text',async()=>{
-  const receipt={admitted:true,admissionId:'admit-1',day:DAY1_KEY,resetAt:dayResetInstant(DAY1_KEY),scopes:['ai-workspace-w1','ai-total']};
-  const refunds=[];
-  const failing=new HostedAI({async run(){throw new Error('provider down');}},async()=>receipt,true,{refund:async value=>{refunds.push(value);return true;}});
-  await assert.rejects(()=>failing.generate('System',{}),/could not complete this request/);
-  assert.equal(refunds.length,1);assert.equal(refunds[0],receipt);
-  const empty=new HostedAI({async run(){return {response:{},choices:[{finish_reason:'length',message:{}}]};}},async()=>receipt,true,{refund:async value=>{refunds.push(value);return true;}});
-  await assert.rejects(()=>empty.generate('System',{}),/no usable text/);
-  assert.equal(refunds.length,2);
-  const usable=new HostedAI({async run(){return {response:'{"view":"WAITING"}'};}},async()=>receipt,true,{refund:async value=>{refunds.push(value);return true;}});
-  assert.equal(await usable.generate('System',{}),'{"view":"WAITING"}');
-  assert.equal(refunds.length,2);
+test('a dispatched generation is never refunded: failed and unusable output stay consumed',async()=>{
+  const limits={aiPerWorkspacePerDay:3,aiGlobalPerDay:10,aiPerWorkspacePerBurst:10,aiGlobalPerBurst:10};
+  const {core,sqlite,count}=budgetFixture({limits});
+  const consumed=()=>[count(DAY1_KEY,'ai-workspace-w1'),count(DAY1_KEY,'ai-total')];
+  const ai=provider=>new HostedAI(provider,async()=>{const admission=await core.admitAI('w1');if(!admission?.admitted)throw aiRefusal(admission);return admission;},true);
+  assert.deepEqual(consumed(),[0,0]);
+  // A provider call that was dispatched and then failed: the admission is not returned.
+  await assert.rejects(()=>ai({async run(){throw new Error('provider down');}}).generate('System',{}),/could not complete this request/);
+  assert.deepEqual(consumed(),[1,1]);
+  // Truncated output from a dispatched call.
+  await assert.rejects(()=>ai({async run(){return {response:{},choices:[{finish_reason:'length',message:{}}]};}}).generate('System',{}),/no usable text/);
+  assert.deepEqual(consumed(),[2,2]);
+  // Empty output from a dispatched call.
+  await assert.rejects(()=>ai({async run(){return {response:{}};}}).generate('System',{}),/no usable text/);
+  assert.deepEqual(consumed(),[3,3]);
+  // The consumed counters never decrease, and the ceiling now refuses instead of admitting.
+  let providerCalls=0;
+  await assert.rejects(()=>ai({async run(){providerCalls++;return {response:'ok'};}}).generate('System',{}),/used for today/);
+  assert.equal(providerCalls,0);
+  assert.deepEqual(consumed(),[3,3]);
+  const refusal=core.admitAI('w1');
+  assert.equal(refusal.admitted,false);assert.equal(refusal.reason,'daily');
+  assert.deepEqual(consumed(),[3,3]);
   // Availability comes from the counters, not from configuration, and a refusal is never silent.
   const gone=new HostedAI({async run(){throw new Error('should not run');}},async()=>{throw aiRefusal({reason:'daily',resetAt:dayResetInstant(DAY1_KEY)});},true,{allowance:async()=>({available:false,reason:'daily',resetAt:dayResetInstant(DAY1_KEY)})});
   assert.equal((await gone.availability()).available,false);
   assert.equal((await gone.availability()).reason,'daily');
   await assert.rejects(()=>gone.generate('System',{}),/used for today/);
-  const open=new HostedAI({async run(){return {response:'ok'};}},async()=>receipt,true,{allowance:async()=>({available:true,reason:null,resetAt:null})});
+  const open=new HostedAI({async run(){return {response:'ok'};}},async()=>({admitted:true,admissionId:'admit-1',day:DAY1_KEY,resetAt:dayResetInstant(DAY1_KEY),scopes:['ai-workspace-w1','ai-total']}),true,{allowance:async()=>({available:true,reason:null,resetAt:null})});
   assert.equal((await open.availability()).available,true);
+  sqlite.close();
 });

@@ -23,7 +23,6 @@ export class UsageBudget extends DurableObject {
   openWorkspace(id){return this.core.openWorkspace(id);}
   admitAI(workspaceId){return this.core.admitAI(workspaceId);}
   aiAllowance(workspaceId){return this.core.aiAllowance(workspaceId);}
-  refundAI(receipt){return this.core.refund(receipt);}
 }
 
 class HostedDesk extends ClaimDeskCore {
@@ -46,7 +45,6 @@ export class RecallWorkspace extends DurableObject {
       if(!admission?.admitted)throw aiRefusal(admission);
       return admission;
     },this.env.AI_ENABLED===true,{
-      refund:receipt=>budget.refundAI(receipt),
       allowance:()=>budget.aiAllowance(input.workspace),
     });
     const sourceWorkspace=new SourceWorkspace(db,{ai});

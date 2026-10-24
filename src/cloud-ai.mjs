@@ -1,6 +1,6 @@
 export const hostedModel='@cf/qwen/qwen3-30b-a3b-fp8';
 export class HostedAI {
-  constructor(binding,reserve,enabled,{refund,allowance}={}){this.binding=binding;this.reserve=reserve;this.enabled=enabled;this.refund=refund;this.allowance=allowance;}
+  constructor(binding,reserve,enabled,{allowance}={}){this.binding=binding;this.reserve=reserve;this.enabled=enabled;this.allowance=allowance;}
   status(){return {available:!!this.binding&&this.enabled,model:'Qwen3-30B · Cloudflare Workers AI',scope:'Server inference; suggestions require merchant review.'};}
   // Availability is reported from the counters, not from configuration alone, so the interface cannot
   // offer a control whose allowance is already gone.
@@ -13,12 +13,8 @@ export class HostedAI {
       return {...configured,available:probe?.available!==false,reason:probe?.reason||null,resetAt:probe?.resetAt||null};
     }catch{return {...configured,available:false,reason:'unknown',resetAt:null};}
   }
-  // Compensating write for an admission whose generation produced no usable text. Idempotent at the
-  // counter, and never allowed to mask the original failure.
-  async release(admission){
-    if(!admission||typeof this.refund!=='function')return false;
-    try{return !!(await this.refund(admission));}catch{return false;}
-  }
+  // Once the provider call is dispatched the admission is never released: the inference was attempted
+  // and may be billable, so the consumed unit is not returned even when no usable text comes back.
   async generate(system,input){
     if(!this.status().available)throw new Error('Server AI is unavailable. Manual source review and case controls remain available.');
     const data=JSON.stringify(input);
@@ -26,12 +22,11 @@ export class HostedAI {
     const admission=await this.reserve();
     let result;
     try{result=await this.binding.run(hostedModel,{messages:[{role:'system',content:system},{role:'user',content:data+'\n/no_think'}],max_tokens:900,temperature:0,stream:false,response_format:{type:'json_object'}});}
-    catch{await this.release(admission);throw new Error('The AI service could not complete this request. No suggestion or payment was applied.');}
+    catch{throw new Error('The AI service could not complete this request. No suggestion or payment was applied.');}
     let text=[result?.choices?.[0]?.message?.content,result?.response].find(value=>typeof value==='string');
     if(typeof text!=='string'||text.length>18000){
       const finish=result?.choices?.[0]?.finish_reason;
       const reason=['length','stop','content_filter','tool_calls'].includes(finish)?finish:'unknown';
-      await this.release(admission);
       throw new Error(`The AI service returned no usable text (finish: ${reason}). No suggestion was applied.`);
     }
     if(text.includes('</think>'))text=text.slice(text.lastIndexOf('</think>')+8);

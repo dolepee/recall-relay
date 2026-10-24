@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {SourceWorkspace,validateSourceSuggestion,validateView,assistCases} from '../src/source-workspace.mjs';
+import {ClaimDesk} from '../src/claims.mjs';
+import {campaignIdFor} from '../src/publication.mjs';
 
 const quote='Upload a photo of the label and confirm the product serial number.';
 const source={title:'Public notice',remedies:[quote],sourceUrl:'https://www.cpsc.gov/Recalls/2026/Example',sourceDigest:'a'.repeat(64)};
@@ -19,7 +21,10 @@ test('source review binds selected fields to current revision and source, withou
   assert.throws(()=>ws.review(imported.id,{revision:2,fieldIds:['invented'],confirmed:true}));
   const reviewed=ws.review(imported.id,{revision:2,fieldIds:['field-1'],confirmed:true});
   assert.equal(reviewed.review.fields[0].quote,quote);assert.equal(reviewed.review.paymentAuthorized,false);
-  assert.equal(reviewed.review.sourceDigest,source.sourceDigest);assert.equal((await ws.state()).setups.length,1);db.close();
+  assert.equal(reviewed.review.sourceDigest,source.sourceDigest);assert.equal((await ws.state()).setups.length,1);
+  // Without a desk the state cannot name an active campaign, and it must say so rather than guess.
+  assert.equal((await ws.state()).activeCampaign,null);
+  db.close();
 });
 test('concurrent source suggestion cannot replace a reviewed revision',async()=>{
   let release;const {db,ws}=fixture(()=>new Promise(resolve=>{release=resolve;}));
@@ -111,4 +116,56 @@ test('a merchant field added during inference wins over the stale generated resu
     release(raw);await assert.rejects(pending,/changed while drafting/);
     assert.deepEqual(ws.get(row.id),amended);
   }finally{db.close();}
+});
+
+// --- Active-setup publication: the state response names the campaign a purchase would really use. ---
+const quotesFor=n=>[`Upload a photograph of the label for notice ${n}.`,`Confirm the printed serial number for notice ${n}.`];
+const sourceFor=n=>({title:`Notice ${n}`,recallNumber:n,products:[{name:`Product ${n}`}],route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://www.cpsc.gov/Recalls/2026/Example',sourceDigest:String(n).padEnd(64,'b').slice(0,64),remedies:quotesFor(n)});
+function deskFixture({ai}={}){
+  const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No payment transport in this test.');}});
+  const ws=new SourceWorkspace(desk.db,{loadSource:async n=>structuredClone(sourceFor(n)),ai:ai||{status:()=>({available:true,model:'test-double'}),generate:async()=>JSON.stringify({requirements:[{kind:'PHOTO',quote:quotesFor('27026')[0]}]})}});
+  return {desk,ws};
+}
+async function preparedSetup(desk,ws,n,{sku,lot,publish}){
+  let row=await ws.import(n);
+  row=ws.addField(row.id,{revision:row.revision,kind:'PHOTO',quote:quotesFor(n)[0]});
+  row=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});
+  if(publish)row=ws.activate(row.id,{revision:row.revision,sku,lot,confirmed:true},desk);
+  return row;
+}
+test('source state names the authoritative active campaign while each setup keeps its own history',async()=>{
+  const {desk,ws}=deskFixture();
+  try{
+    assert.equal((await ws.state(desk)).activeCampaign,null); // Nothing published yet: nothing is active.
+    const a=await preparedSetup(desk,ws,'27026',{sku:'FIXTURE-A',lot:'LOT-A',publish:true});
+    let state=await ws.state(desk);
+    assert.equal(state.activeCampaign.id,campaignIdFor('27026',a.review.digest));
+    assert.equal(state.activeCampaign.sku,'FIXTURE-A');
+    const b=await preparedSetup(desk,ws,'27027',{sku:'FIXTURE-B',lot:'LOT-B',publish:true});
+    state=await ws.state(desk);
+    assert.equal(state.activeCampaign.id,campaignIdFor('27027',b.review.digest));
+    assert.equal(state.activeCampaign.lot,'LOT-B');
+    // A keeps its historical record; the state does not present it as the current publication.
+    const storedA=state.setups.find(s=>s.id===a.id);
+    assert.equal(storedA.publishedCampaign.id,campaignIdFor('27026',a.review.digest));
+    assert.notEqual(state.activeCampaign.id,storedA.publishedCampaign.id);
+    // A previously published setup is republishable again with its own current revision.
+    const republished=ws.activate(a.id,{revision:storedA.revision,sku:'FIXTURE-A',lot:'LOT-A',confirmed:true},desk);
+    assert.equal((await ws.state(desk)).activeCampaign.id,republished.publishedCampaign.id);
+    assert.equal(desk.activeCampaign().sku,'FIXTURE-A');
+  }finally{desk.close();}
+});
+test('source state stays truthful for async callers and for a workspace without AI availability',async()=>{
+  const {desk,ws}=deskFixture({ai:{status:()=>({available:false,model:'test-double'})}}); // No availability() at all.
+  try{
+    await preparedSetup(desk,ws,'27026',{sku:'FIXTURE-A',lot:'LOT-A',publish:true});
+    const [first,second]=await Promise.all([ws.state(desk),ws.state(desk)]);
+    assert.deepEqual(first.activeCampaign,second.activeCampaign);
+    assert.equal(first.activeCampaign.id,campaignIdFor('27026',first.setups[0].review.digest));
+    assert.equal(first.ai.available,false);
+    // A caller that omits the desk still gets a well-formed, non-guessing response.
+    const bare=await ws.state();
+    assert.equal(bare.activeCampaign,null);
+    assert.equal(bare.setups.length,1);
+  }finally{desk.close();}
 });

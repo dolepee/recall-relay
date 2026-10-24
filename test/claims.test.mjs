@@ -314,3 +314,35 @@ for(const state of ['UNKNOWN','PENDING','FAILED','CANCELLED','COMPLETED']){
     }finally{s.desk.close();}
   });
 }
+
+test('republishing an earlier setup switches new purchases to it and leaves existing claims frozen',async()=>{
+  const s=setup();try{
+    const build=async(n,sku,lot)=>{
+      const quotes=[`Upload a photograph of the label for notice ${n}.`,`Confirm the printed serial number for notice ${n}.`];
+      const ws=new SourceWorkspace(s.desk.db,{loadSource:async()=>({title:`Notice ${n}`,recallNumber:n,products:[{name:`Product ${n}`}],route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://www.cpsc.gov/Recalls/2026/Test',sourceDigest:String(n).padEnd(64,'c').slice(0,64),remedies:quotes}),ai:{status:()=>({model:'test-double'}),generate:async()=>JSON.stringify({requirements:[{kind:'PHOTO',quote:quotes[0]},{kind:'CONFIRMATION',quote:quotes[1]}]})}});
+      let row=await ws.import(n);row=await ws.suggest(row.id,row.revision);
+      row=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});
+      return {ws,row,activate:()=>ws.activate(row.id,{revision:ws.get(row.id).revision,sku,lot,confirmed:true},s.desk)};
+    };
+    const a=await build('27026','FIXTURE-A','LOT-A'),b=await build('27027','FIXTURE-B','LOT-B');
+    a.activate();
+    const beforeA=await s.desk.createCheckout();
+    const claimA=await s.desk.captureCheckout(beforeA.id);
+    assert.deepEqual(claimA.campaign.requirements,a.row.review.fields.map(f=>f.quote));
+    b.activate();
+    assert.equal(s.desk.activeCampaign().sku,'FIXTURE-B');
+    const claimB=await s.desk.captureCheckout((await s.desk.createCheckout()).id);
+    assert.deepEqual(claimB.campaign.requirements,b.row.review.fields.map(f=>f.quote));
+    // Republish A: the authoritative active campaign and new purchases switch to A.
+    a.activate();
+    assert.equal(s.desk.activeCampaign().sku,'FIXTURE-A');
+    const claimC=await s.desk.captureCheckout((await s.desk.createCheckout()).id);
+    assert.deepEqual(claimC.campaign.requirements,a.row.review.fields.map(f=>f.quote));
+    assert.equal(claimC.campaign.sku,'FIXTURE-A');
+    // Existing claims keep the version they were created under, including the customer's view.
+    assert.deepEqual(s.desk.claim(claimA.id).campaign.requirements,a.row.review.fields.map(f=>f.quote));
+    assert.deepEqual(s.desk.claim(claimB.id).campaign.requirements,b.row.review.fields.map(f=>f.quote));
+    assert.equal(s.desk.customerState(access(claimB)).campaign.sku,'FIXTURE-B');
+    assert.equal(s.desk.customerState(access(claimA)).campaign.sku,'FIXTURE-A');
+  }finally{s.desk.close();}
+});

@@ -19,7 +19,7 @@ test('source review binds selected fields to current revision and source, withou
   assert.throws(()=>ws.review(imported.id,{revision:2,fieldIds:['invented'],confirmed:true}));
   const reviewed=ws.review(imported.id,{revision:2,fieldIds:['field-1'],confirmed:true});
   assert.equal(reviewed.review.fields[0].quote,quote);assert.equal(reviewed.review.paymentAuthorized,false);
-  assert.equal(reviewed.review.sourceDigest,source.sourceDigest);assert.equal(ws.state().setups.length,1);db.close();
+  assert.equal(reviewed.review.sourceDigest,source.sourceDigest);assert.equal((await ws.state()).setups.length,1);db.close();
 });
 test('concurrent source suggestion cannot replace a reviewed revision',async()=>{
   let release;const {db,ws}=fixture(()=>new Promise(resolve=>{release=resolve;}));

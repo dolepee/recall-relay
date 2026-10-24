@@ -20,7 +20,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
         const cookie=/(?:^|;\s*)rr_merchant=([\w-]+)/.exec(req.headers.cookie||'')?.[1];
         if(!desk.authenticateMerchant(cookie||bearer)){json(res,401,{error:'Open the private local merchant launch link to access this desk.'});return true;}
         if(path==='/api/merchant/state' && req.method==='GET'){json(res,200,desk.merchantState());return true;}
-        if(path==='/api/merchant/sources' && req.method==='GET'){json(res,200,sourceWorkspace?sourceWorkspace.state():{ai:{available:false},setups:[]});return true;}
+        if(path==='/api/merchant/sources' && req.method==='GET'){json(res,200,sourceWorkspace?await sourceWorkspace.state():{ai:{available:false},setups:[]});return true;}
         if(req.method!=='POST'){json(res,405,{error:'Use the action button to continue.'});return true;}
         const input=await body(req);
         const actions={
@@ -47,7 +47,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
       if(path==='/api/claim/state' && req.method==='GET')json(res,200,desk.customerState(bearer));
       else if(path==='/api/claim/submit' && req.method==='POST')json(res,200,desk.submit(bearer,await body(req)));
       else json(res,404,{error:'Unknown action.'});
-    } catch(error) {json(res,400,{error:error.message});}
+    } catch(error) {json(res,400,{error:error.message,...(error?.resetAt?{resetAt:error.resetAt}:{}),...(error?.reason?{reason:error.reason}:{})});}
     return true;
   };
 }

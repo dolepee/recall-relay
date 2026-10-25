@@ -1,3 +1,5 @@
+import {trackFocusNavigation} from './focus-guard.mjs';
+
 // One place derives a setup's campaign identity and its publication presentation.
 // The active campaign reported by the server is authoritative; a setup's own
 // publishedCampaign record is history and can never by itself make a setup look
@@ -18,25 +20,13 @@ export function activeScenarioLabel(active){return active?`${active.product||act
 // Keep this request alive through the React commit that removes the publish control.
 // A temporary return to body does not erase deliberate navigation during either request.
 export function beginPublicationFocus(trigger,setupId){
-  const doc=trigger?.ownerDocument;
-  if(!doc)return null;
-  let cancelled=false,navigated=false;
-  const onFocus=event=>{if(event.target!==trigger&&event.target!==doc.body&&event.target!==doc.documentElement)navigated=true;};
-  const onPointer=event=>{if(!trigger.contains(event.target))navigated=true;};
-  const onKey=event=>{if(event.key==='Tab')navigated=true;};
-  doc.addEventListener('focusin',onFocus,true);
-  doc.addEventListener('pointerdown',onPointer,true);
-  doc.addEventListener('keydown',onKey,true);
-  const cancel=()=>{
-    cancelled=true;
-    doc.removeEventListener('focusin',onFocus,true);
-    doc.removeEventListener('pointerdown',onPointer,true);
-    doc.removeEventListener('keydown',onKey,true);
-  };
+  const navigation=trackFocusNavigation(trigger);
+  if(!navigation)return null;
+  let cancelled=false;
+  const cancel=()=>{cancelled=true;navigation.stop();};
   return {cancel,finish({setupId:displayedSetupId,publication,heading}){
-    const active=doc.activeElement;
-    const lost=!active||active===doc.body||active===doc.documentElement||!active.isConnected;
-    const restore=!cancelled&&!navigated&&lost&&!trigger.isConnected&&displayedSetupId===setupId&&publication?.active===true&&heading?.isConnected&&doc.visibilityState!=='hidden';
+    const lost=navigation.lost();
+    const restore=!cancelled&&!navigation.navigated()&&lost&&!trigger.isConnected&&displayedSetupId===setupId&&publication?.active===true&&heading?.isConnected&&navigation.doc.visibilityState!=='hidden';
     cancel();
     if(restore)heading.focus();
     return !!restore;

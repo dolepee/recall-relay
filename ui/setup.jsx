@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {Action,ErrorText,Frame,inputClass,api} from './components.jsx';
 import {publicationState,publicationNotice,beginPublicationFocus} from '../src/publication.mjs';
+import {beginActionFocus} from '../src/focus-guard.mjs';
 
 const kindLabel={PHOTO:'Photograph',CONFIRMATION:'Customer confirmation',TEXT:'Written information'};
 // The reset instant and the reason both come from the server; the interface only formats the instant
@@ -15,16 +16,20 @@ function aiMessage(ai){
   return 'The AI service is not ready. The original source remains available.';
 }
 export function SourceSetup(){
-  const [state,setState]=useState(null),[current,setCurrent]=useState(null),[number,setNumber]=useState('27-026'),[busy,setBusy]=useState(''),[error,setError]=useState(''),[selected,setSelected]=useState([]),[confirmed,setConfirmed]=useState(false),[manualQuote,setManualQuote]=useState(''),[manualKind,setManualKind]=useState('CONFIRMATION'),[sku,setSku]=useState('SCENARIO-ITEM'),[lot,setLot]=useState('LOT-A'),[publishConfirmed,setPublishConfirmed]=useState(false),[editingFields,setEditingFields]=useState(false),[editingScope,setEditingScope]=useState(false),[focusPublished,setFocusPublished]=useState(null);
-  const publishedHeading=useRef(null),pendingPublication=useRef(null),selectionEpoch=useRef(0),currentSetupId=useRef(null);
+  const [state,setState]=useState(null),[current,setCurrent]=useState(null),[number,setNumber]=useState('27-026'),[busy,setBusy]=useState(''),[error,setError]=useState(''),[selected,setSelected]=useState([]),[confirmed,setConfirmed]=useState(false),[manualQuote,setManualQuote]=useState(''),[manualKind,setManualKind]=useState('CONFIRMATION'),[sku,setSku]=useState('SCENARIO-ITEM'),[lot,setLot]=useState('LOT-A'),[publishConfirmed,setPublishConfirmed]=useState(false),[editingFields,setEditingFields]=useState(false),[editingScope,setEditingScope]=useState(false),[focusPending,setFocusPending]=useState(null);
+  const publishedHeading=useRef(null),pendingFocus=useRef(null),selectionEpoch=useRef(0),currentSetupId=useRef(null);
   async function refresh(){const value=await api('merchant/sources');setState(value);return value;}
   useEffect(()=>{refresh().then(v=>{if(v.setups[0])choose(v.setups[0]);}).catch(e=>setError(e.message));},[]);
-  useEffect(()=>()=>pendingPublication.current?.cancel(),[]);
-  function choose(row,userSelection=false){if(userSelection){selectionEpoch.current++;pendingPublication.current?.cancel();}currentSetupId.current=row.id;setCurrent(row);setSelected(row.review?.fields.map(f=>f.id)||row.suggestion?.requirements.map(f=>f.id)||[]);setConfirmed(false);setManualQuote('');setPublishConfirmed(false);setEditingFields(false);setEditingScope(false);setSku(row.publishedCampaign?.sku||'SCENARIO-ITEM');setLot(row.publishedCampaign?.lot||'LOT-A');}
+  useEffect(()=>()=>pendingFocus.current?.cancel(),[]);
+  function choose(row,userSelection=false){if(userSelection){selectionEpoch.current++;pendingFocus.current?.cancel();}currentSetupId.current=row.id;setCurrent(row);setSelected(row.review?.fields.map(f=>f.id)||row.suggestion?.requirements.map(f=>f.id)||[]);setConfirmed(false);setManualQuote('');setPublishConfirmed(false);setEditingFields(false);setEditingScope(false);setSku(row.publishedCampaign?.sku||'SCENARIO-ITEM');setLot(row.publishedCampaign?.lot||'LOT-A');}
   async function run(action,data,label,trigger){
     const epoch=selectionEpoch.current;
-    const focus=action==='source-activate'?beginPublicationFocus(trigger,data.id):null;
-    pendingPublication.current=focus;
+    const publicationGuard=action==='source-activate'?beginPublicationFocus(trigger,data.id):null;
+    // Saving the reviewed instructions removes its own control on success and disables it while the
+    // request is in flight, so it needs the same guard: keep the control when it is still there,
+    // otherwise land on the heading of the step the merchant continues with.
+    const focus=publicationGuard||(action==='source-review'?beginActionFocus(trigger,publishedHeading):null);
+    pendingFocus.current=focus;
     setBusy(label);setError('');
     try{
       const row=await api(`merchant/${action}`,data);
@@ -37,8 +42,13 @@ export function SourceSetup(){
       if(selectionEpoch.current!==appliedEpoch&&currentSetupId.current===row.id){
         choose(next.setups.find(setup=>setup.id===row.id)||row);
       }
-      if(focus)setFocusPublished(focus);
-    }catch(e){focus?.cancel();setError(e.message);}finally{setBusy('');}
+      if(focus)setFocusPending(focus);
+    }catch(e){
+      // A failed publication has no outcome to land on, so its guard is cancelled. The ordinary
+      // guard still finishes: its control is on the page again after an error, so focus returns to it.
+      if(publicationGuard)publicationGuard.cancel();else if(focus)setFocusPending(focus);
+      setError(e.message);
+    }finally{setBusy('');}
   }
   const showDraft=!current?.review||editingFields;
   const dirty=!!current?.review&&(selected.length!==current.review.fields.length||selected.some(id=>!current.review.fields.some(field=>field.id===id)));
@@ -48,11 +58,12 @@ export function SourceSetup(){
   const publication=publicationState(current,active,{sku,lot});
   const publishedCurrent=publication.active;
   useEffect(()=>{
-    if(!focusPublished)return;
-    focusPublished.finish({setupId:current?.id,publication,heading:publishedHeading.current});
-    if(pendingPublication.current===focusPublished)pendingPublication.current=null;
-    setFocusPublished(null);
-  },[focusPublished,current?.id,publishedCurrent]);
+    if(!focusPending)return;
+    // The publication guard reads this outcome; the ordinary guard restores its own target.
+    focusPending.finish({setupId:current?.id,publication,heading:publishedHeading.current});
+    if(pendingFocus.current===focusPending)pendingFocus.current=null;
+    setFocusPending(null);
+  },[focusPending,current?.id,publishedCurrent]);
   const publicationStatus=!publishedCurrent&&current?.review?publicationNotice(publication,active):null;
   const publicationReason=dirty?'Your field selection has changed. Save the updated instructions before publishing.':current?.source.route!=='ORIGINAL_PAYMENT_CANDIDATE'?'This source needs a manual remedy route. It cannot publish an original-payment scenario.':current?.review?.fields.filter(field=>field.kind==='PHOTO').length!==1?'This version requires exactly one photograph field. Edit the saved fields before publishing.':'';
   return <Frame sourceReview><title>Prepare claim instructions · Recall Relay</title>
@@ -66,7 +77,7 @@ export function SourceSetup(){
     </section><section className="order-1 rounded-lg border border-slate-200 bg-white p-5 sm:p-6 lg:order-2"><div className="flex flex-wrap items-center justify-between gap-3"><h2 ref={publishedHeading} tabIndex={-1} className="text-xl font-semibold text-balance focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">{showDraft?'Review the customer requirements.':publishedCurrent?'Your instructions are published.':'Publish the reviewed form.'}</h2>{current.review&&!showDraft&&<Action secondary disabled={!!busy} onClick={()=>{setEditingFields(true);setPublishConfirmed(false);}}>Edit reviewed fields</Action>}</div>{publishedCurrent&&!showDraft&&<div className="mt-4 border-b border-slate-200 pb-5"><p className="text-sm leading-6 text-slate-600">Future sandbox purchases use these saved requirements. Existing customer claims keep their own version.</p><p className="mt-3 text-sm">Test product <strong>{sku}</strong> · lot <strong>{lot}</strong></p><a href="/desk" className="mt-4 inline-flex min-h-11 items-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Open the claims desk</a><Action secondary className="ml-3 mt-4" onClick={()=>{setEditingScope(true);setPublishConfirmed(false);}}>Change test product</Action></div>}{showDraft&&<><p className="mt-3 text-sm leading-6 text-slate-600">AI proposes fields with exact source quotations. Check the complete notice and conditions; matching a quote does not establish completeness.</p><Action className="mt-4" secondary disabled={!!busy||!state?.ai.available} onClick={()=>run('source-suggest',{id:current.id,revision:current.revision},'Reading the notice and drafting fields…')}>{current.suggestion?'Draft fields again':'Draft fields with AI'}</Action>{!state?.ai.available&&<p className="mt-3 text-sm text-slate-600">{aiMessage(state?.ai)} <button className="inline-flex min-h-11 items-center font-semibold text-teal-800 underline" onClick={()=>refresh().catch(e=>setError(e.message))}>Check assistant availability</button></p>}
       <details className="mt-5 rounded-md border border-slate-200 p-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Add a requirement from the source</summary><p className="mt-2 text-sm leading-6 text-slate-600">AI can miss requirements. Select the exact sentence and choose how the customer should respond. This also works without AI.</p><label className="mt-4 block text-sm font-medium">Source instruction<select className={inputClass} value={manualQuote} onChange={e=>setManualQuote(e.target.value)}><option value="">Choose an instruction…</option>{current.source.requirements.map((r,i)=><option key={i} value={r.quote}>{r.quote}</option>)}</select></label><label className="mt-4 block text-sm font-medium">Response type<select className={inputClass} value={manualKind} onChange={e=>setManualKind(e.target.value)}>{Object.entries(kindLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>{manualQuote&&<blockquote className="mt-3 border-l border-teal-600 pl-3 text-sm leading-6">{manualQuote}</blockquote>}<Action className="mt-4" secondary disabled={!!busy||!manualQuote} onClick={()=>run('source-add',{id:current.id,revision:current.revision,kind:manualKind,quote:manualQuote},'Adding the source requirement…')}>Add source field</Action></details>
       {current.suggestion&&<><p className="mt-4 text-xs text-slate-500">Drafting method: {current.suggestion.model}. Merchant corrections are retained. Proposed fields are not verified customer evidence.</p>{current.suggestion.requirements.length===0?<p className="mt-4 rounded-md bg-slate-50 p-4 text-sm">No explicit evidence fields were identified. Review the original instructions manually; an empty form is not a completed remedy.</p>:<div className="mt-5 space-y-4">{current.suggestion.requirements.map(field=><label key={field.id} className="block rounded-md border border-slate-200 p-4"><span className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={selected.includes(field.id)} onChange={e=>{setConfirmed(false);setPublishConfirmed(false);setSelected(old=>e.target.checked?[...old,field.id]:old.filter(id=>id!==field.id));}} className="size-5 shrink-0 accent-teal-700"/>{kindLabel[field.kind]}{field.origin==='MERCHANT_SOURCE_SELECTION'?' · added from source':''}</span><span className="mt-2 block text-sm leading-6 text-slate-700">“{field.quote}”</span></label>)}</div>}
-        <label className="mt-4 flex min-h-11 items-start gap-3 py-3 text-sm leading-6"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-1 size-5 shrink-0 accent-teal-700"/>I checked the selected fields and their conditions against the complete source. Saving keeps these instructions for the separate sandbox publication step; it does not authorize a refund.</label><Action disabled={!!busy||!confirmed} onClick={()=>run('source-review',{id:current.id,revision:current.revision,fieldIds:selected,confirmed:true},'Saving reviewed instructions…')}>Save reviewed instructions</Action>
+        <label className="mt-4 flex min-h-11 items-start gap-3 py-3 text-sm leading-6"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-1 size-5 shrink-0 accent-teal-700"/>I checked the selected fields and their conditions against the complete source. Saving keeps these instructions for the separate sandbox publication step; it does not authorize a refund.</label><Action disabled={!!busy||!confirmed} onClick={event=>run('source-review',{id:current.id,revision:current.revision,fieldIds:selected,confirmed:true},'Saving reviewed instructions…',event.currentTarget)}>Save reviewed instructions</Action>
       </>}
       </>}
       {current.review&&<section className="mt-6 border-t border-slate-200 pt-5" aria-label="Reviewed claim form preview"><p className="text-sm font-semibold text-teal-900">{dirty?'Last saved instructions · changes not yet saved':'Reviewed instructions saved'}</p><h3 className="mt-3 text-lg font-semibold">Customer form preview</h3><p className="mt-2 text-sm leading-6 text-slate-600">These fields are saved with this source version. Publish a sandbox scenario below to use them in new test purchases. Existing claims keep their original requirements.</p>{current.review.fields.map(f=><div key={f.id} className="mt-4 border-b border-slate-200 pb-4"><p className="text-sm font-semibold">{kindLabel[f.kind]}</p><p className="mt-2 text-sm leading-6 text-slate-600">{f.quote}</p><div className="mt-3 rounded border border-dashed border-slate-300 p-3 text-sm text-slate-500">{f.kind==='PHOTO'?'Upload a photograph':f.kind==='CONFIRMATION'?'Customer confirms this requirement':'Customer enters the requested information'}</div></div>)}</section>}

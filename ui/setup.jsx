@@ -16,11 +16,11 @@ function aiMessage(ai){
 }
 export function SourceSetup(){
   const [state,setState]=useState(null),[current,setCurrent]=useState(null),[number,setNumber]=useState('27-026'),[busy,setBusy]=useState(''),[error,setError]=useState(''),[selected,setSelected]=useState([]),[confirmed,setConfirmed]=useState(false),[manualQuote,setManualQuote]=useState(''),[manualKind,setManualKind]=useState('CONFIRMATION'),[sku,setSku]=useState('SCENARIO-ITEM'),[lot,setLot]=useState('LOT-A'),[publishConfirmed,setPublishConfirmed]=useState(false),[editingFields,setEditingFields]=useState(false),[editingScope,setEditingScope]=useState(false),[focusPublished,setFocusPublished]=useState(null);
-  const publishedHeading=useRef(null),pendingPublication=useRef(null),selectionEpoch=useRef(0);
+  const publishedHeading=useRef(null),pendingPublication=useRef(null),selectionEpoch=useRef(0),currentSetupId=useRef(null);
   async function refresh(){const value=await api('merchant/sources');setState(value);return value;}
   useEffect(()=>{refresh().then(v=>{if(v.setups[0])choose(v.setups[0]);}).catch(e=>setError(e.message));},[]);
   useEffect(()=>()=>pendingPublication.current?.cancel(),[]);
-  function choose(row,userSelection=false){if(userSelection){selectionEpoch.current++;pendingPublication.current?.cancel();}setCurrent(row);setSelected(row.review?.fields.map(f=>f.id)||row.suggestion?.requirements.map(f=>f.id)||[]);setConfirmed(false);setManualQuote('');setPublishConfirmed(false);setEditingFields(false);setEditingScope(false);setSku(row.publishedCampaign?.sku||'SCENARIO-ITEM');setLot(row.publishedCampaign?.lot||'LOT-A');}
+  function choose(row,userSelection=false){if(userSelection){selectionEpoch.current++;pendingPublication.current?.cancel();}currentSetupId.current=row.id;setCurrent(row);setSelected(row.review?.fields.map(f=>f.id)||row.suggestion?.requirements.map(f=>f.id)||[]);setConfirmed(false);setManualQuote('');setPublishConfirmed(false);setEditingFields(false);setEditingScope(false);setSku(row.publishedCampaign?.sku||'SCENARIO-ITEM');setLot(row.publishedCampaign?.lot||'LOT-A');}
   async function run(action,data,label,trigger){
     const epoch=selectionEpoch.current;
     const focus=action==='source-activate'?beginPublicationFocus(trigger,data.id):null;
@@ -29,8 +29,14 @@ export function SourceSetup(){
     try{
       const row=await api(`merchant/${action}`,data);
       // A response must not undo a setup selection made while it was pending.
-      if(selectionEpoch.current===epoch)choose(row);
-      await refresh();
+      if(selectionEpoch.current===epoch||currentSetupId.current===row.id)choose(row);
+      const appliedEpoch=selectionEpoch.current;
+      const next=await refresh();
+      // Selection can also change during refresh. Reconcile the completed setup only
+      // if it is displayed again, using the newest server revision and fields.
+      if(selectionEpoch.current!==appliedEpoch&&currentSetupId.current===row.id){
+        choose(next.setups.find(setup=>setup.id===row.id)||row);
+      }
       if(focus)setFocusPublished(focus);
     }catch(e){focus?.cancel();setError(e.message);}finally{setBusy('');}
   }

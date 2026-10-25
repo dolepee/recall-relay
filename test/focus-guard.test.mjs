@@ -71,6 +71,23 @@ test('a missing or detached outcome leaves focus alone rather than guessing',()=
   }
 });
 
+test('an action still owning the displayed record restores its focus',()=>{
+  let displayed='setup-a';
+  const f=focusFixture();
+  const guard=beginActionFocus(f.trigger,f.heading,{owns:()=>displayed==='setup-a'});
+  f.trigger.isConnected=false;f.loseFocus();
+  assert.equal(guard.finish(),true);assert.equal(f.doc.activeElement,f.heading);
+});
+
+test('a response for a record the merchant navigated away from moves nothing',()=>{
+  let displayed='setup-a';
+  const f=focusFixture();
+  const guard=beginActionFocus(f.trigger,f.heading,{owns:()=>displayed==='setup-a'});
+  f.trigger.isConnected=false;f.loseFocus();
+  displayed='setup-b';
+  assert.equal(guard.finish(),false);assert.equal(f.doc.activeElement,f.doc.body);
+});
+
 test('the navigation tracker reports lost focus and deliberate movement, then detaches',()=>{
   const f=focusFixture();
   const navigation=trackFocusNavigation(f.trigger);

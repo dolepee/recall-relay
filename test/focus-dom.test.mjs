@@ -57,6 +57,8 @@ const activeLabel=()=>{const node=document.activeElement;if(!node)return 'none';
 // document body even though the user never moved.
 const browserBlur=async()=>{await tick();const active=document.activeElement;if(active&&active!==document.body&&active.disabled)active.blur();};
 const noPayment=async()=>{throw new Error('No payment calls permitted');};
+// A response that is still in flight while the merchant moves on.
+function deferred(){let release;const promise=new Promise(resolve=>{release=resolve;});return {promise,release};}
 
 // Every mount is torn down after its test, including after a failed assertion, so one test's
 // interface can never answer another test's queries.
@@ -83,10 +85,14 @@ const sourceFor=number=>({title:`Synthetic notice ${number}`,recallNumber:number
 async function mountSetup({saveFails=false}={}){
   const desk=new ClaimDesk({path:':memory:',provider:noPayment});
   const workspace=new SourceWorkspace(desk.db,{ai:{status:()=>({available:false,model:'NO INFERENCE'})},loadSource:async number=>structuredClone(sourceFor(number))});
-  const draft=workspace.addField((await workspace.import('27026')).id,{revision:1,kind:'PHOTO',quote:quotesFor('27026')[0]});
+  const first=workspace.addField((await workspace.import('27026')).id,{revision:1,kind:'PHOTO',quote:quotesFor('27026')[0]});
+  // A second draft setup, so the merchant can change the selection while a save is pending.
+  const second=workspace.addField((await workspace.import('27027')).id,{revision:1,kind:'PHOTO',quote:quotesFor('27027')[0]});
+  let hold=null;
   globalThis.fetch=async(path,options={})=>{
     if(path==='/api/merchant/source-review'){
       await browserBlur();
+      if(hold)await hold.promise;
       if(saveFails)return new Response(JSON.stringify({error:'The reviewed instructions could not be saved.'}),{status:503});
       return new Response(JSON.stringify(workspace.review(JSON.parse(options.body).id,JSON.parse(options.body))));
     }
@@ -94,21 +100,30 @@ async function mountSetup({saveFails=false}={}){
     return new Response(JSON.stringify(await workspace.state(desk)));
   };
   const unmount=await render(React.createElement(SourceSetup),()=>button('Save reviewed instructions'));
+  // The newest draft is the one displayed on load; `setups` holds both, newest last.
   const confirmation=[...document.querySelectorAll('label')].find(node=>node.textContent.includes('I checked the selected fields'));
   assert(confirmation,'the reviewed-fields confirmation is rendered');
   await act(async()=>{confirmation.querySelector('input').click();await tick();});
   await settle(()=>button('Save reviewed instructions').disabled===false);
   assert.equal(button('Save reviewed instructions').disabled,false,'the save control is enabled');
-  assert.equal(workspace.get(draft.id).review,null,'the setup is still an unsaved draft');
-  return {desk,workspace,draftId:draft.id,unmount};
+  assert.equal(workspace.get(second.id).review,null,'the setup is still an unsaved draft');
+  const setups=[first,second];
+  const selectSetup=async row=>{
+    const selector=[...document.querySelectorAll('select')].find(node=>node.parentElement.textContent.includes('Saved notice setups'));
+    // A merchant reaching the selector has focus there, so the move is theirs, not the guard's.
+    await act(async()=>{selector.focus();selector.value=row.id;selector.dispatchEvent(new Event('change',{bubbles:true}));await tick();});
+    return selector;
+  };
+  return {desk,workspace,draftId:second.id,setups,selectSetup,setHold:value=>{hold=value;},unmount};
 }
 
 async function mountDesk({failFirstState=false,stateFails=false}={}){
   const desk=new ClaimDesk({path:':memory:',provider:noPayment});
-  let pendingFailures=failFirstState?1:0;
+  let pendingFailures=failFirstState?1:0,hold=null;
   globalThis.fetch=async path=>{
     assert.equal(path,'/api/merchant/state');
     await browserBlur();
+    if(hold)await hold.promise;
     if(stateFails||pendingFailures>0){
       if(pendingFailures>0)pendingFailures--;
       return new Response(JSON.stringify({error:'The desk could not be updated.'}),{status:503});
@@ -116,7 +131,7 @@ async function mountDesk({failFirstState=false,stateFails=false}={}){
     return new Response(JSON.stringify(desk.merchantState()));
   };
   const unmount=await render(React.createElement(MerchantDesk),()=>button('Refresh claims')||button('Retry loading desk'));
-  return {desk,unmount};
+  return {desk,setHold:value=>{hold=value;},unmount};
 }
 
 test('saving reviewed instructions moves focus to the publish step instead of the document body',async()=>{
@@ -200,5 +215,91 @@ test('reloading the desk from its retry control lands on the heading that stays 
   await step();
   // The retry control unmounts with the failed state, so the guard falls through to the heading.
   assert.equal(activeLabel(),'H1:Claims');
+  await unmount();
+});
+
+// A response that arrives after the merchant has already moved on must not take the focus back.
+test('a delayed save does not take focus back from a keyboard move made while it was pending',async()=>{
+  const {setHold,unmount}=await mountSetup();
+  const hold=deferred();setHold(hold);
+  const save=button('Save reviewed instructions');
+  await act(async()=>{save.focus();save.click();await tick();});
+  const elsewhere=document.querySelector('a[href="https://example.invalid/notice"]');
+  await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true}));elsewhere.focus();await tick();});
+  await act(async()=>{hold.release();await tick();});
+  await settle(()=>!button('Save reviewed instructions'));
+  await step();
+  assert.equal(activeLabel(),'A:https://example.invalid/notice');
+  await unmount();
+});
+
+test('a delayed save does not take focus back from a pointer move made while it was pending',async()=>{
+  const {setHold,unmount}=await mountSetup();
+  const hold=deferred();setHold(hold);
+  const save=button('Save reviewed instructions');
+  await act(async()=>{save.focus();save.click();await tick();});
+  const elsewhere=document.querySelector('a[href="/desk"]');
+  await act(async()=>{elsewhere.dispatchEvent(new MouseEvent('pointerdown',{bubbles:true}));elsewhere.focus();await tick();});
+  await act(async()=>{hold.release();await tick();});
+  await settle(()=>!button('Save reviewed instructions'));
+  await step();
+  assert.equal(activeLabel(),'A:/desk');
+  await unmount();
+});
+
+test('a delayed save whose response arrives after the merchant switched away and stayed away moves nothing',async()=>{
+  const {workspace,setups,selectSetup,setHold,unmount}=await mountSetup();
+  const hold=deferred();setHold(hold);
+  const saved=setups[1];
+  const save=button('Save reviewed instructions');
+  await act(async()=>{save.focus();save.click();await tick();});
+  // The merchant selects the other saved setup while the save is still in flight, and stays there.
+  const selector=await selectSetup(setups[0]);
+  await act(async()=>{hold.release();await tick();});
+  await step(4);
+  assert.equal(selector.value,setups[0].id,'the other setup stays displayed');
+  assert.equal(activeLabel().startsWith('SELECT:'),true,'focus stays on the selection the merchant made');
+  assert.equal(workspace.get(saved.id).review.status,'REVIEWED_SETUP','the save still reached the server');
+  await unmount();
+});
+
+test('a delayed failed save whose response arrives after the merchant switched away moves nothing',async()=>{
+  const {setups,selectSetup,setHold,unmount}=await mountSetup({saveFails:true});
+  const hold=deferred();setHold(hold);
+  const save=button('Save reviewed instructions');
+  await act(async()=>{save.focus();save.click();await tick();});
+  const selector=await selectSetup(setups[0]);
+  await act(async()=>{hold.release();await tick();});
+  await step(4);
+  assert.equal(selector.value,setups[0].id);
+  assert.equal(activeLabel().startsWith('SELECT:'),true,'focus stays on the selection the merchant made');
+  await unmount();
+});
+
+test('a delayed refresh does not take focus back from a keyboard move made while it was pending',async()=>{
+  const {setHold,unmount}=await mountDesk();
+  const hold=deferred();setHold(hold);
+  const refresh=button('Refresh claims');
+  await act(async()=>{refresh.focus();refresh.click();await tick();});
+  const elsewhere=document.querySelector('a[href="/setup"]');
+  await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true}));elsewhere.focus();await tick();});
+  await act(async()=>{hold.release();await tick();});
+  await settle(()=>button('Refresh claims')?.disabled===false);
+  await step();
+  assert.equal(activeLabel(),'A:/setup');
+  await unmount();
+});
+
+test('a delayed failed refresh does not take focus back from a pointer move made while it was pending',async()=>{
+  const {setHold,unmount}=await mountDesk({stateFails:true});
+  const hold=deferred();setHold(hold);
+  const refresh=button('Refresh claims');
+  await act(async()=>{refresh.focus();refresh.click();await tick();});
+  const elsewhere=document.querySelector('a[href="/setup"]');
+  await act(async()=>{elsewhere.dispatchEvent(new MouseEvent('pointerdown',{bubbles:true}));elsewhere.focus();await tick();});
+  await act(async()=>{hold.release();await tick();});
+  await settle(()=>document.querySelector('[role=alert]'));
+  await step();
+  assert.equal(activeLabel(),'A:/setup');
   await unmount();
 });

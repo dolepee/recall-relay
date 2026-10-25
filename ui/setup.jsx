@@ -27,8 +27,9 @@ export function SourceSetup(){
     const publicationGuard=action==='source-activate'?beginPublicationFocus(trigger,data.id):null;
     // Saving the reviewed instructions removes its own control on success and disables it while the
     // request is in flight, so it needs the same guard: keep the control when it is still there,
-    // otherwise land on the heading of the step the merchant continues with.
-    const focus=publicationGuard||(action==='source-review'?beginActionFocus(trigger,publishedHeading):null);
+    // otherwise land on the heading of the step the merchant continues with. A response for a setup
+    // the merchant has since navigated away from never moves focus.
+    const focus=publicationGuard||(action==='source-review'?beginActionFocus(trigger,publishedHeading,{owns:()=>currentSetupId.current===data.id}):null);
     pendingFocus.current=focus;
     setBusy(label);setError('');
     try{

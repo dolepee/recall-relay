@@ -23,15 +23,17 @@ export function trackFocusNavigation(trigger){
 // Repair the focus an ordinary action lost, never a deliberate move. The control that started the
 // request keeps the focus while it is still mounted and usable; otherwise focus moves to the
 // outcome the caller supplies (a heading or a notice). `target` may be an element, a React ref or
-// a function returning the element, so it is resolved after the request's commit.
-export function beginActionFocus(trigger,target){
+// a function returning the element, so it is resolved after the request's commit. `owns` reports
+// whether the displayed record still belongs to the request that produced the outcome: a response
+// for a setup the merchant has navigated away from never moves focus.
+export function beginActionFocus(trigger,target,{owns=()=>true}={}){
   const navigation=trackFocusNavigation(trigger);
   if(!navigation)return null;
   let cancelled=false;
   const cancel=()=>{cancelled=true;navigation.stop();};
   return {cancel,finish(){
     const lost=navigation.lost();
-    const restore=!cancelled&&!navigation.navigated()&&lost&&navigation.doc.visibilityState!=='hidden';
+    const restore=!cancelled&&!navigation.navigated()&&lost&&navigation.doc.visibilityState!=='hidden'&&owns()===true;
     cancel();
     if(!restore)return false;
     const usable=element=>!!element&&element.isConnected&&element.disabled!==true;

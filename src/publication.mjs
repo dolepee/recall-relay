@@ -15,10 +15,32 @@ export function publicationState(row,active,{sku,lot}={}){
   return {code:activeNow?'ACTIVE':publishedBefore?'PUBLISHED_EARLIER':'NOT_PUBLISHED',active:activeNow,publishedBefore,sameFields,campaignId};
 }
 export function activeScenarioLabel(active){return active?`${active.product||active.title} · ${active.sku} · ${active.lot}`:null;}
-// Publishing replaces the section that held the control the merchant used, so the interface has to
-// move focus somewhere stable instead of leaving it on the document. Nothing else moves focus.
-export function focusAfterPublication(action,publication){
-  return action==='source-activate'&&publication?.active===true?'PUBLISHED_HEADING':null;
+// Keep this request alive through the React commit that removes the publish control.
+// A temporary return to body does not erase deliberate navigation during either request.
+export function beginPublicationFocus(trigger,setupId){
+  const doc=trigger?.ownerDocument;
+  if(!doc)return null;
+  let cancelled=false,navigated=false;
+  const onFocus=event=>{if(event.target!==trigger&&event.target!==doc.body&&event.target!==doc.documentElement)navigated=true;};
+  const onPointer=event=>{if(!trigger.contains(event.target))navigated=true;};
+  const onKey=event=>{if(event.key==='Tab')navigated=true;};
+  doc.addEventListener('focusin',onFocus,true);
+  doc.addEventListener('pointerdown',onPointer,true);
+  doc.addEventListener('keydown',onKey,true);
+  const cancel=()=>{
+    cancelled=true;
+    doc.removeEventListener('focusin',onFocus,true);
+    doc.removeEventListener('pointerdown',onPointer,true);
+    doc.removeEventListener('keydown',onKey,true);
+  };
+  return {cancel,finish({setupId:displayedSetupId,publication,heading}){
+    const active=doc.activeElement;
+    const lost=!active||active===doc.body||active===doc.documentElement||!active.isConnected;
+    const restore=!cancelled&&!navigated&&lost&&!trigger.isConnected&&displayedSetupId===setupId&&publication?.active===true&&heading?.isConnected&&doc.visibilityState!=='hidden';
+    cancel();
+    if(restore)heading.focus();
+    return !!restore;
+  }};
 }
 // Historical wording: it must never read as a present-tense success.
 export function publicationNotice(publication,active){

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {campaignIdFor,setupCampaignId,publicationState,publicationNotice,activeScenarioLabel} from '../src/publication.mjs';
+import {campaignIdFor,setupCampaignId,publicationState,publicationNotice,activeScenarioLabel,beginPublicationFocus} from '../src/publication.mjs';
 
 const row=(recallNumber,digest,publishedCampaign)=>({source:{recallNumber},review:{digest},...(publishedCampaign?{publishedCampaign}:{})});
 const digest=n=>String(n).repeat(64).slice(0,64);
@@ -44,6 +44,48 @@ test('inactive, unpublished and draft setups never present as currently publishe
   // No scenario active at all: a historical record is still not a current publication.
   assert.equal(publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'}).code,'PUBLISHED_EARLIER');
   assert.equal(publicationState(A,null,{sku:'FIXTURE-A',lot:'LOT-A'}).active,false);
+});
+
+function focusFixture(){
+  const doc=new EventTarget();
+  doc.visibilityState='visible';
+  doc.emit=(type,target,extra={})=>{const event=new Event(type);Object.defineProperties(event,{target:{value:target},...Object.fromEntries(Object.entries(extra).map(([key,value])=>[key,{value}]))});doc.dispatchEvent(event);};
+  const element=()=>({ownerDocument:doc,isConnected:true,contains(target){return target===this;},focus(){doc.activeElement=this;doc.emit('focusin',this);}});
+  doc.body=element();doc.documentElement=element();
+  const trigger=element(),heading=element(),other=element();trigger.focus();
+  const request=beginPublicationFocus(trigger,'setup-a');
+  const finish=(overrides={})=>request.finish({setupId:'setup-a',publication:{active:true},heading,...overrides});
+  const removeTrigger=()=>{trigger.isConnected=false;doc.activeElement=doc.body;};
+  return {doc,trigger,heading,other,request,finish,removeTrigger};
+}
+test('publication restores genuinely lost focus to its mounted outcome once',()=>{
+  const f=focusFixture();f.removeTrigger();assert.equal(f.finish(),true);assert.equal(f.doc.activeElement,f.heading);
+  f.doc.activeElement=f.doc.body;assert.equal(f.finish(),false);
+});
+test('publication preserves deliberate navigation even when focus later returns to body',()=>{
+  for(const kind of ['focus','pointer','tab']){
+    const f=focusFixture();
+    if(kind==='focus')f.other.focus();
+    if(kind==='pointer')f.doc.emit('pointerdown',f.other);
+    if(kind==='tab')f.doc.emit('keydown',f.trigger,{key:'Tab'});
+    f.removeTrigger();assert.equal(f.finish(),false,kind);assert.equal(f.doc.activeElement,f.doc.body,kind);
+  }
+});
+test('publication does not steal focus from another mounted control',()=>{
+  const f=focusFixture();f.trigger.isConnected=false;f.other.focus();assert.equal(f.finish(),false);assert.equal(f.doc.activeElement,f.other);
+});
+test('publication cannot focus another selected setup, failed publication, or missing outcome',()=>{
+  for(const context of [{setupId:'setup-b'},{publication:{active:false}},{publication:null},{heading:null},{heading:{isConnected:false}}]){
+    const f=focusFixture();f.removeTrigger();assert.equal(f.finish(context),false);assert.equal(f.doc.activeElement,f.doc.body);
+  }
+});
+test('cancelled publication and a still-mounted trigger never move focus',()=>{
+  const f=focusFixture();f.request.cancel();f.removeTrigger();assert.equal(f.finish(),false);
+  const g=focusFixture();g.doc.activeElement=g.doc.body;assert.equal(g.finish(),false);
+  assert.equal(beginPublicationFocus(null,'setup-a'),null);
+});
+test('publication does not focus a background document',()=>{
+  const f=focusFixture();f.removeTrigger();f.doc.visibilityState='hidden';assert.equal(f.finish(),false);
 });
 
 test('historical wording never reads as a present-tense publication success',()=>{

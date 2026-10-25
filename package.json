@@ -32,6 +32,8 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsdom": "26.1.0",
     "miniflare": "5.20261019.2-beta",
     "wrangler": "4.152.0"
   }

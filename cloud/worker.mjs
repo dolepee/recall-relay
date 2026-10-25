@@ -7,23 +7,22 @@ import {SourceWorkspace} from '../src/source-workspace.mjs';
 import {HostedAI} from '../src/cloud-ai.mjs';
 import {PayPalSandbox} from '../src/paypal-sandbox.mjs';
 import {routeWorkspace,boundedJSON} from '../src/cloud-routing.mjs';
+import {UsageBudgetCore,aiRefusal,resetLabel} from '../src/cloud-budget.mjs';
 
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...headers}});
 
+// One Durable Object named `daily` holds every counter, so admissions are serialized. The table, the
+// primary key, the binding and the hosting layout are unchanged.
 export class UsageBudget extends DurableObject {
-  constructor(ctx,env){super(ctx,env);ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_budget (day TEXT NOT NULL, scope TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day,scope)); CREATE TABLE IF NOT EXISTS known_workspaces (id TEXT PRIMARY KEY)');}
-  hasWorkspace(id){return this.ctx.storage.sql.exec('SELECT id FROM known_workspaces WHERE id=?',id).toArray().length===1;}
-  openWorkspace(id){if(!this.take('workspaces',200))return false;this.ctx.storage.sql.exec('INSERT INTO known_workspaces VALUES (?)',id);return true;}
-  take(scope,limit){
-    const day=new Date().toISOString().slice(0,10);
-    return this.ctx.storage.transactionSync(()=>{
-      this.ctx.storage.sql.exec('DELETE FROM daily_budget WHERE day < ?',day);
-      const old=this.ctx.storage.sql.exec('SELECT count FROM daily_budget WHERE day=? AND scope=?',day,scope).toArray()[0]?.count||0;
-      if(old>=limit)return false;
-      this.ctx.storage.sql.exec('INSERT INTO daily_budget VALUES (?,?,1) ON CONFLICT(day,scope) DO UPDATE SET count=count+1',day,scope);
-      return true;
-    });
-  }
+  constructor(ctx,env){super(ctx,env);this.core=new UsageBudgetCore(ctx.storage,()=>this.limits(),{clock:()=>this.now()});}
+  // Adjustable limits and clock. The shipped values live in src/cloud-budget.mjs; nothing here raises
+  // a ceiling, and the daily counters always bind before the burst windows.
+  limits(){return {};}
+  now(){return Date.now();}
+  hasWorkspace(id){return this.core.hasWorkspace(id);}
+  openWorkspace(id){return this.core.openWorkspace(id);}
+  admitAI(workspaceId){return this.core.admitAI(workspaceId);}
+  aiAllowance(workspaceId){return this.core.aiAllowance(workspaceId);}
 }
 
 class HostedDesk extends ClaimDeskCore {
@@ -42,8 +41,12 @@ export class RecallWorkspace extends DurableObject {
     const desk=new HostedDesk({journal,origin:input.origin,provider:()=>PayPalSandbox.fromCredentials({clientId:this.env.PAYPAL_SANDBOX_CLIENT_ID,clientSecret:this.env.PAYPAL_SANDBOX_CLIENT_SECRET})},input.workspace);
     const budget=this.env.BUDGET.getByName('daily');
     const ai=new HostedAI(this.env.AI,async()=>{
-      if(!await budget.take('ai-workspace-'+input.workspace,20)||!await budget.take('ai-total',80))throw new Error('The sandbox AI allowance is used for today. Manual review and existing claims remain available.');
-    },this.env.AI_ENABLED===true);
+      const admission=await budget.admitAI(input.workspace);
+      if(!admission?.admitted)throw aiRefusal(admission);
+      return admission;
+    },this.env.AI_ENABLED===true,{
+      allowance:()=>budget.aiAllowance(input.workspace),
+    });
     const sourceWorkspace=new SourceWorkspace(db,{ai});
     let status=404,value={error:'Unknown action.'};
     const res={setHeader(){}};
@@ -69,7 +72,13 @@ export default {
         if(!session.owner)return json({error:'This customer workspace was not found.'},404);
         session=routeWorkspace(url,'');
       }
-      if(session.newSecret&&!await registry.openWorkspace(session.id))return json({error:'The sandbox is at capacity today. Please return later.'},429);
+      if(session.newSecret){
+        const opening=await registry.openWorkspace(session.id);
+        if(!opening?.opened){
+          const label=resetLabel(opening?.resetAt);
+          return json({error:`The sandbox is at capacity today.${label?` New desks open again at ${label}.`:''} Please return later.`,resetAt:opening?.resetAt||null},429);
+        }
+      }
       const input={workspace:session.id,owner:session.owner,path:url.pathname,method:request.method,origin:url.origin,contentType:request.headers.get('content-type'),authorization:request.headers.get('authorization')||'',body:request.method==='POST'?await boundedJSON(request):{}};
       const result=await env.WORKSPACES.getByName(session.id).handle(input);
       return json(result.value,result.status,session.newSecret?{'Set-Cookie':`rr_workspace=${session.newSecret}; HttpOnly; SameSite=Lax; Path=/; Max-Age=7776000${url.protocol==='https:'?'; Secure':''}`}:{ });

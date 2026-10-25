@@ -197,3 +197,152 @@ test('clarification requests preserve the photo, require a response, and reject 
     assert.equal(result.status.code,'SUBMITTED');assert.equal(desk.claim(item.id).submission.photo,photo);assert.equal(result.correction.state,'RESPONDED');assert.equal(counters.refund,0);
   }finally{desk.close();}
 });
+
+test('merchant summaries omit photographs while evidence reads bind to the current authorized revision',async()=>{
+  const {desk}=setup();try{
+    const item=await create(desk),a=access(item);
+    desk.submit(a,{revision:0,lot:'LOT-A',acknowledged:true,photo});
+    const summary=desk.merchantState().cases[0];
+    assert.equal(summary.photo,undefined);assert.equal(summary.submission.hasPhoto,true);
+    assert.equal(JSON.stringify(desk.merchantState()).includes(photo),false);
+    assert.deepEqual(desk.photograph(item.id,{revision:1}),{id:item.id,revision:1,photo});
+    assert.throws(()=>desk.photograph(item.id,{revision:0}),/changed/);
+    assert.throws(()=>desk.photograph('another-claim',{revision:1}),/not found/);
+    let output;
+    const handler=claimRoutes(desk,{origin:'http://127.0.0.1:4318',json:(_res,status,value)=>{output={status,value};},body:async req=>req.input});
+    const req={method:'POST',headers:{origin:'http://127.0.0.1:4318','content-type':'application/json',authorization:'Bearer '+a},input:{id:item.id,revision:1}};
+    await handler(req,{setHeader(){}},'/api/merchant/photograph');assert.equal(output.status,401);
+    req.headers.authorization='Bearer '+desk.merchantKey();await handler(req,{setHeader(){}},'/api/merchant/photograph');assert.equal(output.status,200);assert.equal(output.value.photo,photo);
+  }finally{desk.close();}
+});
+
+test('reopening an unattempted reservation resumes its original request exactly once',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'recall-reserved-')),path=join(dir,'claims.sqlite');
+  const s=setup(path);let reopened,peer;
+  try{
+    const item=await create(s.desk),view=ready(s.desk,item);
+    const row=s.desk.journal.reserve(s.desk.plan(s.desk.claim(item.id)),{actor:'local-merchant',digest:view.plan.digest},5999);
+    assert.equal(row.state,'RESERVED');assert.equal(s.counters.refund,0);
+    s.desk.close();reopened=new ClaimDesk({path,provider:async()=>s.provider});
+    peer=new ClaimDesk({path,provider:async()=>s.provider});
+    await Promise.all([reopened.approve(item.id,{digest:view.plan.digest}),peer.approve(item.id,{digest:view.plan.digest})]);
+    assert.equal(s.counters.refund,1);
+    assert.equal(reopened.reservation(reopened.claim(item.id)).request_id,row.request_id);
+    assert.equal(reopened.customerState(access(item)).receipt.amountCents,2599);
+  }finally{if(peer)peer.close();if(reopened)reopened.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('resuming RESERVED rechecks the exact approval, capture and current plan without unlocking evidence',async()=>{
+  const s=setup();try{
+    const item=await create(s.desk),view=ready(s.desk,item),claim=s.desk.claim(item.id);
+    const row=s.desk.journal.reserve(s.desk.plan(claim),{actor:'local-merchant',digest:view.plan.digest},5999);
+    await assert.rejects(s.desk.approve(item.id,{digest:'stale'}),/recorded refund/);
+    assert.throws(()=>s.desk.submit(access(item),{revision:1,lot:'LOT-A'}),/locked/);
+    assert.throws(()=>s.desk.requestChanges(item.id,{revision:1,message:'Please clarify the label.',replacePhoto:false}),/locked/);
+    s.capture.status='PARTIALLY_REFUNDED';await assert.rejects(s.desk.approve(item.id,{digest:view.plan.digest}),/capture changed/);
+    s.capture.status='COMPLETED';
+    const original=s.desk.claim(item.id);s.desk.saveClaim({...original,review:null});
+    await assert.rejects(s.desk.approve(item.id,{digest:view.plan.digest}),/Approval/);
+    s.desk.saveClaim({...original,purchase:{...original.purchase,capturedAt:'2025-01-01'}});
+    await assert.rejects(s.desk.approve(item.id,{digest:view.plan.digest}),/Approval/);
+    assert.equal(s.counters.refund,0);assert.equal(s.desk.journal.get(row.request_id).state,'RESERVED');
+    // A new active campaign must not change the frozen claim or its reservation.
+    s.desk.saveClaim(original);const source=await publishScenario(s.desk);source.activate();
+    const result=await s.desk.approve(item.id,{digest:view.plan.digest});
+    assert.equal(result.campaign.sku,'CUP-01');assert.equal(result.receipt.amountCents,2599);
+    assert.equal(s.counters.refund,1);
+  }finally{s.desk.close();}
+});
+
+for(const boundary of ['before-reserve','after-reserve','after-begin','after-refund','after-hint','after-readback','after-observe']){
+  test(`refund crash boundary ${boundary} preserves dispatch safety after SQLite reopen`,async()=>{
+    const dir=mkdtempSync(join(tmpdir(),'recall-crash-')),path=join(dir,'claims.sqlite');
+    const s=setup(path);let reopened;
+    try{
+      const item=await create(s.desk),view=ready(s.desk,item);
+      const fail=()=>{throw new Error('Injected crash boundary');};
+      if(boundary==='before-reserve')s.desk.journal.reserve=fail;
+      if(boundary==='after-reserve')s.desk.journal.begin=fail;
+      if(boundary==='after-begin'){
+        const begin=s.desk.journal.begin.bind(s.desk.journal);
+        s.desk.journal.begin=id=>{begin(id);fail();};
+      }
+      if(boundary==='after-refund'){
+        // The provider accepted the refund; interruption precedes hint persistence.
+        const refund=s.provider.refund.bind(s.provider);
+        s.provider.refund=async row=>{await refund(row);fail();};
+      }
+      if(boundary==='after-hint')s.setReadFails(true);
+      if(boundary==='after-readback')s.desk.journal.observe=fail;
+      if(boundary==='after-observe'){
+        const observe=s.desk.journal.observe.bind(s.desk.journal);
+        s.desk.journal.observe=(id,result)=>{observe(id,result);fail();};
+      }
+      await assert.rejects(s.desk.approve(item.id,{digest:view.plan.digest}),/Injected|unavailable/);
+      const before=s.desk.reservation(s.desk.claim(item.id));
+      assert.equal(before?.state,boundary==='before-reserve'?undefined:boundary==='after-reserve'?'RESERVED':boundary==='after-observe'?'COMPLETED':'UNKNOWN');
+      s.desk.close();s.setReadFails(false);reopened=new ClaimDesk({path,provider:async()=>s.provider});
+      await Promise.all([reopened.approve(item.id,{digest:view.plan.digest}),reopened.approve(item.id,{digest:view.plan.digest})]);
+      if(['before-reserve','after-reserve','after-observe'].includes(boundary)){
+        assert.equal(s.counters.refund,1);assert.equal(reopened.customerState(access(item)).status.code,'COMPLETED');
+      }else if(['after-hint','after-readback'].includes(boundary)){
+        assert.equal(reopened.customerState(access(item)).receipt,null);
+        await reopened.reconcile(item.id);assert.equal(s.counters.refund,1);
+        assert.equal(reopened.customerState(access(item)).status.code,'COMPLETED');
+      }else{
+        await assert.rejects(reopened.reconcile(item.id),/Manual reconciliation/);
+        assert.equal(s.counters.refund,boundary==='after-begin'?0:1);
+        assert.equal(reopened.customerState(access(item)).status.code,'UNKNOWN');
+        assert.equal(reopened.customerState(access(item)).receipt,null);
+      }
+      if(before)assert.equal(reopened.reservation(reopened.claim(item.id)).request_id,before.request_id);
+      assert.equal(reopened.db.prepare('SELECT COUNT(*) AS n FROM refunds').get().n,1);
+    }finally{if(reopened)reopened.close();rmSync(dir,{recursive:true,force:true});}
+  });
+}
+
+for(const state of ['UNKNOWN','PENDING','FAILED','CANCELLED','COMPLETED']){
+  test(`replayed ${state} approval never dispatches another refund`,async()=>{
+    const s=setup();try{
+      const item=await create(s.desk),view=ready(s.desk,item);
+      const row=s.desk.journal.reserve(s.desk.plan(s.desk.claim(item.id)),{actor:'local-merchant',digest:view.plan.digest},5999);
+      s.desk.journal.begin(row.request_id);
+      if(state!=='UNKNOWN')s.desk.journal.observe(row.request_id,{id:'TEST-REFUND',status:state,amount:{value:'25.99',currency_code:'USD'}});
+      const result=await s.desk.approve(item.id,{digest:view.plan.digest});
+      assert.equal(result.payment.state,state);assert.equal(s.counters.refund,0);
+      if(state!=='COMPLETED')assert.equal(result.receipt,null);
+    }finally{s.desk.close();}
+  });
+}
+
+test('republishing an earlier setup switches new purchases to it and leaves existing claims frozen',async()=>{
+  const s=setup();try{
+    const build=async(n,sku,lot)=>{
+      const quotes=[`Upload a photograph of the label for notice ${n}.`,`Confirm the printed serial number for notice ${n}.`];
+      const ws=new SourceWorkspace(s.desk.db,{loadSource:async()=>({title:`Notice ${n}`,recallNumber:n,products:[{name:`Product ${n}`}],route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://www.cpsc.gov/Recalls/2026/Test',sourceDigest:String(n).padEnd(64,'c').slice(0,64),remedies:quotes}),ai:{status:()=>({model:'test-double'}),generate:async()=>JSON.stringify({requirements:[{kind:'PHOTO',quote:quotes[0]},{kind:'CONFIRMATION',quote:quotes[1]}]})}});
+      let row=await ws.import(n);row=await ws.suggest(row.id,row.revision);
+      row=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});
+      return {ws,row,activate:()=>ws.activate(row.id,{revision:ws.get(row.id).revision,sku,lot,confirmed:true},s.desk)};
+    };
+    const a=await build('27026','FIXTURE-A','LOT-A'),b=await build('27027','FIXTURE-B','LOT-B');
+    a.activate();
+    const beforeA=await s.desk.createCheckout();
+    const claimA=await s.desk.captureCheckout(beforeA.id);
+    assert.deepEqual(claimA.campaign.requirements,a.row.review.fields.map(f=>f.quote));
+    b.activate();
+    assert.equal(s.desk.activeCampaign().sku,'FIXTURE-B');
+    const claimB=await s.desk.captureCheckout((await s.desk.createCheckout()).id);
+    assert.deepEqual(claimB.campaign.requirements,b.row.review.fields.map(f=>f.quote));
+    // Republish A: the authoritative active campaign and new purchases switch to A.
+    a.activate();
+    assert.equal(s.desk.activeCampaign().sku,'FIXTURE-A');
+    const claimC=await s.desk.captureCheckout((await s.desk.createCheckout()).id);
+    assert.deepEqual(claimC.campaign.requirements,a.row.review.fields.map(f=>f.quote));
+    assert.equal(claimC.campaign.sku,'FIXTURE-A');
+    // Existing claims keep the version they were created under, including the customer's view.
+    assert.deepEqual(s.desk.claim(claimA.id).campaign.requirements,a.row.review.fields.map(f=>f.quote));
+    assert.deepEqual(s.desk.claim(claimB.id).campaign.requirements,b.row.review.fields.map(f=>f.quote));
+    assert.equal(s.desk.customerState(access(claimB)).campaign.sku,'FIXTURE-B');
+    assert.equal(s.desk.customerState(access(claimA)).campaign.sku,'FIXTURE-A');
+  }finally{s.desk.close();}
+});

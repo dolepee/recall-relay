@@ -6,3 +6,9 @@
   button, input, textarea { font: inherit; }
 }
 .studio-workspace { width: 100%; min-width: 0; }
+.rr-workspace { height: calc(100dvh - 19rem); min-height: 28rem; max-height: 58rem; }
+.rr-case-heading:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
+.rr-outcome-notice:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
+::selection { background: #ccfbf1; color: #134e4a; }
+input, textarea { caret-color: #0f766e; }
+header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; text-underline-offset: 8px; }

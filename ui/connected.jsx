@@ -4,6 +4,7 @@ import {AlertDialog} from '@base-ui/react/alert-dialog';
 import {views,casesForView} from '../src/case-views.mjs';
 import {useClaimPhoto} from './use-claim-photo.mjs';
 import {Action,ErrorText,Status,Frame,Receipt,CorrectionNote,inputClass,money,titles,api} from './components.jsx';
+import {beginActionFocus} from '../src/focus-guard.mjs';
 const DeskContext=createContext(null);
 function CaseCell({value}){const {state,selectCase,selected}=useContext(DeskContext);const item=state.cases.find(c=>c.order===String(value));return <Button aria-pressed={selected===String(value)} aria-controls="claim-review" title={item?.campaign.product} className="flex min-h-11 w-28 max-w-full flex-col justify-center text-left focus-visible:outline-2 focus-visible:outline-teal-700" onClick={()=>selectCase(String(value))}><span className="max-w-full truncate text-sm font-semibold text-teal-900">{item?.campaign.product||value}</span><span className="text-xs text-slate-500">{value}</span><span className="text-xs font-medium tabular-nums text-slate-700">{money(item?.amountCents||0)}</span></Button>;}
 function MerchantCase(){
@@ -46,8 +47,8 @@ function PurchasePanel({state,run,busy}){
 
 export function MerchantDesk(){
   const [state,setState]=useState(null),[error,setError]=useState(null),[busy,setBusy]=useState(false),[selected,setSelected]=useState(''),[reviewed,setReviewed]=useState(false);
-  const [view,setView]=useState('ALL'),[guideOpen,setGuideOpen]=useState(false),[customize,setCustomize]=useState(false),[focusToken,setFocusToken]=useState(0),[notice,setNotice]=useState(null);
-  const guideToggle=useRef(null),viewSelect=useRef(null),outcomeNotice=useRef(null),lastRepair=useRef(0);
+  const [view,setView]=useState('ALL'),[guideOpen,setGuideOpen]=useState(false),[customize,setCustomize]=useState(false),[focusToken,setFocusToken]=useState(0),[notice,setNotice]=useState(null),[focusPending,setFocusPending]=useState(null);
+  const guideToggle=useRef(null),viewSelect=useRef(null),outcomeNotice=useRef(null),claimsHeading=useRef(null),lastRepair=useRef(0);
   const onView=useMemo(()=>value=>setView(value),[]);
   const wide=useSyncExternalStore(subscribe,()=>media.matches);
   async function refresh(){const data=await api('merchant/state');setState(data);}
@@ -66,7 +67,16 @@ export function MerchantDesk(){
       return result;
     }catch(e){setError({scope:caseAction?'case':'workspace',id:data?.id,message:reference?`${reference}: ${e.message}`:e.message});try{await refresh();}catch{}return null;}finally{setBusy(false);}
   }
-  async function reload(){setBusy(true);setError(null);try{await refresh();}catch(e){setError({scope:'workspace',message:e.message});}finally{setBusy(false);}}
+  async function reload(event){
+    // The control is disabled while the desk reloads, so the browser blurs it: repair that loss
+    // afterwards, keeping the control while it is still mounted and otherwise landing on the
+    // heading of the desk that was refreshed.
+    const focus=beginActionFocus(event?.currentTarget,claimsHeading);
+    setBusy(true);setError(null);
+    try{await refresh();}catch(e){setError({scope:'workspace',message:e.message});}
+    finally{setBusy(false);if(focus)setFocusPending(focus);}
+  }
+  useEffect(()=>{if(!focusPending)return;setFocusPending(null);focusPending.finish();},[focusPending]);
   const rows=useMemo(()=>(state?casesForView(state.cases,view):[]).map(c=>({order:c.order,product:c.campaign.product,status:({AWAITING_CUSTOMER:'Awaiting customer',NEEDS_INFORMATION:'Needs information',SUBMITTED:'Review evidence',REVIEW:'Review evidence',READY_FOR_APPROVAL:'Ready to approve',MANUAL:'Manual review',COMPLETED:'Refund confirmed'}[c.status.code]||titles[c.status.code]),refund:money(c.amountCents)})),[state,view]);
   const activeSelected=rows.some(row=>row.order===selected)?selected:rows[0]?.order||'';
   function selectCase(order){setSelected(order);setFocusToken(value=>value+1);}
@@ -82,7 +92,7 @@ export function MerchantDesk(){
   const selectedCaseId=state?.cases.find(item=>item.order===activeSelected)?.id;
   const workspaceError=error&&(error.scope==='workspace'||error.id!==selectedCaseId)?error.message:'';
   return <Frame>
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold text-balance">Claims</h1><p className="mt-1 text-sm leading-6 text-slate-600">Review evidence and resolve refunds to the original payment.</p></div><Action secondary disabled={busy} onClick={reload}>{busy?'Updating…':'Refresh claims'}</Action></div>
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-4"><div><h1 ref={claimsHeading} tabIndex={-1} className="rr-desk-heading text-2xl font-semibold text-balance">Claims</h1><p className="mt-1 text-sm leading-6 text-slate-600">Review evidence and resolve refunds to the original payment.</p></div><Action secondary disabled={busy} onClick={reload}>{busy?'Updating…':'Refresh claims'}</Action></div>
     <ErrorText error={workspaceError}/>
     {!state?<section className="rounded-lg border border-slate-200 bg-white p-6" aria-busy={!error}><p role="status">{error?'Your desk could not be opened.':'Opening your merchant desk…'}</p>{error&&<Action secondary className="mt-4" disabled={busy} onClick={reload}>Retry loading desk</Action>}</section>:<>
       {state.cases.length===0&&!state.campaign.scenario&&<section aria-label="Start your first claim form" className="mb-6 rounded-lg border border-slate-200 bg-white p-6 sm:p-8"><h2 className="text-xl font-semibold text-balance">From a notice to a resolved claim.</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Prepare the requirements once, then keep each customer’s evidence and refund together.</p><ol className="my-6 grid gap-4 text-sm sm:grid-cols-3"><li><strong className="block">Prepare instructions</strong><span className="mt-1 block leading-6 text-slate-600">Import a notice and review its source-linked fields.</span></li><li><strong className="block">Collect evidence</strong><span className="mt-1 block leading-6 text-slate-600">Connect a verified test purchase and share its private claim page.</span></li><li><strong className="block">Review and resolve</strong><span className="mt-1 block leading-6 text-slate-600">Request corrections or approve the exact item refund.</span></li></ol><a href="/setup" className="inline-flex min-h-11 items-center justify-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">Prepare claim instructions</a></section>}

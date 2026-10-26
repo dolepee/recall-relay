@@ -163,7 +163,12 @@ source-specific evidence review, partial refund and matching customer/merchant
 receipt on 22 October 2026. Transaction confirmations were performed by the
 operator. Automated tests use injected provider doubles; they are distinct
 from that real Sandbox run. There is no independent adoption or measured
-time-saving claim. `/training` retains a separate fictional non-settling workspace.
+time-saving claim.
+
+`/training` retains a separate fictional non-settling workspace, and it is
+**local only**. The hosted build does not serve it or link to it. Its invented
+payment IDs are simulation, not PayPal Sandbox evidence: the verified Sandbox
+run above is the only genuine provider evidence in this project.
 
 ## Components and licenses
 

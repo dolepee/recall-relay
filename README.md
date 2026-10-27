@@ -166,7 +166,7 @@ from that real Sandbox run. There is no independent adoption or measured
 time-saving claim.
 
 `/training` retains a separate fictional non-settling workspace, and it is
-**local only**. The hosted build does not serve it or link to it. Its invented
+**local only**. The hosted build does not route to or link to it. Its invented
 payment IDs are simulation, not PayPal Sandbox evidence.
 
 ## Components and licenses

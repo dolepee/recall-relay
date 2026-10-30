@@ -16,10 +16,20 @@ visitors do not need a Mac or a local model. The hosted interface is at
 Backend configuration is in `cloud/`; Pages uses the root `wrangler.jsonc`.
 
 The site root (`/`) serves the reviewed landing page in `public/landing.html`;
-the merchant desk is at `/desk`, claim instructions at `/setup`, the private
-customer claim at `/claim` and the training workspace at `/training`. The local
-server and the Pages worker map those routes identically, and the landing
-source is not served directly.
+the merchant desk is at `/desk`, claim instructions at `/setup` and the private
+customer claim at `/claim`. The landing source is not served directly at
+`/landing.html`.
+
+Routing differs by environment, deliberately:
+
+- `npm run dev` (Vite middleware) serves `index.html` for every path, so all app
+  routes, including `/training`, work there.
+- `npm run build` followed by `npm start` serves the built `dist/`: `/` returns
+  `landing.html`, `/desk`, `/setup`, `/claim` and `/training` return the app
+  document, and every other path returns 404.
+- Cloudflare Pages (`cloud/pages-worker.mjs`) returns `landing.html` for `/`, the
+  app document for `/desk`, `/setup` and `/claim`, and 404 for everything else.
+  The training workspace is local-only and is not exposed on the hosted site.
 
 Each browser receives an isolated sandbox merchant workspace in an HttpOnly
 cookie. Keep that browser session: clearing its cookie loses access to its desk.

@@ -16,6 +16,8 @@ test('Pages serves the landing document at the root and keeps the workbench rout
   assert.equal(await (await pages.fetch(new Request('https://recall-relay.test/api/merchant/state'),env)).text(),'https://recall-relay.test/api/merchant/state');
   assert.equal((await pages.fetch(new Request('https://recall-relay.test/.env'),env)).status,404);
   assert.equal((await pages.fetch(new Request('https://recall-relay.test/landing.html'),env)).status,404);
+  // The training workspace is local-only; the hosted site must not expose it.
+  assert.equal((await pages.fetch(new Request('https://recall-relay.test/training'),env)).status,404);
 });
 
 test('hashed public assets are immutable while private API cache policy stays intact',async()=>{

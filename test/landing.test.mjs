@@ -36,3 +36,14 @@ test('landing copy describes what approval and the sandbox desk actually record'
   assert.match(html,/your own workspace on test funds/);
   assert.match(html,/an example, not a record waiting in your desk/);
 });
+
+test('the receipt promises only what the product receipt exposes',async()=>{
+  const html=await readFile(landing,'utf8');
+  // The product receipt shows a status, an amount and a refund reference; it exposes no timestamp.
+  assert.doesNotMatch(html,/\d{2}:\d{2}\s*UTC/);
+  assert.doesNotMatch(html,/One timestamp/i);
+  assert.match(html,/<dt>Status<\/dt>/);
+  assert.match(html,/from PayPal's confirmation of the refund/);
+  // Footer sits on light paper, so it must keep the default focus outline.
+  assert.doesNotMatch(html,/\.foot :focus-visible/);
+});

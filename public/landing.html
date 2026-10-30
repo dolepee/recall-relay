@@ -68,7 +68,7 @@ img,svg{max-width:100%}
 .skip{position:absolute;left:-9999px;top:0;z-index:60;display:inline-flex;align-items:center;min-height:var(--tap);background:var(--ink);color:#fff;padding:10px 18px;font-weight:600}
 .skip:focus{left:16px;top:10px}
 :focus-visible{outline:2px solid var(--cobalt);outline-offset:3px}
-.relay :focus-visible,.climax :focus-visible,.foot :focus-visible{outline-color:var(--deep-txt)}
+.relay :focus-visible,.climax :focus-visible{outline-color:var(--deep-txt)}
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *{transition:none !important;animation:none !important}
@@ -840,7 +840,7 @@ section{position:relative}
           provider confirmed the refund, and both sides read the same record.
         </p>
         <p class="climax__note">
-          <b>One reference. One amount. One timestamp.</b><br>
+          <b>One reference. One amount. One confirmation.</b><br>
           The customer sees it on the private claim page; you keep it on the claim.
         </p>
       </div>
@@ -864,7 +864,7 @@ section{position:relative}
           <div><dt>Refunded line</dt><dd>RZ-6D-OAK · LOT-2418</dd></div>
           <div><dt>Original capture</dt><dd class="amt">$59.99<small>includes an unaffected $34.00 line</small></dd></div>
           <div><dt>Reference</dt><dd>PP-RF-4471<small>sandbox fixture</small></dd></div>
-          <div><dt>Confirmed</dt><dd>2026-10-25 17:43 UTC<small>provider readback of the refund</small></dd></div>
+          <div><dt>Status</dt><dd>Completed<small>from PayPal's confirmation of the refund</small></dd></div>
         </dl>
 
         <p class="paper__note">

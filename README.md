@@ -15,6 +15,12 @@ visitors do not need a Mac or a local model. The hosted interface is at
 [recall-relay.dolepee.com](https://recall-relay.dolepee.com).
 Backend configuration is in `cloud/`; Pages uses the root `wrangler.jsonc`.
 
+The site root (`/`) serves the reviewed landing page in `public/landing.html`;
+the merchant desk is at `/desk`, claim instructions at `/setup`, the private
+customer claim at `/claim` and the training workspace at `/training`. The local
+server and the Pages worker map those routes identically, and the landing
+source is not served directly.
+
 Each browser receives an isolated sandbox merchant workspace in an HttpOnly
 cookie. Keep that browser session: clearing its cookie loses access to its desk.
 A private customer link grants access to one claim, not to merchant actions.

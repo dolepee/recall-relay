@@ -28,7 +28,9 @@ async function asset(env,url,request){
     if(response.status<300||response.status>=400)return response;
     const location=response.headers.get('Location');
     if(!location)return response;
-    target=new URL(location,target);
+    const next=new URL(location,target);
+    if(next.origin!==target.origin)return new Response('Not found',{status:404});
+    target=next;
   }
   return new Response('Not found',{status:404});
 }

@@ -43,3 +43,15 @@ test('Pages follows its own document redirect so the landing page resolves at th
   assert.equal(response.headers.get('Content-Type'),'text/html; charset=utf-8');
   assert.equal(response.headers.get('X-Content-Type-Options'),'nosniff');
 });
+
+test('Pages never follows an asset redirect to another origin',async()=>{
+  const seen=[];
+  const env={ASSETS:{fetch:async request=>{
+    const path=new URL(request.url).pathname;seen.push(path);
+    if(path==='/landing.html')return new Response(null,{status:302,headers:{Location:'https://elsewhere.example/landing'}});
+    return new Response('<h1>leaked</h1>',{headers:{'Content-Type':'text/html; charset=utf-8'}});
+  }},BACKEND:{fetch:async()=>new Response('api')}};
+  const response=await pages.fetch(new Request('https://recall-relay.test/'),env);
+  assert.equal(response.status,404);
+  assert.deepEqual(seen,['/landing.html']);
+});

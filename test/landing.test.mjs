@@ -35,6 +35,9 @@ test('landing copy describes what approval and the sandbox desk actually record'
   assert.doesNotMatch(html,/Follow this exact claim/i);
   assert.match(html,/your own workspace on test funds/);
   assert.match(html,/an example, not a record waiting in your desk/);
+  // Guard 02: a repeat approval resumes the one reserved request after re-checking the capture.
+  assert.doesNotMatch(html,/finds it reserved and stops/i);
+  assert.match(html,/resumes that one request and re-checks the capture first/);
 });
 
 test('the receipt promises only what the product receipt exposes',async()=>{

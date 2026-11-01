@@ -59,3 +59,7 @@ A new merchant with no claims should see a clear first action to prepare a sourc
 Customer page headings and lead content follow the recorded state. An open claim leads with the evidence action, a correction leads with the merchant request, a submitted claim names the merchant as the next actor, and a completed claim leads with its verified receipt. General submission instructions must not remain above a completed refund. Keep source instructions, previous responses and the scenario disclosure available as supporting context.
 
 Source setup exposes the current stage: import, review fields, or publish. After instructions are saved, compress earlier drafting into an explicit edit affordance and bring publication forward. Keep unsupported-route reasons next to the blocked action, and expose saved-setup loading failures with a retry.
+
+## Practice case
+
+`/practice` is a separate local evaluation surface: one fictional $25.99 item inside a $59.99 practice purchase, with the unaffected $34.00 line excluded. It reuses the claim state machine and these design tokens, but keeps its own store, session cookie and claim identifiers, so it cannot read or change a connected sandbox workspace. Reviewed requirements stay linked to the invented practice notice; the recorded assistant draft is labelled as recorded, not live. Evidence review, a requested correction, a fresh review and a clearly simulated refund are the whole journey. No payment provider, credentials, live model call or paid service is involved, and the receipt never claims that money moved.

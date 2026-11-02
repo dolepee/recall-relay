@@ -23,6 +23,8 @@ export const DEFAULT_BUDGET_LIMITS=Object.freeze({
   burstWindowSeconds:60,
 });
 
+export const PRACTICE_SESSIONS_PER_DAY=400;
+
 const dayPattern=/^\d{4}-\d{2}-\d{2}$/;
 const BURST_PREFIX='ai-burst-';
 
@@ -115,6 +117,20 @@ export class UsageBudgetCore {
   aiAllowance(workspaceId){const {daily,burst}=this.aiSpec(workspaceId);return this.allowance(daily,burst);}
   // A workspace is either counted and registered, or neither. The counter and the registry insert
   // share one transaction, so a failed insert cannot spend the day's workspace token.
+  // Practice sessions are paced by their own daily scope; connected workspace
+  // counters and the AI allowance are untouched.
+  openPractice(){
+    return this.storage.transactionSync(()=>{
+      const now=Number(this.clock()),day=utcDay(now);
+      if(day===null)return {opened:false,reason:'clock',resetAt:null};
+      const limits=this.limits();
+      this.prune(day,burstBucket(now,limits.burstWindowSeconds));
+      const resetAt=dayResetInstant(day);
+      if(this.count(day,'practice-sessions')>=PRACTICE_SESSIONS_PER_DAY)return {opened:false,reason:'capacity',resetAt};
+      this.bump(day,'practice-sessions');
+      return {opened:true,reason:null,resetAt};
+    });
+  }
   openWorkspace(id){
     return this.storage.transactionSync(()=>{
       const now=Number(this.clock()),day=utcDay(now);

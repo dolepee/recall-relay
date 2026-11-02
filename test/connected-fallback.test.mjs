@@ -106,3 +106,126 @@ test('the desktop fallback keeps source coverage, exceptions and the recorded br
   assert.match(body,/Item refund\s*\$25\.99/);
   assert.ok(logged.length>0,'the Studio failure was the boundary fallback, not a silently working workspace');
 });
+
+test('the advisory is a separate revision-bound panel and the read tools stay read-only',async()=>{
+  const advisoryPosts=[],readPosts=[];
+  globalThis.fetch=async(path,options={})=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory'){
+      advisoryPosts.push(JSON.parse(options.body));
+      return new Response(JSON.stringify({
+        caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,status:'CITED',model:'fixture-model',
+        summary:'The recorded source asks the customer to confirm the return before a refund is approved.',
+        clauses:[{citationId:'cov-1',quote:'Confirm the item was returned',actor:'CUSTOMER',timing:'BEFORE_ACTION',condition:'Before the merchant approves a refund',explanation:'The customer has not yet confirmed the return.',disposition:'UNRESOLVED',fieldIds:[]}],
+        gaps:['The customer has not confirmed the return.'],limitations:['The photograph has not been inspected.'],
+      }));
+    }
+    if(path==='/api/merchant/case-context'){
+      readPosts.push(JSON.parse(options.body));
+      return new Response(JSON.stringify({caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,clauses:[{citationId:'cov-1',quote:'Confirm the item was returned',disposition:'UNRESOLVED',fieldIds:[]}],facts:{photoPresent:false,lotMatches:true,reviewRevision:2,correctionState:'NONE'},gaps:['The customer has not confirmed the return.']}));
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  assert.match(text(panel),/not a recorded fact/i);
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  assert(prepare,'the advisory is prepared on request');
+  await act(async()=>{prepare.click();await tick();});
+  await settle(()=>advisoryPosts.length===1);
+  assert.deepEqual(advisoryPosts[0],{caseId:'claim-1',revision:2},'the advisory is bound to the selected revision only');
+  assert.match(text(panel),/Confirm the item was returned/);
+  assert.match(text(panel),/Customer/);
+  assert.match(text(panel),/Before the action/);
+  assert.match(text(panel),/The photograph has not been inspected/);
+  assert.match(text(panel),/Recorded evidence gaps/);
+  // The same three bounded reads are available without a model call.
+  const facts=panel.querySelector('details');
+  facts.open=true;
+  const source=[...facts.querySelectorAll('button')].find(node=>text(node)==='Source requirements');
+  await act(async()=>{source.click();await tick();});
+  await settle(()=>readPosts.length===1);
+  assert.deepEqual(readPosts[0],{caseId:'claim-1',revision:2,section:'source'});
+  assert.match(text(facts),/Source requirements · revision 2 · read-only/);
+  assert.match(text(facts),/Photograph recorded:/);
+  // A review change keeps the same revision but must invalidate both panels.
+  state.cases[0].review={state:'APPROVED',reviewedAt:'2026-11-02T17:00:00Z'};
+  const refresh=[...document.querySelectorAll('button')].find(node=>text(node)==='Refresh claims');
+  await act(async()=>{refresh.click();await tick();});
+  await settle(()=>!text(panel).includes('CITED ADVISORY')&&!text(facts).includes('Source requirements · revision'));
+  assert.doesNotMatch(text(panel),/CITED ADVISORY/i);
+  assert.doesNotMatch(text(facts),/Source requirements · revision 2 · read-only/);
+  state.cases[0].review=null;
+});
+
+test('a stale advisory is hidden rather than shown beside a newer case revision',async()=>{
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory')return new Response(JSON.stringify({error:'Evidence changed',reason:'STALE_CONTEXT'}),{status:400,headers:{'Content-Type':'application/json'}});
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  await act(async()=>{prepare.click();await tick();});
+  await settle(()=>/This claim changed/.test(text(panel)));
+  assert.match(text(panel),/This claim changed while the advisory was being prepared/);
+  assert.doesNotMatch(text(panel),/CITED ADVISORY/i);
+  assert.doesNotMatch(text(panel),/The recorded source asks/);
+});
+
+
+test('a same-revision review change during an advisory request discards the pending result',async()=>{
+  let release;const pending=new Promise(resolve=>{release=resolve;});
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory')return pending;
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  await act(async()=>{prepare.click();await tick();});
+  state.cases[0].review={state:'APPROVED',reviewedAt:'2026-11-02T17:00:00Z'}; // revision deliberately unchanged
+  const refresh=[...document.querySelectorAll('button')].find(node=>text(node)==='Refresh claims');
+  await act(async()=>{refresh.click();await step(3);});
+  release(new Response(JSON.stringify({caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,status:'CITED',summary:'Pending result',clauses:[{citationId:'cov-1',quote:'Pending quotation',actor:'CUSTOMER',timing:'BEFORE_ACTION',condition:null,explanation:'Pending',disposition:'UNRESOLVED',fieldIds:[]}],gaps:[],limitations:[]}),{status:200,headers:{'Content-Type':'application/json'}}));
+  await settle(()=>!text(panel).includes('Preparing advisory'));
+  assert.doesNotMatch(text(panel),/CITED ADVISORY|Pending quotation/i);
+  state.cases[0].review=null;
+});
+
+test('the recorded read rejects a returned case that is not the selected revision',async()=>{
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-context')return new Response(JSON.stringify({caseId:'claim-other',revision:2,readOnly:true,clauses:[{citationId:'c',quote:'Wrong case',disposition:'FIELD',fieldIds:[]}],facts:{},gaps:[]}));
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const facts=panel.querySelector('details');facts.open=true;
+  const brief=[...facts.querySelectorAll('button')].find(node=>text(node)==='Case brief');
+  await act(async()=>{brief.click();await tick();});
+  await settle(()=>/different case revision/.test(text(facts)));
+  assert.match(text(facts),/different case revision/);
+  assert.doesNotMatch(text(facts),/Wrong case/);
+});
+
+test('a partial advisory keeps good clauses and calls withheld clauses some interpretations unavailable',async()=>{
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory')return new Response(JSON.stringify({caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,status:'INSUFFICIENT',model:'gpt-oss-120b',summary:'1 of 2 source clauses have an advisory interpretation. Read every complete quotation; rejected interpretations are withheld.',clauses:[{citationId:'good',quote:'Confirm the item was returned',actor:'CUSTOMER',timing:'BEFORE_ACTION',condition:null,explanation:'Confirm the return before approving a refund.',disposition:'FIELD',fieldIds:[],interpretationAvailable:true},{citationId:'withheld',quote:'The customer must unplug the lamp before photographing its label.',actor:'UNKNOWN',timing:'UNSPECIFIED',condition:null,explanation:'The model interpretation did not pass source-fidelity checks. Read the complete quotation directly.',disposition:'MANUAL',fieldIds:[],interpretationAvailable:false}],gaps:[],limitations:['AI interpretation can be wrong.']}),{status:200,headers:{'Content-Type':'application/json'}});
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  await act(async()=>{prepare.click();await tick();});
+  await settle(()=>/Some interpretations unavailable/.test(text(panel)));
+  assert.match(text(panel),/Some interpretations unavailable/);
+  assert.doesNotMatch(text(panel),/Source insufficient/);
+  assert.match(text(panel),/Model: gpt-oss-120b/);
+  assert.match(text(panel),/Interpretation withheld/);
+  assert.match(text(panel),/did not pass source-fidelity checks/);
+  assert.match(text(panel),/Confirm the return before approving a refund/);
+});

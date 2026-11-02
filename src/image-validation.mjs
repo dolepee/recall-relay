@@ -51,7 +51,9 @@ export function validateImageBytes(bytes,type){
       // Bound decompression before the pure-JS decoder. Strip ancillary metadata,
       // including compressed profiles, so it cannot allocate outside this bound.
       const expectedBytes=width*height*channels+height;
-      if(inflateSync(Buffer.concat(idat),{maxOutputLength:expectedBytes}).length!==expectedBytes)throw new Error('scanlines');
+      // workerd needs bounded output-buffer headroom even for valid exact-size
+      // streams. Still reject any extra scanline byte before the PNG decoder.
+      if(inflateSync(Buffer.concat(idat),{maxOutputLength:expectedBytes+65536}).length!==expectedBytes)throw new Error('scanlines');
       const decoded=decodePNG(Buffer.concat(chunks),{checkCrc:true});
       if(decoded.width!==width||decoded.height!==height||!decoded.data.length)throw new Error('pixels');
       if(color===3&&decoded.data.some(index=>index>=paletteEntries))throw new Error('palette index');

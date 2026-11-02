@@ -87,9 +87,20 @@ try{
 
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+token})).status,200);
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+'x'.repeat(43)})).status,401);
-  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWMAgv8AAQQBAP8H9UQAAAAASUVORK5CYII=';
+
   // A small compressed indexed image must not expand palette allocations through repeated tRNS chunks.
   const chunk=(kind,data=Buffer.alloc(0))=>{const out=Buffer.alloc(data.length+12);out.writeUInt32BE(data.length);out.write(kind,4);data.copy(out,8);out.writeUInt32BE(crc32(out.subarray(4,-4)),out.length-4);return out;};
+  // Regress the hosted workerd zlib boundary: a valid 128px RGB image was
+  // accepted in Node but rejected by the deployed runtime's exact output cap.
+  const rgbHeader=Buffer.from('00000080000000800802000000','hex');
+  const scanlines=Buffer.alloc(128*(128*3+1),220);
+  for(let row=0;row<128;row++)scanlines[row*(128*3+1)]=0;
+  const png=data=>Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',rgbHeader),chunk('IDAT',deflateSync(data)),chunk('IEND')]);
+  const image='data:image/png;base64,'+png(scanlines).toString('base64');
+  for(const extra of [1,65537]){
+    const oversized=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:0,lot:'LOT-A',photo:'data:image/png;base64,'+png(Buffer.concat([scanlines,Buffer.alloc(extra)])).toString('base64'),acknowledged:true}});
+    assert.equal(oversized.status,400);assert.match(oversized.value.error,/decoded safely/);
+  }
   const header=Buffer.from('00000001000000010803000000','hex');
   const hostile=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',header),chunk('PLTE',Buffer.alloc(768)),...Array(60000).fill(chunk('tRNS')),chunk('IDAT',deflateSync(Buffer.from([0,0]))),chunk('IEND')]);
   const rejected=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:0,lot:'LOT-A',photo:'data:image/png;base64,'+hostile.toString('base64'),acknowledged:true}});

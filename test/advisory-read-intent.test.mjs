@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import test,{after} from 'node:test';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdir,mkdtemp,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
@@ -9,6 +9,7 @@ import {pathToFileURL} from 'node:url';
 // the three real selected-case tools. These tests drive the same generator the
 // Studio agent's run() delegates to, so a registered-but-unreachable tool fails
 // here as it would in the conversation.
+await mkdir('.cache',{recursive:true});
 const dir=await mkdtemp(resolve('.cache/advisory-read-'));
 after(()=>rm(dir,{recursive:true,force:true}));
 await build({entryPoints:['ui/case-assistant.mjs'],outdir:dir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});

@@ -63,3 +63,10 @@ test('an expired grant cannot start a provider lookup and an existing allocation
     assert.equal(desk.merchantState().cases[0].amountCents,3875);
   }finally{desk.close();owner.close();}
 });
+test('concurrent different bindings reserve capacity before global ownership',async()=>{
+ const f=fixture(),second=fixture();second.grant={...second.grant,id:'grant-b',captureId:'CAPTURE-B',orderId:'ORDER-B'};second.capture.id='CAPTURE-B';second.capture.supplementary_data.related_ids.order_id='ORDER-B';second.order.id='ORDER-B';second.order.purchase_units[0].payments.captures=[second.capture];
+ const owner=registry(),{desk}=setup(f,owner);desk.maxCheckouts=1;desk.purchaseGrants.push(second.grant);
+ desk.provider=async()=>({orderDetails:async id=>id==='ORDER-A'?f.order:second.order,captureDetails:async id=>id==='CAPTURE-A'?f.capture:second.capture});
+ let acquired=0;const original=desk.captureOwnership;desk.captureOwnership={claim(input){acquired++;return original.claim(input);}};
+ try{const results=await Promise.allSettled([desk.bindPurchase({grantId:'grant-a'}),desk.bindPurchase({grantId:'grant-b'})]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(acquired,1);assert.equal(desk.merchantState().cases.length,1);}finally{desk.close();owner.close();}
+});

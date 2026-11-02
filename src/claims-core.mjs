@@ -40,6 +40,7 @@ export class ClaimDeskCore {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS claim_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS checkouts (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS purchase_bindings (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS claims (id TEXT PRIMARY KEY, access_hash TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS refund_hints (request_id TEXT PRIMARY KEY, refund_id TEXT NOT NULL);
     `);
@@ -50,6 +51,7 @@ export class ClaimDeskCore {
   activeCampaign(){const value=this.setting('active-campaign');return value?JSON.parse(value):campaign;}
   campaignFor(claim){return claim.campaign||campaign;}
   previewLedger(input){return previewLedger(input,this.setting('published')==='yes'?this.activeCampaign():null);}
+  claimSlotsUsed(){return this.db.prepare('SELECT count(*) AS n FROM (SELECT id FROM checkouts UNION SELECT id FROM claims UNION SELECT id FROM purchase_bindings)').get().n;}
   async ownCapture(purchase,claimId){
     if(this.captureOwnership)await this.captureOwnership.claim({merchantId:purchase.merchantId,captureId:purchase.captureId,workspace:this.workspaceId,claimId,...(purchase.provenance?{grantId:purchase.provenance.grantId,grantDigest:purchase.provenance.grantDigest,operator:purchase.provenance.operator,provisionedAt:purchase.provenance.provisionedAt}:{})});
   }
@@ -66,12 +68,20 @@ export class ClaimDeskCore {
     const provider=await this.provider();
     const order=await provider.orderDetails(grant.orderId),capture=await provider.captureDetails(grant.captureId);
     const purchase=verifyProvisionedPurchase(grant,order,capture,this.now());
-    await this.ownCapture(purchase,id);
     if(this.setting('published')!=='yes'||bindingHash(this.activeCampaign())!==policyDigest)throw new Error('Campaign changed during verification. Refresh before binding.');
+    // Reserve a durable local slot before acquiring immutable global ownership.
+    // A dropped RPC response can retry this same slot without consuming another.
+    const pending=syncTransaction(this.db,()=>{
+      const saved=this.db.prepare('SELECT data FROM purchase_bindings WHERE id=?').get(id);
+      if(saved){const value=JSON.parse(saved.data);if(value.purchase.provenance.grantDigest!==bindingHash(grant))throw new Error('The pending allocation changed. Manual reconciliation is required.');return value;}
+      const used=this.claimSlotsUsed();
+      if(this.maxCheckouts&&used>=this.maxCheckouts)throw new Error('This workspace has reached its supported claim limit.');
+      const value={id,campaign:policy,access:secret(),createdAt:this.now(),purchase,submission:null,revision:0,review:null};
+      this.db.prepare('INSERT INTO purchase_bindings VALUES (?,?)').run(id,JSON.stringify(value));return value;
+    });
+    await this.ownCapture(purchase,id);
     const raced=prior();if(raced)return raced;
-    if(this.maxCheckouts&&this.db.prepare('SELECT count(*) AS n FROM claims').get().n>=this.maxCheckouts)throw new Error('This workspace has reached its supported claim limit.');
-    const claim={id,campaign:policy,access:secret(),createdAt:this.now(),purchase,submission:null,revision:0,review:null};
-    this.saveClaim(claim);return this.merchantView(claim);
+    this.saveClaim(pending);return this.merchantView(pending);
   }
   merchantKey() { return this.setting('merchant-key'); }
   authenticateMerchant(value) { return typeof value === 'string' && hash(value) === hash(this.merchantKey()); }
@@ -89,7 +99,7 @@ export class ClaimDeskCore {
     if(this.setting('published')!=='yes')throw new Error('Review and publish the sandbox campaign first.');
     const unfinished=this.db.prepare('SELECT data FROM checkouts ORDER BY rowid').all().map(r=>JSON.parse(r.data)).find(c=>!c.orderId&&!c.claimId);
     if(unfinished)return this.resumeCheckout(unfinished.id);
-    if(this.maxCheckouts&&this.db.prepare('SELECT count(*) AS n FROM checkouts').get().n>=this.maxCheckouts)
+    if(this.maxCheckouts&&this.claimSlotsUsed()>=this.maxCheckouts)
       throw new Error('This sandbox workspace has reached its test-purchase limit. Existing claims and receipts remain available.');
     const value={id:randomUUID(),createRequest:randomUUID(),captureRequest:randomUUID(),state:'CREATE_FAILED',createdAt:this.now(),campaign:this.activeCampaign(),origin:this.origin};
     this.saveCheckout(value);

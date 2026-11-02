@@ -62,7 +62,9 @@ future capture dates and captures aged 180 days or more remain manual.
 One SQLite Durable Object per Sandbox merchant/capture records immutable ownership
 and its first claim, grant digest, operator and provisioning timestamp. Workspace,
 SKU, lot, line names and amount are not alternate ownership keys. Concurrent binding
-and retries return the same claim. Ownership survives restarts and cannot be
+and retries return the same claim. A durable local slot is reserved before global
+ownership; pending bindings and checkouts share the six-case capacity budget. A
+lost ownership response can resume the same pending allocation without another slot. Ownership survives restarts and cannot be
 reassigned by a changed server grant. The first release supports one affected
 allocation per capture; other lines and transfers require manual handling.
 

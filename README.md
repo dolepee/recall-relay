@@ -39,6 +39,23 @@ allocation and no refund or approval action; duplicate capture declarations stay
 manual until reconciled. See the
 [import preview contract](docs/ledger-import-contract.md).
 
+## Provisioned purchases and AI advisory
+
+When a server-side operator grant exists for the authenticated workspace, the
+desk shows a compact **Provisioned purchases** action. The browser sends only
+the grant id to `POST /api/merchant/bind-purchase`; it cannot supply a capture
+id, amount or verification flag. The server checks the provider order and
+capture and creates the ordinary claim view. Capture ownership is durable and
+capture-global; transfers and rebinding stay manual in this release.
+
+The connected desk keeps the deterministic **Recorded review brief** separate
+from the **AI advisory** panel. The advisory is requested for one case and
+revision, shows cited source clauses with actor, timing, condition and recorded
+gaps, and is labelled model-assisted rather than recorded fact. A stale revision
+hides the result. The Claim guide exposes the same three read-only reads
+(`get_case_brief`, `get_source_requirements`, `get_evidence_gaps`); none can
+approve, refund or change evidence.
+
 ## Browser hosting
 
 The Cloudflare build runs AI on the server and works in a normal browser;

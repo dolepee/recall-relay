@@ -106,3 +106,62 @@ test('the desktop fallback keeps source coverage, exceptions and the recorded br
   assert.match(body,/Item refund\s*\$25\.99/);
   assert.ok(logged.length>0,'the Studio failure was the boundary fallback, not a silently working workspace');
 });
+
+test('the advisory is a separate revision-bound panel and the read tools stay read-only',async()=>{
+  const advisoryPosts=[],readPosts=[];
+  globalThis.fetch=async(path,options={})=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory'){
+      advisoryPosts.push(JSON.parse(options.body));
+      return new Response(JSON.stringify({
+        caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,status:'CITED',model:'fixture-model',
+        summary:'The recorded source asks the customer to confirm the return before a refund is approved.',
+        clauses:[{citationId:'cov-1',quote:'Confirm the item was returned',actor:'CUSTOMER',timing:'BEFORE_ACTION',condition:'Before the merchant approves a refund',explanation:'The customer has not yet confirmed the return.',disposition:'UNRESOLVED',fieldIds:[]}],
+        gaps:['The customer has not confirmed the return.'],limitations:['The photograph has not been inspected.'],
+      }));
+    }
+    if(path==='/api/merchant/case-context'){
+      readPosts.push(JSON.parse(options.body));
+      return new Response(JSON.stringify({caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,clauses:[{citationId:'cov-1',quote:'Confirm the item was returned',disposition:'UNRESOLVED',fieldIds:[]}],facts:{photoPresent:false,lotMatches:true,reviewRevision:2,correctionState:'NONE'},gaps:['The customer has not confirmed the return.']}));
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  assert.match(text(panel),/not a recorded fact/i);
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  assert(prepare,'the advisory is prepared on request');
+  await act(async()=>{prepare.click();await tick();});
+  await settle(()=>advisoryPosts.length===1);
+  assert.deepEqual(advisoryPosts[0],{caseId:'claim-1',revision:2},'the advisory is bound to the selected revision only');
+  assert.match(text(panel),/Confirm the item was returned/);
+  assert.match(text(panel),/Customer/);
+  assert.match(text(panel),/Before the action/);
+  assert.match(text(panel),/The photograph has not been inspected/);
+  assert.match(text(panel),/Recorded evidence gaps/);
+  // The same three bounded reads are available without a model call.
+  const facts=panel.querySelector('details');
+  facts.open=true;
+  const source=[...facts.querySelectorAll('button')].find(node=>text(node)==='Source requirements');
+  await act(async()=>{source.click();await tick();});
+  await settle(()=>readPosts.length===1);
+  assert.deepEqual(readPosts[0],{caseId:'claim-1',revision:2,section:'source'});
+  assert.match(text(facts),/Source requirements · revision 2 · read-only/);
+  assert.match(text(facts),/Photograph recorded:/);
+});
+
+test('a stale advisory is hidden rather than shown beside a newer case revision',async()=>{
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory')return new Response(JSON.stringify({error:'STALE_REVISION',stale:true}),{status:409,headers:{'Content-Type':'application/json'}});
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  await act(async()=>{prepare.click();await tick();});
+  await settle(()=>/This claim changed/.test(text(panel)));
+  assert.match(text(panel),/This claim changed while the advisory was being prepared/);
+  assert.doesNotMatch(text(panel),/CITED ADVISORY/i);
+  assert.doesNotMatch(text(panel),/The recorded source asks/);
+});

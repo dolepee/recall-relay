@@ -7,6 +7,7 @@ import {Action,ErrorText,Status,Frame,Receipt,CorrectionNote,inputClass,money,ti
 import {beginActionFocus} from '../src/focus-guard.mjs';
 import {projectClaimState} from './connected-state.mjs';
 import {ImportPanel} from './import-panel.jsx';
+import {AdvisoryPanel} from './advisory-panel.jsx';
 import {ProvisionedPurchases} from './provisioned-panel.jsx';
 // The recorded workflow states are authored for the customer's private claim page, and the
 // merchant desk reuses them. Only the customer-directed wording is re-expressed here for the
@@ -76,6 +77,10 @@ function ConnectedExceptionsWidget(){
     {projection.lockNote&&<p className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-[10px] leading-4 text-slate-600">{projection.lockNote}</p>}
   </section>;
 }
+function ConnectedAdvisoryWidget(){
+  const context=useContext(DeskContext),item=selectedItem(context);
+  return <AdvisoryPanel item={item}/>;
+}
 function ConnectedReviewBrief(){
   const context=useContext(DeskContext),item=selectedItem(context);
   if(!item)return <section className="h-full overflow-auto p-4"><h2 className="text-base font-semibold">Recorded review brief</h2><p className="mt-2 text-sm leading-6 text-slate-600">Select a claim to build its review brief.</p></section>;
@@ -97,7 +102,7 @@ function ConnectedReviewBrief(){
 function MobileReviewExtras({always=false}){
   const {wide}=useContext(DeskContext);
   if(wide&&!always)return null;
-  return <div className="mt-5 space-y-3"><details className="rr-card p-4" open={wide||undefined}><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Source coverage</summary><ConnectedCoverageWidget/></details><details className="rr-card p-4" open={wide||undefined}><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Exceptions and amounts</summary><ConnectedExceptionsWidget/></details><details className="rr-card p-4" open={wide||undefined}><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Recorded review brief</summary><ConnectedReviewBrief/></details></div>;
+  return <div className="mt-5 space-y-3"><details className="rr-card p-4" open={wide||undefined}><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Source coverage</summary><ConnectedCoverageWidget/></details><details className="rr-card p-4" open={wide||undefined}><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Exceptions and amounts</summary><ConnectedExceptionsWidget/></details><details className="rr-card p-4" open={wide||undefined}><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Recorded review brief</summary><ConnectedReviewBrief/></details><details className="rr-card p-4" open={wide||undefined}><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">AI advisory</summary><ConnectedAdvisoryWidget/></details></div>;
 }
 
 function MerchantCase({inlineExtras=false}){
@@ -149,6 +154,7 @@ export function MerchantDesk(){
   useEffect(()=>{let active=true;(async()=>{const fragment=new URLSearchParams(location.hash.slice(1));const key=fragment.get('merchant');if(key){history.replaceState(null,'',location.pathname+location.search);await api('merchant/login',{key});}if(active)await refresh();})().catch(e=>active&&setError({scope:'workspace',message:e.message}));return()=>{active=false;};},[]);
   async function run(action,data){
     const caseAction=['review','request-changes','approve','reconcile'].includes(action);
+    const bindAction=action==='bind-purchase';
     const reference=caseAction?state?.cases.find(item=>item.id===data?.id)?.order:null;
     setBusy(true);setError(null);setNotice(null);
     try{
@@ -160,13 +166,19 @@ export function MerchantDesk(){
         if(action!=='bind-purchase')throw refreshError;
         setError({scope:'workspace',message:'The binding was recorded, but the desk could not refresh. Use Refresh claims to load the recorded claim.'});
       }
+      if(bindAction){
+        if(!result?.order)throw new Error('The server did not return the bound claim.');
+        setView('ALL');selectCase(result.order);
+        setNotice({message:`${result.order}: provisioned purchase bound. Provider facts and the allocation are now recorded for review.`,view:'ALL',order:result.order});
+        return result;
+      }
       if(caseAction&&!casesForView([result],view).length){
         const nextView=result.status.code==='READY_FOR_APPROVAL'?'READY':result.status.code==='COMPLETED'?'COMPLETED':['AWAITING_CUSTOMER','NEEDS_INFORMATION'].includes(result.status.code)?'WAITING':['SUBMITTED','REVIEW'].includes(result.status.code)?'REVIEW':['UNKNOWN','PENDING','RESERVED','FAILED','CANCELLED'].includes(result.status.code)?'PAYMENT':'MANUAL';
         const outcome=action==='request-changes'?'Update requested. This claim is now waiting for the customer.':action==='review'?'Evidence review saved. This claim is ready for merchant approval.':merchantReason(result.status.reason);
         setNotice({message:`${result.order}: ${outcome}`,view:nextView,order:result.order});
       }
       return result;
-    }catch(e){setError({scope:caseAction?'case':'workspace',id:data?.id,message:reference?`${reference}: ${e.message}`:e.message});try{await refresh();}catch{}return null;}finally{setBusy(false);}
+    }catch(e){setError({scope:caseAction?'case':'workspace',id:caseAction?data?.id:undefined,message:reference?`${reference}: ${e.message}`:e.message});try{await refresh();}catch{}return null;}finally{setBusy(false);}
   }
   async function reload(event){
     // The control is disabled while the desk reloads, so the browser blurs it: repair that loss
@@ -189,8 +201,9 @@ export function MerchantDesk(){
   // empty: the outcome notice, or the case view selector that can bring the case back.
   useEffect(()=>{if(focusToken===lastRepair.current)return;lastRepair.current=focusToken;if(activeSelected)return;const target=outcomeNotice.current||viewSelect.current;if(target)target.focus({preventScroll:true});},[focusToken,activeSelected]);
   const data=useMemo(()=>({sources:[{id:'claims',data:rows}]}),[rows]);
-  const initialState=useMemo(()=>({pages:[{id:'claims',widgets:{queue:{type:'grid',dataMapping:{cols:['order','status'].map(id=>({id:`claims.${id}`}))},format:{title:{text:'Claim queue',enabled:true},style:{theme:{rowHeight:84},columnAutoSize:false,columnWidth:120}}},review:{type:'connected-case',dataMapping:{}},coverage:{type:'connected-coverage',dataMapping:{}},exceptions:{type:'connected-exceptions',dataMapping:{}},brief:{type:'connected-brief',dataMapping:{}}},widgetLayout:{queue:{xTrack:0,yTrack:0,xSpan:7,ySpan:24},review:{xTrack:7,yTrack:0,xSpan:9,ySpan:24},coverage:{xTrack:16,yTrack:0,xSpan:8,ySpan:10},exceptions:{xTrack:16,yTrack:10,xSpan:8,ySpan:7},brief:{xTrack:16,yTrack:17,xSpan:8,ySpan:7}},layout:{minWidth:280,columns:24,rowHeight:Math.max(18,Math.floor((window.innerHeight-304)/24)),pagePadding:0,widgetPadding:0,widgetBorderEnabled:true,widgetBorderColor:'rgba(14,20,23,.17)',widgetBorderRadius:2}}],selectedPageId:'claims'}),[]);
+  const initialState=useMemo(()=>({pages:[{id:'claims',widgets:{queue:{type:'grid',dataMapping:{cols:['order','status'].map(id=>({id:`claims.${id}`}))},format:{title:{text:'Claim queue',enabled:true},style:{theme:{rowHeight:84},columnAutoSize:false,columnWidth:120}}},review:{type:'connected-case',dataMapping:{}},coverage:{type:'connected-coverage',dataMapping:{}},exceptions:{type:'connected-exceptions',dataMapping:{}},brief:{type:'connected-brief',dataMapping:{}},advisory:{type:'connected-advisory',dataMapping:{}}},widgetLayout:{queue:{xTrack:0,yTrack:0,xSpan:7,ySpan:24},review:{xTrack:7,yTrack:0,xSpan:9,ySpan:24},coverage:{xTrack:16,yTrack:0,xSpan:8,ySpan:10},exceptions:{xTrack:16,yTrack:10,xSpan:8,ySpan:7},brief:{xTrack:16,yTrack:17,xSpan:8,ySpan:7},advisory:{xTrack:16,yTrack:24,xSpan:8,ySpan:9}},layout:{minWidth:280,columns:24,rowHeight:Math.max(18,Math.floor((window.innerHeight-304)/24)),pagePadding:0,widgetPadding:0,widgetBorderEnabled:true,widgetBorderColor:'rgba(14,20,23,.17)',widgetBorderRadius:2}}],selectedPageId:'claims'}),[]);
   const selectedCaseId=state?.cases.find(item=>item.order===activeSelected)?.id;
+  const getCase=useMemo(()=>()=>state?.cases.find(item=>item.order===activeSelected)||null,[state,activeSelected]);
   const workspaceError=error&&(error.scope==='workspace'||error.id!==selectedCaseId)?error.message:'';
   return <Frame merchant>
     <div className="mb-5 flex flex-wrap items-center justify-between gap-4"><div><h1 ref={claimsHeading} tabIndex={-1} className="rr-desk-heading text-2xl font-semibold text-balance">Claims</h1><p className="mt-1 text-sm leading-6 text-slate-600">Review evidence and resolve refunds to the original payment.</p></div><Action secondary disabled={busy} onClick={reload}>{busy?'Updating…':'Refresh claims'}</Action></div>
@@ -205,7 +218,7 @@ export function MerchantDesk(){
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><label className="text-sm font-medium">Case view<select ref={viewSelect} className="ml-3 min-h-11 rounded-md border border-slate-300 bg-white px-3" value={view} onChange={e=>setView(e.target.value)}>{Object.entries(views).map(([value,label])=><option key={value} value={value}>{label} ({casesForView(state.cases,value).length})</option>)}</select></label><div className="flex flex-wrap items-center gap-3">{wide&&<><Action secondary ref={guideToggle} aria-expanded={guideOpen} onClick={()=>setGuideOpen(open=>!open)}>Claim guide</Action><Action secondary aria-pressed={customize} onClick={()=>setCustomize(value=>!value)}>{customize?'Finish arranging':'Arrange workspace'}</Action></>}<span className="text-xs tabular-nums text-slate-500">{state.cases.length} {state.cases.length===1?'claim':'claims'}</span></div></div>
         {notice&&<div ref={outcomeNotice} tabIndex={-1} role="status" className="rr-outcome-notice mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-teal-200 bg-teal-50 px-4 py-3"><p className="text-sm leading-6 text-teal-950">{notice.message}</p><Action secondary onClick={()=>{setView(notice.view);selectCase(notice.order);setNotice(null);}}>Open updated claim</Action></div>}
         {customize&&wide&&<p className="mb-3 text-sm text-slate-600">Arrange the queue and review panels, then finish arranging to return to the review workspace.</p>}
-        <DeskContext.Provider value={{state,selected:activeSelected,selectCase,run,busy,error,focusToken,restoreCaseFocus,wide}}>{wide?<WorkspaceBoundary fallback={<BasicCaseWorkspace rows={rows}/>}><Suspense fallback={<BasicCaseWorkspace rows={rows} loading/>}><StudioWorkspace data={data} initialState={initialState} onView={onView} ClaimReview={MerchantCase} OrderCell={CaseCell} CoverageWidget={ConnectedCoverageWidget} ExceptionsWidget={ConnectedExceptionsWidget} BriefWidget={ConnectedReviewBrief} guideOpen={guideOpen} onGuideClose={()=>{setGuideOpen(false);guideToggle.current?.focus();}} customize={customize}/></Suspense></WorkspaceBoundary>:<BasicCaseWorkspace rows={rows}/>}</DeskContext.Provider>
+        <DeskContext.Provider value={{state,selected:activeSelected,selectCase,run,busy,error,focusToken,restoreCaseFocus,wide}}>{wide?<WorkspaceBoundary fallback={<BasicCaseWorkspace rows={rows}/>}><Suspense fallback={<BasicCaseWorkspace rows={rows} loading/>}><StudioWorkspace data={data} initialState={initialState} onView={onView} getCase={getCase} ClaimReview={MerchantCase} OrderCell={CaseCell} CoverageWidget={ConnectedCoverageWidget} ExceptionsWidget={ConnectedExceptionsWidget} BriefWidget={ConnectedReviewBrief} AdvisoryWidget={ConnectedAdvisoryWidget} guideOpen={guideOpen} onGuideClose={()=>{setGuideOpen(false);guideToggle.current?.focus();}} customize={customize}/></Suspense></WorkspaceBoundary>:<BasicCaseWorkspace rows={rows}/>}</DeskContext.Provider>
       </>:state.published?<section className="rr-card border-dashed p-6"><h2 className="font-semibold">Ready for your first customer claim.</h2><p className="mt-2 text-sm leading-6 text-slate-600">Connect a sandbox purchase above. Its payment is verified before the private customer page is created.</p></section>:null}
       <footer className="mt-5 text-xs leading-5 text-slate-500">Fictional merchandise and PayPal Sandbox. AG Studio’s evaluation watermark is retained. {!state.hosted&&<><a href="/practice" className="ml-2 inline-flex min-h-11 items-center text-teal-800 underline focus-visible:outline-2 focus-visible:outline-teal-700">Run one simulated practice claim</a><a href="/training" className="ml-4 inline-flex min-h-11 items-center text-teal-800 underline focus-visible:outline-2 focus-visible:outline-teal-700">Separate training workspace</a></>}</footer>
     </>}

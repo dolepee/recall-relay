@@ -1,3 +1,5 @@
+import {PRACTICE_TTL_MS} from './cloud-practice-routing.mjs';
+
 // Bounded, all-or-nothing counters for the hosted sandbox.
 //
 // Every scope shares one row shape and one primary key:
@@ -67,7 +69,7 @@ export class UsageBudgetCore {
     this.storage=storage;
     this.limitSource=typeof limits==='function'?limits:()=>limits;
     this.clock=clock;
-    storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_budget (day TEXT NOT NULL, scope TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day,scope)); CREATE TABLE IF NOT EXISTS known_workspaces (id TEXT PRIMARY KEY)');
+    storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_budget (day TEXT NOT NULL, scope TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day,scope)); CREATE TABLE IF NOT EXISTS known_workspaces (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS known_practice_sessions (id TEXT PRIMARY KEY, issued_at INTEGER NOT NULL)');
   }
   limits(){return {...DEFAULT_BUDGET_LIMITS,...this.limitSource()};}
   hasWorkspace(id){return this.storage.sql.exec('SELECT id FROM known_workspaces WHERE id=?',id).toArray().length===1;}
@@ -117,18 +119,32 @@ export class UsageBudgetCore {
   aiAllowance(workspaceId){const {daily,burst}=this.aiSpec(workspaceId);return this.allowance(daily,burst);}
   // A workspace is either counted and registered, or neither. The counter and the registry insert
   // share one transaction, so a failed insert cannot spend the day's workspace token.
-  // Practice sessions are paced by their own daily scope; connected workspace
-  // counters and the AI allowance are untouched.
-  openPractice(){
+  // Practice sessions are paced and registered in their own scope. The registry
+  // is what lets a Worker reject an unissued cookie before an object exists.
+  practiceTtl(ttlMs){return Number.isFinite(ttlMs)&&ttlMs>0?ttlMs:PRACTICE_TTL_MS;}
+  prunePractice(now,ttlMs){
+    this.storage.sql.exec('DELETE FROM known_practice_sessions WHERE issued_at < ?',now-this.practiceTtl(ttlMs));
+  }
+  hasPractice(id,ttlMs){
+    return this.storage.transactionSync(()=>{
+      const now=Number(this.clock());
+      this.prunePractice(now,ttlMs);
+      return this.storage.sql.exec('SELECT id FROM known_practice_sessions WHERE id=?',id).toArray().length===1;
+    });
+  }
+  admitPractice(id,ttlMs){
     return this.storage.transactionSync(()=>{
       const now=Number(this.clock()),day=utcDay(now);
       if(day===null)return {opened:false,reason:'clock',resetAt:null};
       const limits=this.limits();
       this.prune(day,burstBucket(now,limits.burstWindowSeconds));
+      this.prunePractice(now,ttlMs);
       const resetAt=dayResetInstant(day);
+      if(this.storage.sql.exec('SELECT id FROM known_practice_sessions WHERE id=?',id).toArray().length===1)return {opened:true,existing:true,resetAt};
       if(this.count(day,'practice-sessions')>=PRACTICE_SESSIONS_PER_DAY)return {opened:false,reason:'capacity',resetAt};
+      this.storage.sql.exec('INSERT INTO known_practice_sessions VALUES (?,?)',id,now);
       this.bump(day,'practice-sessions');
-      return {opened:true,reason:null,resetAt};
+      return {opened:true,existing:false,resetAt};
     });
   }
   openWorkspace(id){

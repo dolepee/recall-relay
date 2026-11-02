@@ -5,9 +5,9 @@ import {PRACTICE_COOKIE,PRACTICE_MAX_BYTES} from './cloud-practice-routing.mjs';
 // Host-agnostic handler for one practice object. A Durable Object, a local
 // server and a test all drive the same routes and the same shared core.
 export class PracticeRuntime {
-  constructor({journal,provider,origin='http://127.0.0.1:4318',now}={}) {
+  constructor({journal,provider,origin='http://127.0.0.1:4318',now,ttlMs}={}) {
     this.origin=origin;
-    this.practice=new PracticeWorkspace({journal,provider,origin,now});
+    this.practice=new PracticeWorkspace({journal,provider,origin,now,ttlMs});
   }
 
   async handle(input) {

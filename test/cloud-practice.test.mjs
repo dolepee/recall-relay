@@ -7,7 +7,7 @@ import {cloudSql} from '../src/cloud-sql.mjs';
 import {PracticeRuntime} from '../src/practice-runtime.mjs';
 import {SimulatedRefundProvider} from '../src/practice-provider.mjs';
 import {boundedJSON} from '../src/cloud-routing.mjs';
-import {validatePracticeRequest,resolvePracticeSession,practiceAction,PRACTICE_MAX_BYTES} from '../src/cloud-practice-routing.mjs';
+import {validatePracticeRequest,resolvePracticeSession,practiceAction,PRACTICE_MAX_BYTES,PRACTICE_TTL_MS} from '../src/cloud-practice-routing.mjs';
 import {UsageBudgetCore,DEFAULT_BUDGET_LIMITS,PRACTICE_SESSIONS_PER_DAY} from '../src/cloud-budget.mjs';
 
 // The same real-SQLite transaction harness the connected runtime tests use.
@@ -151,6 +151,8 @@ test('practice request validation rejects origin, method, route and oversized bo
   assert.equal(validatePracticeRequest({method:'POST',pathname:'/api/practice/submit',requestOrigin:'https://evil.example',contentType:'application/json',origin:ORIGIN}).status,403);
   assert.equal(validatePracticeRequest({method:'POST',pathname:'/api/practice/submit',requestOrigin:ORIGIN,contentType:'text/plain',origin:ORIGIN}).status,403);
   assert.equal(validatePracticeRequest({method:'POST',pathname:'/api/practice/submit',requestOrigin:ORIGIN,contentType:'application/json',origin:ORIGIN}),null);
+  assert.equal(validatePracticeRequest({method:'GET',pathname:'/api/practice/new',requestOrigin:ORIGIN,contentType:'',origin:ORIGIN}).status,405);
+  assert.equal(validatePracticeRequest({method:'POST',pathname:'/api/practice/state',requestOrigin:ORIGIN,contentType:'application/json',origin:ORIGIN}).status,405);
 
   assert.deepEqual(resolvePracticeSession('state',null).fresh,true);
   assert.equal(resolvePracticeSession('submit',null).expired,true);
@@ -165,15 +167,26 @@ test('practice request validation rejects origin, method, route and oversized bo
   assert.equal(count(runtime,'practice_sessions'),0);
 });
 
-test('practice session quota is separate from connected workspace quota',()=>{
+test('practice admission is registered, capped and separate from connected quota',()=>{
   const {storage}=sqliteStorage();
-  let now=Date.now();
+  let now=Date.parse('2026-11-02T10:00:00.000Z');
   const core=new UsageBudgetCore(storage,DEFAULT_BUDGET_LIMITS,{clock:()=>now});
+  const day=new Date(now).toISOString().slice(0,10);
   assert.equal(core.openWorkspace('w1').opened,true);
-  assert.equal(core.count(new Date(now).toISOString().slice(0,10),'workspaces'),1);
-  for(let i=0;i<PRACTICE_SESSIONS_PER_DAY;i++)assert.equal(core.openPractice().opened,true);
-  const refused=core.openPractice();
+  assert.equal(core.count(day,'workspaces'),1);
+
+  assert.equal(core.admitPractice('p-0').opened,true);
+  assert.equal(core.hasPractice('p-0'),true);
+  assert.equal(core.hasPractice('not-issued'),false,'arbitrary tokens are not admitted');
+  assert.equal(core.admitPractice('p-0').existing,true,'re-admission is not charged twice');
+
+  for(let i=1;i<PRACTICE_SESSIONS_PER_DAY;i++)assert.equal(core.admitPractice('p-'+i).opened,true);
+  const refused=core.admitPractice('p-final');
   assert.equal(refused.opened,false);
   assert.equal(refused.reason,'capacity');
-  assert.equal(core.count(new Date(now).toISOString().slice(0,10),'workspaces'),1,'connected workspaces are unchanged');
+  assert.equal(core.count(day,'workspaces'),1,'connected workspaces are unchanged');
+
+  now+=PRACTICE_TTL_MS+1000;
+  assert.equal(core.hasPractice('p-0'),false,'issued sessions expire from the registry');
+  assert.equal(core.admitPractice('p-fresh').opened,true,'a new day and TTL allow new practice');
 });

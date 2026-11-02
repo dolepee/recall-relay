@@ -86,8 +86,9 @@ function newClaim(now) {
 // Injected journal or a local file. The connected workspace never shares this
 // store, and a cloud host can pass a SQLite-backed journal from its own object.
 export class PracticeWorkspace {
-  constructor({journal, path = ':memory:', origin = 'http://127.0.0.1:4318', now = () => new Date().toISOString(), provider = () => new SimulatedRefundProvider()} = {}) {
+  constructor({journal, path = ':memory:', origin = 'http://127.0.0.1:4318', now = () => new Date().toISOString(), provider = () => new SimulatedRefundProvider(), ttlMs = SESSION_TTL_MS} = {}) {
     this.now = now;
+    this.ttlMs = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : SESSION_TTL_MS;
     this.ownsJournal = !journal;
     this.desk = new ClaimDeskCore({
       journal: journal || new RefundJournal(path),
@@ -142,7 +143,7 @@ export class PracticeWorkspace {
 
   expired(session) {
     const created = Date.parse(session.createdAt);
-    return !Number.isFinite(created) || Date.parse(this.now()) - created >= SESSION_TTL_MS;
+    return !Number.isFinite(created) || Date.parse(this.now()) - created >= this.ttlMs;
   }
 
   purgeExpired() {

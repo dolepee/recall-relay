@@ -8,7 +8,7 @@ import {HostedAI} from '../src/cloud-ai.mjs';
 import {PayPalSandbox} from '../src/paypal-sandbox.mjs';
 import {routeWorkspace,boundedJSON} from '../src/cloud-routing.mjs';
 import {UsageBudgetCore,aiRefusal,resetLabel} from '../src/cloud-budget.mjs';
-import {practiceAction,practiceCookie,resolvePracticeSession,practiceCookieHeader,validatePracticeRequest,PRACTICE_MAX_BYTES} from '../src/cloud-practice-routing.mjs';
+import {practiceAction,practiceCookie,practiceObjectName,resolvePracticeSession,practiceCookieHeader,validatePracticeRequest,PRACTICE_MAX_BYTES,PRACTICE_TTL_MS} from '../src/cloud-practice-routing.mjs';
 import {PracticeCase} from './practice-case.mjs';
 export {PracticeCase};
 
@@ -26,7 +26,8 @@ export class UsageBudget extends DurableObject {
   openWorkspace(id){return this.core.openWorkspace(id);}
   admitAI(workspaceId){return this.core.admitAI(workspaceId);}
   aiAllowance(workspaceId){return this.core.aiAllowance(workspaceId);}
-  openPractice(){return this.core.openPractice();}
+  hasPractice(id,ttl){return this.core.hasPractice(id,ttl);}
+  admitPractice(id,ttl){return this.core.admitPractice(id,ttl);}
 }
 
 class HostedDesk extends ClaimDeskCore {
@@ -72,14 +73,22 @@ async function practiceFetch(request,env,url){
   let body;
   try{body=request.method==='POST'?await boundedJSON(request,PRACTICE_MAX_BYTES):{};}
   catch{return json({error:'Request is too large.'},413);}
-  const resolved=resolvePracticeSession(action,practiceCookie(request.headers.get('cookie')));
-  if(resolved.expired)return json({error:'This practice session has expired. Start a fresh practice case.'},410,{'Set-Cookie':practiceCookieHeader('',url.origin,0)});
+  const registry=env.BUDGET.getByName('daily'),ttl=Number(env.PRACTICE_TTL_MS)||PRACTICE_TTL_MS;
+  const presented=practiceCookie(request.headers.get('cookie'));
+  // Fresh start is for expired or absent sessions. An active case keeps its own
+  // object so its photo and journal are removed by restart, not abandoned.
+  if(action==='new'&&presented&&await registry.hasPractice(practiceObjectName(presented),ttl))
+    return json({error:'This practice case is still active. Use restart to start another.'},409,{'Set-Cookie':practiceCookieHeader(presented,url.origin)});
+  const resolved=resolvePracticeSession(action,presented);
+  if(resolved.expired)return json({error:'This practice session has expired. Start a fresh practice case.',expired:true},410,{'Set-Cookie':practiceCookieHeader('',url.origin,0)});
   if(resolved.fresh){
-    const opening=await env.BUDGET.getByName('daily').openPractice();
+    const opening=await registry.admitPractice(resolved.id,ttl);
     if(!opening?.opened){
       const label=resetLabel(opening?.resetAt);
       return json({error:`Practice is at capacity today.${label?` New practice cases open again at ${label}.`:''}`,resetAt:opening?.resetAt||null},429);
     }
+  }else if(!await registry.hasPractice(resolved.id,ttl)){
+    return json({error:'This practice session has expired. Start a fresh practice case.',expired:true},410,{'Set-Cookie':practiceCookieHeader('',url.origin,0)});
   }
   const result=await env.PRACTICE.getByName(resolved.id).handle({
     token:resolved.token,fresh:resolved.fresh,path:url.pathname,method:request.method,

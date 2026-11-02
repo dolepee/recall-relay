@@ -12,20 +12,31 @@ export class PracticeCase extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.ctx = ctx;
-    this.runtime = new PracticeRuntime({
-      journal: new RefundJournalCore(cloudSql(ctx.storage)),
+    this.env = env;
+    const ttl = Number(env.PRACTICE_TTL_MS);
+    this.ttlMs = Number.isFinite(ttl) && ttl > 0 ? ttl : PRACTICE_TTL_MS;
+    this.runtime = this.buildRuntime();
+  }
+
+  buildRuntime() {
+    return new PracticeRuntime({
+      journal: new RefundJournalCore(cloudSql(this.ctx.storage)),
       provider: () => new SimulatedRefundProvider(),
+      ttlMs: this.ttlMs,
     });
   }
 
   async handle(input) {
-    if (!(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(Date.now() + PRACTICE_TTL_MS);
+    const alarm = await this.ctx.storage.getAlarm();
+    if (!alarm) await this.ctx.storage.setAlarm(Date.now() + this.ttlMs);
     return this.runtime.handle(input);
   }
 
-  // An abandoned practice object is deleted, including its photos and journal.
+  // Deleting an abandoned object removes its SQLite schema as well as its data,
+  // so the cached runtime is rebuilt before the next request. That request then
+  // finds no session and answers 410 with a fresh-start path, not a table error.
   async alarm() {
-    this.runtime.expire();
     await this.ctx.storage.deleteAll();
+    this.runtime = this.buildRuntime();
   }
 }

@@ -18,6 +18,7 @@ export function validatePracticeRequest({method,pathname,requestOrigin,contentTy
   if (!['GET', 'POST'].includes(method)) return {status: 405, error: 'Unsupported method.'};
   const action = practiceAction(pathname);
   if (!action) return {status: 404, error: 'Unknown action.'};
+  if ((method === 'GET') !== (action === 'state')) return {status: 405, error: 'Use the action button to continue.'};
   if (method === 'POST' && (requestOrigin !== origin || contentType !== 'application/json'))
     return {status: 403, error: 'Same-origin JSON requests required.'};
   return null;

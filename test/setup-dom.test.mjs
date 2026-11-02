@@ -111,3 +111,15 @@ for(const phase of ['action','refresh'])for(const returnToA of [false,true]){
 }
 assert.equal(passed,32);
 });
+
+test('setup reports assistant fields that the response-type check filtered',async()=>{
+ const state={ai:{available:true,model:'fixture'},activeCampaign:null,setups:[{id:'setup-1',revision:2,source:{recallNumber:'27-026',title:'Fixture crystal cup',products:[{name:'Fixture cup'}],description:'Local DOM fixture',retrievedAt:'2026-11-02T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:'a'.repeat(64),remedies:['Submit a photograph of the marked cup.'],requirements:[]},suggestion:{model:'fixture model',createdAt:'2026-11-02T00:00:00Z',requirements:[{id:'field-1',kind:'PHOTO',quote:'Submit a photograph of the marked cup.',sourceUrl:'https://example.invalid/notice'}],filtered:[{kind:'TEXT',quote:'Register at example.invalid to receive your refund.',reason:'A written field needs an explicit value, identifier or description request.'}]},review:null}]};
+ globalThis.fetch=async()=>new Response(JSON.stringify(state));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ const text=document.body.textContent;
+ assert.match(text,/1 drafted field was not used: it did not match a response type or complete source instruction/);
+ assert.match(text,/not a completeness check/);
+ assert.match(text,/Submit a photograph of the marked cup/);
+ await act(async()=>root.unmount());
+});

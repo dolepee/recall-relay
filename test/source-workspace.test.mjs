@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {SourceWorkspace,validateSourceSuggestion,validateView,assistCases} from '../src/source-workspace.mjs';
+import {SourceWorkspace,sourcePrompt,validateSourceSuggestion,validateManualField,validateView,assistCases} from '../src/source-workspace.mjs';
 import {ClaimDesk} from '../src/claims.mjs';
 import {campaignIdFor} from '../src/publication.mjs';
 
@@ -168,4 +168,185 @@ test('source state stays truthful for async callers and for a workspace without 
     assert.equal(bare.activeCampaign,null);
     assert.equal(bare.setups.length,1);
   }finally{desk.close();}
+});
+
+const notice=(remedies,number='27-000')=>({title:`Notice ${number}`,remedies,sourceUrl:`https://www.cpsc.gov/Recalls/2026/${number}`,sourceDigest:'c'.repeat(64)});
+const draft=requirements=>JSON.stringify({requirements});
+
+test('hosted 27-020 and 27-026 failures keep correct fields and drop mistyped ones',()=>{
+  const remedy020='Consumers should stop using the recalled dressers immediately if they are not anchored to the wall, place them in an area that children cannot access and contact Romorgniz for a full refund. Consumers will be asked to write in permanent marker "RECALLED" on the top, front and sides of the dresser, remove all drawers and send photos of the marked and disassembled dresser to Romorgnizrecall@outlook.com. Consumers should then dispose of the product.';
+  const failing020=draft([
+    {kind:'PHOTO',quote:'Consumers will be asked to write in permanent marker "RECALLED" on the top, front and sides of the dresser, remove all drawers and send photos of the marked and disassembled dresser to Romorgnizrecall@outlook.com.'},
+    {kind:'TEXT',quote:'write in permanent marker "RECALLED" on the top, front and sides of the dresser'},
+    {kind:'CONFIRMATION',quote:'Consumers should stop using the recalled dressers immediately if they are not anchored to the wall'},
+    {kind:'TEXT',quote:'place them in an area that children cannot access'},
+    {kind:'CONFIRMATION',quote:'contact Romorgniz for a full refund'},
+  ]);
+  const result020=validateSourceSuggestion(failing020,notice([remedy020],'27-020'));
+  assert.deepEqual(result020.requirements.map(f=>f.kind),['PHOTO']);
+  assert.equal(result020.filtered.length,4);
+  assert.ok(result020.filtered.some(f=>/confirmation field/.test(f.reason)));
+  assert.ok(result020.filtered.some(f=>/written field/.test(f.reason)));
+
+  const remedy026='Consumers should submit a photograph with the word "RECALL" written on the front of the crystal cup in permanent black marker. Consumers should attest to proper disposal of the recalled cup following the instructions on the firm\'s website. Register at example.com to receive your refund. Consumers should stop using the recalled cup immediately.';
+  const failing026=draft([
+    {kind:'PHOTO',quote:'Consumers should submit a photograph with the word "RECALL" written on the front of the crystal cup in permanent black marker.'},
+    {kind:'CONFIRMATION',quote:'Consumers should attest to proper disposal of the recalled cup following the instructions on the firm\'s website.'},
+    {kind:'TEXT',quote:'Register at example.com to receive your refund.'},
+    {kind:'TEXT',quote:'Consumers should stop using the recalled cup immediately.'},
+  ]);
+  const result026=validateSourceSuggestion(failing026,notice([remedy026],'27-026'));
+  assert.deepEqual(result026.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+  assert.match(result026.requirements[1].quote,/attest to proper disposal/);
+  assert.equal(result026.filtered.length,2);
+});
+
+test('held-out compound and conditional instructions keep their conditions and types',()=>{
+  const source=notice([
+    'If the cup has a cracked rim, remove the lid and submit a photograph of the damaged rim and the lot code.',
+    "If you disposed of the cup, attest that you followed the disposal instructions on the firm's website.",
+    'Where the label is unreadable, provide the serial number printed on the base.',
+  ],'27-099');
+  const raw=draft([
+    {kind:'PHOTO',quote:'If the cup has a cracked rim, remove the lid and submit a photograph of the damaged rim and the lot code.'},
+    {kind:'CONFIRMATION',quote:"If you disposed of the cup, attest that you followed the disposal instructions on the firm's website."},
+    {kind:'TEXT',quote:'Where the label is unreadable, provide the serial number printed on the base.'},
+  ]);
+  const result=validateSourceSuggestion(raw,source);
+  assert.equal(result.filtered.length,0);
+  assert.deepEqual(result.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION','TEXT']);
+  assert.match(result.requirements[0].quote,/If the cup has a cracked rim/);
+  assert.match(result.requirements[2].quote,/Where the label is unreadable/);
+});
+
+test('the assistant prompt carries positive and negative examples for each response type',()=>{
+  assert.match(sourcePrompt,/Positive examples/);
+  assert.match(sourcePrompt,/Negative examples/);
+  assert.match(sourcePrompt,/remove all drawers/);
+  assert.match(sourcePrompt,/attest to proper disposal/);
+  assert.match(sourcePrompt,/Submit a disposal attestation/);
+  assert.match(sourcePrompt,/batch number printed on the base/);
+  assert.match(sourcePrompt,/include every condition, preparation step and destination/i);
+  assert.doesNotMatch(sourcePrompt,/smallest/i);
+  assert.match(sourcePrompt,/do not quote a fragment/i);
+  assert.match(sourcePrompt,/Stop-use advice is not an attestation request/);
+});
+
+test('manual exact-source selections are not restricted by assistant response-type rules',async()=>{
+  const manual=validateManualField({kind:'TEXT',quote:'Register at example.com to receive your refund.'},notice(['Register at example.com to receive your refund.'],'27-098'));
+  assert.equal(manual.kind,'TEXT');
+  const db=new DatabaseSync(':memory:');
+  const source=notice(['Register at example.com to receive your refund.'],'27-098');
+  const ws=new SourceWorkspace(db,{loadSource:async()=>structuredClone(source),ai:{status:()=>({available:true,model:'test-double'}),generate:async()=>draft([])}});
+  const row=await ws.import('27098');
+  const amended=ws.addField(row.id,{revision:row.revision,kind:'TEXT',quote:source.remedies[0]});
+  assert.equal(amended.suggestion.requirements[0].kind,'TEXT');
+  assert.equal(amended.suggestion.requirements[0].origin,'MERCHANT_SOURCE_SELECTION');
+  db.close();
+});
+
+test('a saved draft reports filtered fields so the setup never implies completeness',async()=>{
+  const source=notice([
+    'Consumers should submit a photograph with the word "RECALL" written on the front of the crystal cup in permanent black marker.',
+    'Consumers should attest to proper disposal of the recalled cup following the instructions on the firm\'s website.',
+    'Register at example.com to receive your refund.',
+    'Consumers should stop using the recalled cup immediately.',
+  ],'27-026');
+  const db=new DatabaseSync(':memory:');
+  const ws=new SourceWorkspace(db,{loadSource:async()=>structuredClone(source),ai:{status:()=>({available:true,model:'test-double'}),generate:async()=>draft([
+    {kind:'PHOTO',quote:source.remedies[0]},
+    {kind:'CONFIRMATION',quote:source.remedies[1]},
+    {kind:'TEXT',quote:source.remedies[2]},
+    {kind:'TEXT',quote:source.remedies[3]},
+  ])}});
+  const imported=await ws.import('27026');
+  const row=await ws.suggest(imported.id,1);
+  assert.equal(row.suggestion.requirements.length,2);
+  assert.equal(row.suggestion.filtered.length,2);
+  assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+  const reviewed=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});
+  assert.equal(reviewed.review.fields.length,2);
+  db.close();
+});
+
+test('type checks allow stop-use dates, delivery destinations and disposal attestations',()=>{
+  const source=notice([
+    'Provide the date you stopped using the product.',
+    'Send a photograph to recall@example.com showing the marked cup.',
+    "Attest that you disposed of the cup following the instructions at https://example.com/disposal.",
+  ],'27-097');
+  const raw=draft([
+    {kind:'TEXT',quote:'Provide the date you stopped using the product.'},
+    {kind:'PHOTO',quote:'Send a photograph to recall@example.com showing the marked cup.'},
+    {kind:'CONFIRMATION',quote:'Attest that you disposed of the cup following the instructions at https://example.com/disposal.'},
+  ]);
+  const result=validateSourceSuggestion(raw,source);
+  assert.equal(result.filtered.length,0);
+  assert.deepEqual(result.requirements.map(f=>f.kind),['TEXT','PHOTO','CONFIRMATION']);
+});
+
+test('noun-form disposal attestations and batch-number requests survive response typing',()=>{
+  const source=notice([
+    "Submit a disposal attestation through the firm's website.",
+    'Send the batch number printed on the base.',
+  ],'27-096');
+  const raw=draft([
+    {kind:'CONFIRMATION',quote:"Submit a disposal attestation through the firm's website."},
+    {kind:'TEXT',quote:'Send the batch number printed on the base.'},
+  ]);
+  const result=validateSourceSuggestion(raw,source);
+  assert.equal(result.filtered.length,0);
+  assert.deepEqual(result.requirements.map(f=>f.kind),['CONFIRMATION','TEXT']);
+  assert.match(result.requirements[0].quote,/attestation/);
+  assert.match(result.requirements[1].quote,/batch number/);
+});
+
+test('duplicate model quotations are filtered after response typing instead of discarding the draft',()=>{
+  const remedy='Consumers should submit a photograph with the word "RECALL" written on the front of the crystal cup in permanent black marker. Consumers should attest to proper disposal of the recalled cup following the instructions on the firm\'s website.';
+  const source=notice([remedy],'27-026');
+  const photo='Consumers should submit a photograph with the word "RECALL" written on the front of the crystal cup in permanent black marker.';
+  const disposal='Consumers should attest to proper disposal of the recalled cup following the instructions on the firm\'s website.';
+  const result=validateSourceSuggestion(draft([
+    {kind:'TEXT',quote:photo},
+    {kind:'PHOTO',quote:photo},
+    {kind:'CONFIRMATION',quote:disposal},
+  ]),source);
+  assert.deepEqual(result.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+  assert.equal(result.filtered.length,1);
+  const duplicate=validateSourceSuggestion(draft([
+    {kind:'PHOTO',quote:photo},
+    {kind:'PHOTO',quote:photo},
+  ]),source);
+  assert.equal(duplicate.requirements.length,1);
+  assert.equal(duplicate.filtered.length,1);
+  assert.match(duplicate.filtered[0].reason,/Duplicate quotation/);
+});
+
+test('held-out live fragments expand to their complete conditions and destinations',()=>{
+  const remedy='If the label is damaged, remove the outer sleeve and email a photograph of the serial plate and the broken latch to recalls@example.invalid. Customers must attest that they followed the disposal instructions at https://example.invalid/return. If the serial plate cannot be photographed, enter the serial number printed on the receipt.';
+  const source=notice([remedy],'27-095');
+  const fragments=validateSourceSuggestion(draft([
+    {kind:'PHOTO',quote:'email a photograph of the serial plate and the broken latch'},
+    {kind:'CONFIRMATION',quote:'attest that they followed the disposal instructions at https://example.invalid/return'},
+    {kind:'TEXT',quote:'enter the serial number printed on the receipt'},
+  ]),source);
+  assert.equal(fragments.filtered.length,0);
+  assert.deepEqual(fragments.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION','TEXT']);
+  assert.match(fragments.requirements[0].quote,/If the label is damaged, remove the outer sleeve/);
+  assert.match(fragments.requirements[0].quote,/recalls@example.invalid/);
+  assert.match(fragments.requirements[1].quote,/Customers must attest/);
+  assert.match(fragments.requirements[1].quote,/https:\/\/example.invalid\/return/);
+  assert.match(fragments.requirements[2].quote,/If the serial plate cannot be photographed/);
+});
+
+test('an ambiguous fragment is filtered with guidance rather than guessed into one sentence',()=>{
+  const source=notice([
+    'Provide the batch number printed on the base. If the label is missing, provide the batch number printed on the base.',
+  ],'27-094');
+  const result=validateSourceSuggestion(draft([
+    {kind:'TEXT',quote:'batch number printed on the base'},
+  ]),source);
+  assert.equal(result.requirements.length,0);
+  assert.equal(result.filtered.length,1);
+  assert.match(result.filtered[0].reason,/one complete source sentence/);
 });

@@ -10,7 +10,13 @@ import {routeWorkspace,boundedJSON} from '../src/cloud-routing.mjs';
 import {UsageBudgetCore,aiRefusal,resetLabel} from '../src/cloud-budget.mjs';
 import {practiceAction,practiceCookie,practiceObjectName,resolvePracticeSession,practiceCookieHeader,validatePracticeRequest,PRACTICE_MAX_BYTES,PRACTICE_TTL_MS} from '../src/cloud-practice-routing.mjs';
 import {PracticeCase} from './practice-case.mjs';
+import {CaptureOwnershipCore,bindingHash} from '../src/purchase-binding.mjs';
 export {PracticeCase};
+
+export class CaptureOwnership extends DurableObject {
+  constructor(ctx,env){super(ctx,env);this.core=new CaptureOwnershipCore(cloudSql(ctx.storage));}
+  claim(input){return this.core.claim(input);}
+}
 
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...headers}});
 
@@ -33,14 +39,19 @@ export class UsageBudget extends DurableObject {
 class HostedDesk extends ClaimDeskCore {
   constructor(options,id){super(options);this.workspaceId=id;this.maxCheckouts=6;}
   merchantView(claim){const view=super.merchantView(claim);view.claimUrl=`/claim?workspace=${this.workspaceId}&claim=${claim.id}#${claim.access}`;return view;}
-  merchantState(){return {...super.merchantState(),hosted:true};}
+  merchantState(){return {...super.merchantState(),hosted:true,workspaceId:this.workspaceId};}
 
 }
 
 export class RecallWorkspace extends DurableObject {
   async handle(input){
     const db=cloudSql(this.ctx.storage),journal=new RefundJournalCore(db);
-    const desk=new HostedDesk({journal,origin:input.origin,provider:()=>PayPalSandbox.fromCredentials({clientId:this.env.PAYPAL_SANDBOX_CLIENT_ID,clientSecret:this.env.PAYPAL_SANDBOX_CLIENT_SECRET})},input.workspace);
+    const desk=new HostedDesk({journal,origin:input.origin,workspaceId:input.workspace,purchaseGrants:this.env.PROVISIONED_PURCHASES,
+      captureOwnership:{claim:owner=>{
+        if(!this.env.CAPTURE_OWNERS)throw new Error('Capture ownership service is unavailable. No payment was sent.');
+        return this.env.CAPTURE_OWNERS.getByName(bindingHash(['SANDBOX',owner.merchantId,owner.captureId])).claim(owner);
+      }},
+      provider:()=>PayPalSandbox.fromCredentials({clientId:this.env.PAYPAL_SANDBOX_CLIENT_ID,clientSecret:this.env.PAYPAL_SANDBOX_CLIENT_SECRET})},input.workspace);
     const budget=this.env.BUDGET.getByName('daily');
     const ai=new HostedAI(this.env.AI,async()=>{
       const admission=await budget.admitAI(input.workspace);

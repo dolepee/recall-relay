@@ -9,6 +9,7 @@
 //
 // Every admission still runs through the shipped UsageBudgetCore transaction. The injection supplies
 // only the assistant's return value; it never decides an admission, a counter or a refusal.
+export {CaptureOwnership} from './worker.mjs';
 import worker,{RecallWorkspace as Workspace,UsageBudget as Budget} from './worker.mjs';
 
 // One scripted step per inference call, served by the harness's outbound handler. The payload is either

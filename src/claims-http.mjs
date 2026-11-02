@@ -25,6 +25,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
         const input=await body(req);
         const actions={
           '/api/merchant/import-preview':()=>desk.previewLedger(input),
+          '/api/merchant/bind-purchase':()=>desk.bindPurchase(input),
           '/api/merchant/publish':()=>desk.publish(input.confirmed),
           '/api/merchant/checkout':()=>desk.createCheckout(),
           '/api/merchant/resume-checkout':()=>desk.resumeCheckout(input.id),

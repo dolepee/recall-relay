@@ -9,10 +9,11 @@
   "durable_objects": {
     "bindings": [
       {"name": "WORKSPACES", "class_name": "RecallWorkspace"},
-      {"name": "BUDGET", "class_name": "UsageBudget"}
+      {"name": "BUDGET", "class_name": "UsageBudget"},
+      {"name":"CAPTURE_OWNERS","class_name":"CaptureOwnership"}
     ]
   },
-  "migrations": [{"tag": "v1", "new_sqlite_classes": ["RecallWorkspace", "UsageBudget"]}],
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["RecallWorkspace", "UsageBudget", "CaptureOwnership"]}],
   "vars": {
     "AI_ENABLED": true,
     "PUBLIC_ORIGINS": ["https://recall-relay.test"]

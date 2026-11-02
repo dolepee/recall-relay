@@ -5,6 +5,7 @@ import {syncTransaction} from './transaction.mjs';
 import { planClaim } from './plan.mjs';
 import { usdCents } from './money.mjs';
 import {previewLedger} from './ledger-preview.mjs';
+import {bindingHash,provisionedPurchases,verifyProvisionedPurchase} from './purchase-binding.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const secret = () => randomBytes(32).toString('base64url');
@@ -32,9 +33,10 @@ function photoValue(photo) {
 }
 
 export class ClaimDeskCore {
-  constructor({ journal, provider, now = () => new Date().toISOString(), origin = 'http://127.0.0.1:4318' }) {
+  constructor({ journal, provider, now = () => new Date().toISOString(), origin = 'http://127.0.0.1:4318', workspaceId, purchaseGrants, captureOwnership }) {
     this.journal = journal; this.db = journal.db;
     this.provider = provider; this.now = now; this.origin = origin;
+    this.workspaceId=workspaceId;this.purchaseGrants=provisionedPurchases(purchaseGrants,workspaceId);this.captureOwnership=captureOwnership;
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS claim_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS checkouts (id TEXT PRIMARY KEY, data TEXT NOT NULL);
@@ -48,6 +50,29 @@ export class ClaimDeskCore {
   activeCampaign(){const value=this.setting('active-campaign');return value?JSON.parse(value):campaign;}
   campaignFor(claim){return claim.campaign||campaign;}
   previewLedger(input){return previewLedger(input,this.setting('published')==='yes'?this.activeCampaign():null);}
+  async ownCapture(purchase,claimId){
+    if(this.captureOwnership)await this.captureOwnership.claim({merchantId:purchase.merchantId,captureId:purchase.captureId,workspace:this.workspaceId,claimId,...(purchase.provenance?{grantId:purchase.provenance.grantId,grantDigest:purchase.provenance.grantDigest,operator:purchase.provenance.operator,provisionedAt:purchase.provenance.provisionedAt}:{})});
+  }
+  async bindPurchase(input){
+    if(!input||Object.keys(input).join()!=='grantId'||typeof input.grantId!=='string')throw new Error('Choose a server-provisioned purchase.');
+    const grant=this.purchaseGrants.find(g=>g.id===input.grantId);
+    if(!grant||!this.captureOwnership||!this.workspaceId)throw new Error('This purchase is not provisioned for this workspace.');
+    if(this.setting('published')!=='yes')throw new Error('Publish reviewed instructions before binding a purchase.');
+    const policy=this.activeCampaign(),policyDigest=bindingHash(policy),id='bound-'+bindingHash([grant.merchantId,grant.captureId]).slice(0,48);
+    const prior=()=>{const row=this.db.prepare('SELECT data FROM claims WHERE id=?').get(id);if(!row)return null;const claim=JSON.parse(row.data);if(claim.purchase.provenance?.grantDigest!==bindingHash(grant))throw new Error('The provisioned allocation changed. Manual reconciliation is required.');return this.merchantView(claim);};
+    const existing=prior();if(existing)return existing;
+    if(Date.parse(grant.provisionedAt)>Date.parse(this.now())||Date.parse(grant.expiresAt)<=Date.parse(this.now()))throw new Error('This purchase provisioning grant is not active. Ask the operator to review it.');
+    if(grant.sku!==policy.sku||grant.lot!==policy.lot)throw new Error('The reviewed catalog mapping does not match this campaign.');
+    const provider=await this.provider();
+    const order=await provider.orderDetails(grant.orderId),capture=await provider.captureDetails(grant.captureId);
+    const purchase=verifyProvisionedPurchase(grant,order,capture,this.now());
+    await this.ownCapture(purchase,id);
+    if(this.setting('published')!=='yes'||bindingHash(this.activeCampaign())!==policyDigest)throw new Error('Campaign changed during verification. Refresh before binding.');
+    const raced=prior();if(raced)return raced;
+    if(this.maxCheckouts&&this.db.prepare('SELECT count(*) AS n FROM claims').get().n>=this.maxCheckouts)throw new Error('This workspace has reached its supported claim limit.');
+    const claim={id,campaign:policy,access:secret(),createdAt:this.now(),purchase,submission:null,revision:0,review:null};
+    this.saveClaim(claim);return this.merchantView(claim);
+  }
   merchantKey() { return this.setting('merchant-key'); }
   authenticateMerchant(value) { return typeof value === 'string' && hash(value) === hash(this.merchantKey()); }
   saveCheckout(value) { this.db.prepare('INSERT INTO checkouts VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,JSON.stringify(value)); }
@@ -121,6 +146,8 @@ export class ClaimDeskCore {
     if(existing.claimId)return this.merchantView(this.claim(existing.claimId));
     const policy=value.campaign||campaign;
     const claim={id:value.id,campaign:policy,access:secret(),createdAt:this.now(),purchase:{id:`RR-${value.id.slice(0,8).toUpperCase()}`,version:1,merchantId:unit.payee.merchant_id,captureId:capture.id,lineId:`${policy.sku}-LINE`,sku:policy.sku,lot:policy.lot,capturedAt:details.create_time,currency:'USD',linePaidCents:ITEM,lineRefundedCents:0,captureRemainingCents:TOTAL},submission:null,revision:0,review:null};
+    await this.ownCapture(claim.purchase,claim.id);
+    const bound=this.checkout(id);if(bound.claimId)return this.merchantView(this.claim(bound.claimId));
     syncTransaction(this.db,()=>{this.saveClaim(claim);value.state='CAPTURED';value.claimId=claim.id;this.saveCheckout(value);});
     return this.merchantView(claim);
   }
@@ -156,7 +183,7 @@ export class ClaimDeskCore {
   customerView(claim) {
     const row=this.reservation(claim);
     const correction=claim.correction?(({photoHash,...visible})=>visible)(claim.correction):null;
-    return {id:claim.id,order:claim.purchase.id,campaign:this.campaignFor(claim),amountCents:ITEM,currency:'USD',status:this.status(claim),missing:this.missing(claim),revision:claim.revision,correction,submittedAt:claim.submission?.submittedAt||null,submission:claim.submission?{lot:claim.submission.lot,acknowledged:claim.submission.acknowledged,hasPhoto:!!claim.submission.photo,extra:claim.submission.extra||{}}:null,locked:!!row,receipt:row?.state==='COMPLETED'?{refundId:row.refund_id,amountCents:row.cents,currency:row.currency,status:'COMPLETED',destination:'Original PayPal payment'}:null};
+    return {id:claim.id,order:claim.purchase.id,campaign:this.campaignFor(claim),amountCents:claim.purchase.linePaidCents-claim.purchase.lineRefundedCents,currency:'USD',status:this.status(claim),missing:this.missing(claim),revision:claim.revision,correction,submittedAt:claim.submission?.submittedAt||null,submission:claim.submission?{lot:claim.submission.lot,acknowledged:claim.submission.acknowledged,hasPhoto:!!claim.submission.photo,extra:claim.submission.extra||{}}:null,locked:!!row,receipt:row?.state==='COMPLETED'?{refundId:row.refund_id,amountCents:row.cents,currency:row.currency,status:'COMPLETED',destination:'Original PayPal payment'}:null};
   }
   customerState(access) {return this.customerView(this.authorizeCustomer(access));}
   submit(access,input) {
@@ -182,9 +209,9 @@ export class ClaimDeskCore {
     claim.submission={lot,photo,extra,acknowledged:input.acknowledged===true,submittedAt:this.now()};
     this.saveClaim(claim);return this.customerView(claim);
   }
-  merchantView(claim) {return {...this.customerView(claim),plan:this.plan(claim),review:claim.review,photo:claim.submission?.photo||null,claimUrl:`/claim?claim=${claim.id}#${claim.access}`,payment:this.reservation(claim)};}
+  merchantView(claim) {return {...this.customerView(claim),purchaseProvenance:claim.purchase.provenance||null,plan:this.plan(claim),review:claim.review,photo:claim.submission?.photo||null,claimUrl:`/claim?claim=${claim.id}#${claim.access}`,payment:this.reservation(claim)};}
   merchantState() {
-    return {mode:'real-sandbox',campaign:this.activeCampaign(),published:this.setting('published')==='yes',cases:this.db.prepare('SELECT data FROM claims ORDER BY rowid DESC').all().map(row=>{const {photo,...summary}=this.merchantView(JSON.parse(row.data));return summary;}),checkouts:this.db.prepare('SELECT data FROM checkouts ORDER BY rowid DESC').all().map(row=>JSON.parse(row.data))};
+    return {mode:'real-sandbox',campaign:this.activeCampaign(),published:this.setting('published')==='yes',provisionedPurchases:this.purchaseGrants.map(g=>({grantId:g.id,sku:g.sku,lot:g.lot,itemPaidCents:g.itemPaidCents,captureCents:g.captureCents,operator:g.operator,provisionedAt:g.provisionedAt,catalogMapping:'OPERATOR_REVIEWED'})),cases:this.db.prepare('SELECT data FROM claims ORDER BY rowid DESC').all().map(row=>{const {photo,...summary}=this.merchantView(JSON.parse(row.data));return summary;}),checkouts:this.db.prepare('SELECT data FROM checkouts ORDER BY rowid DESC').all().map(row=>JSON.parse(row.data))};
   }
   photograph(id,{revision}) {
     const claim=this.claim(id);
@@ -219,9 +246,16 @@ export class ClaimDeskCore {
     }
     const provider=await this.provider();
     const capture=await provider.captureDetails(claim.purchase.captureId);
-    if(capture.id!==claim.purchase.captureId || capture.status!=='COMPLETED' || usdCents(capture.amount)!==TOTAL)throw new Error('The capture changed or has another refund. Reconciliation is required.');
+    const captureTotal=claim.purchase.captureRemainingCents;
+    if(capture.id!==claim.purchase.captureId || capture.status!=='COMPLETED' || usdCents(capture.amount)!==captureTotal)throw new Error('The capture changed or has another refund. Reconciliation is required.');
+    if(claim.purchase.provenance){
+      const grant=this.purchaseGrants.find(g=>g.id===claim.purchase.provenance.grantId);
+      if(!grant||bindingHash(grant)!==claim.purchase.provenance.grantDigest)throw new Error('Purchase provisioning changed. Manual reconciliation is required.');
+      verifyProvisionedPurchase(grant,await provider.orderDetails(grant.orderId),capture,this.now());
+    }
+    await this.ownCapture(claim.purchase,claim.id);
     claim=this.claim(id);
-    const row=this.journal.reserve(this.plan(claim),{actor:'local-merchant',digest},TOTAL);
+    const row=this.journal.reserve(this.plan(claim),{actor:'local-merchant',digest},captureTotal);
     // RESERVED is durable proof that begin has never won. Revalidate the
     // current capture and exact approval above before resuming the same request.
     // There is no await between reserve's replay check and begin's atomic CAS.

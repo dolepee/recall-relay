@@ -207,9 +207,10 @@ The local server does not fall back to hosted inference.
 The desktop merchant workspace uses AG Studio's Agent Framework, a custom
 runner, case-review widget and view-only tool. The connected desk also shows
 source coverage, exceptions/amounts and a **Recorded review brief** derived from
-stored claim state; the brief is not model output. Its fixed layout opens in review
-mode. Open **Claim guide** when needed; **Arrange workspace** exposes optional
-layout editing, without changing payment authority. Ask which customers owe
+stored claim state; the brief is not model output. Its content-fitted reading
+layout opens in review mode: panel heights follow their measured content, the
+page supplies scrolling, and manual **Arrange workspace** editing is not exposed
+in this mode. Open **Claim guide** when needed. Ask which customers owe
 information or which claims are ready for review. The model selects a closed
 view; counts and explanations come from stored states. It has no payment,
 evidence-review or record-edit tool. Mobile uses the ordinary case controls. Claim-list responses omit full

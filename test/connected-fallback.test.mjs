@@ -13,7 +13,7 @@ import {JSDOM} from 'jsdom';
 // throws while rendering, which is the same path as a failed Studio import or render.
 const dom=new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>',{url:'https://fixture.invalid/desk',pretendToBeVisual:true});
 // A wide desk: this is exactly the case where the standalone panels would otherwise be expected.
-dom.window.matchMedia=query=>({matches:query.includes('min-width: 1100px'),media:query,onchange:null,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){},dispatchEvent(){return false;}});
+dom.window.matchMedia=query=>({matches:query.includes('min-width: 1280px'),media:query,onchange:null,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){},dispatchEvent(){return false;}});
 for(const name of ['window','document','HTMLElement','HTMLInputElement','HTMLSelectElement','HTMLTextAreaElement','Node','MutationObserver','Event','KeyboardEvent','MouseEvent'])globalThis[name]=name==='window'?dom.window:dom.window[name];
 Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
 globalThis.location=dom.window.location;globalThis.history=dom.window.history;

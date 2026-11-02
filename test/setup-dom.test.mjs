@@ -190,6 +190,21 @@ const activeSetupState=()=>{
  return {ai:{available:false},activeCampaign:{id:'CPSC-27026-a7413b441c58',product:'Crystal Glass Cups',sku:'SCENARIO-ITEM',lot:'LOT-A'},setups:[first,active]};
 };
 
+test('published setup preview points to the desk instead of an absent publish section',async()=>{
+ globalThis.fetch=async()=>new Response(JSON.stringify(activeSetupState()));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ const body=document.body.textContent;
+ assert.match(body,/These fields remain the requirements for existing claims/);
+ assert.match(body,/Open the claims desk above for the next test purchase/);
+ assert.doesNotMatch(body,/Publish a sandbox scenario below/);
+ assert.equal([...document.querySelectorAll('button')].some(node=>node.textContent==='Publish sandbox scenario'),false,'the publish section is absent while active');
+ await act(async()=>{[...document.querySelectorAll('button')].find(node=>node.textContent==='Change test product').click();await tick();});
+ assert.match(document.body.textContent,/Publish the updated sandbox scenario below/);
+ assert.ok([...document.querySelectorAll('button')].some(node=>node.textContent==='Publish sandbox scenario'),'editing the scope restores the publish section');
+ await act(async()=>root.unmount());
+});
+
 test('first open selects the active published setup and preserves a deliberate edit',async()=>{
  globalThis.fetch=async()=>new Response(JSON.stringify(activeSetupState()));
  const root=createRoot(document.getElementById('root'));

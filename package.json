@@ -24,6 +24,8 @@
     "@tailwindcss/vite": "^4.3.3",
     "ag-studio-react": "^3.0.0",
     "clsx": "^2.1.1",
+    "fast-png": "^6.2.0",
+    "jpeg-js": "^0.4.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwind-merge": "^3.7.0",

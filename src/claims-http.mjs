@@ -26,6 +26,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
         const actions={
           '/api/merchant/publish':()=>desk.publish(input.confirmed),
           '/api/merchant/checkout':()=>desk.createCheckout(),
+          '/api/merchant/resume-checkout':()=>desk.resumeCheckout(input.id),
           '/api/merchant/capture':()=>desk.captureCheckout(input.id),
           '/api/merchant/review':()=>desk.review(input.id,input),
           '/api/merchant/photograph':()=>desk.photograph(input.id,input),

@@ -43,7 +43,6 @@ export function recallDraft(record, { retrievedAt = new Date().toISOString() } =
   };
   // These are source excerpts, not generated disposal instructions or verified evidence.
   const requirements = remedies.flatMap((value,index) => value.split(/(?<=[.!?])\s+(?=[A-Z])/)
-    .filter(sentence=>/photo|photograph|attest|confirm|register|registration|return|receipt|model number|batch number/i.test(sentence))
     .map(quote=>({field:`Remedies[${index}].Name`,quote,sourceUrl:source.href})));
   return {
     kind:'SOURCE_REVIEW_DRAFT',recallNumber:number,sourceUrl:source.href,retrievedAt,

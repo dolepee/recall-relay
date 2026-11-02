@@ -31,13 +31,10 @@ export class UsageBudget extends DurableObject {
 }
 
 class HostedDesk extends ClaimDeskCore {
-  constructor(options,id){super(options);this.workspaceId=id;}
-  merchantView(claim){const view=super.merchantView(claim);view.claimUrl=`/claim?workspace=${this.workspaceId}#${claim.access}`;return view;}
+  constructor(options,id){super(options);this.workspaceId=id;this.maxCheckouts=6;}
+  merchantView(claim){const view=super.merchantView(claim);view.claimUrl=`/claim?workspace=${this.workspaceId}&claim=${claim.id}#${claim.access}`;return view;}
   merchantState(){return {...super.merchantState(),hosted:true};}
-  async createCheckout(){
-    if(this.db.prepare('SELECT count(*) AS n FROM checkouts').get().n>=6)throw new Error('This sandbox workspace has reached its test-purchase limit. Existing claims and receipts remain available.');
-    return super.createCheckout();
-  }
+
 }
 
 export class RecallWorkspace extends DurableObject {

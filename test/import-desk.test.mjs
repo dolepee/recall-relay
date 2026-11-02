@@ -52,6 +52,7 @@ async function render(element,ready=()=>true){
 afterEach(async()=>{for(const unmount of mounted.splice(0))await unmount();document.body.innerHTML='';});
 
 const noPayment=async()=>{throw new Error('No payment calls permitted');};
+const fileLimit=512*1024;
 const scope={sku:'CUP-01',lot:'LOT-A'};
 const ledger=()=>({version:1,currency:'USD',source:{kind:'merchant-ledger',label:'Test merchant export',reference:'export-1'},orders:[
   {orderId:'ORDER-1',captureId:'CAPTURE-1',capturedAt:'2026-10-01T12:00:00Z',status:'COMPLETED',lines:[
@@ -155,5 +156,73 @@ test('a chosen JSON file populates the declaration without uploading it',async()
   await settle(()=>textarea.value.includes('ORDER-1'));
   assert.match(textarea.value,/CAPTURE-1/);
   assert.match(text(document.body),/Loaded ledger\.json/);
+  await unmount();
+});
+
+test('editing the declaration invalidates the previous preview',async()=>{
+  const {unmount,setText,submit,textarea}=await mountDesk();
+  await setText(JSON.stringify(ledger()));
+  await submit();
+  await settle(()=>document.querySelector('[aria-label="Declared import preview"]'));
+  assert(document.querySelector('[aria-label="Declared import preview"]'));
+  const setter=Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set;
+  await act(async()=>{setter.call(textarea,textarea.value+'\n');textarea.dispatchEvent(new Event('input',{bubbles:true}));await tick();});
+  assert.equal(document.querySelector('[aria-label="Declared import preview"]'),null,'the stale candidate result is removed on edit');
+  await unmount();
+});
+
+test('an oversized replacement cannot submit the previous declaration under the new file name',async()=>{
+  const {unmount}=await mountDesk();
+  const input=document.getElementById('ledger-file');
+  const good=new dom.window.File([JSON.stringify(ledger())],'good.json',{type:'application/json'});
+  Object.defineProperty(input,'files',{value:[good],configurable:true});
+  await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));await tick();});
+  await settle(()=>document.getElementById('ledger-json').value.includes('ORDER-1'));
+  const bad=new dom.window.File(['x'.repeat(fileLimit+1)],'too-big.json',{type:'application/json'});
+  Object.defineProperty(input,'files',{value:[bad],configurable:true});
+  await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));await tick();});
+  await settle(()=>document.querySelector('[role=alert]'));
+  assert.equal(document.getElementById('ledger-json').value,'','the old declaration is cleared');
+  assert.equal(document.querySelector('[aria-label="Declared import preview"]'),null);
+  assert.match(text(document.querySelector('[role=alert]')),/512 KB/);
+  assert.equal(button('Preview declared import').disabled,true,'an empty replacement cannot submit old text');
+  await unmount();
+});
+
+test('an older slow file read cannot overwrite a newer selection',async()=>{
+  const {unmount}=await mountDesk();
+  const input=document.getElementById('ledger-file');
+  let resolveSlow;
+  const slow={name:'slow.json',size:20,text:()=>new Promise(resolve=>{resolveSlow=resolve;})};
+  const fast={name:'fast.json',size:21,text:()=>Promise.resolve(JSON.stringify({marker:'fast'}))};
+  Object.defineProperty(input,'files',{value:[slow],configurable:true});
+  await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));await tick();});
+  Object.defineProperty(input,'files',{value:[fast],configurable:true});
+  await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));await tick();});
+  await settle(()=>document.getElementById('ledger-json').value.includes('"fast"'));
+  resolveSlow(JSON.stringify({marker:'slow'}));
+  await act(async()=>{await tick();});
+  assert.match(document.getElementById('ledger-json').value,/"fast"/);
+  assert.doesNotMatch(document.getElementById('ledger-json').value,/"slow"/);
+  await unmount();
+});
+
+test('long order and line references are marked for wrapping in the preview',async()=>{
+  const {unmount,setText,submit}=await mountDesk();
+  const value=ledger();
+  value.orders[0].orderId='ORDER-'+'1'.repeat(119);
+  value.orders[0].lines[0].declaredLineId='LINE-'+'2'.repeat(120);
+  await setText(JSON.stringify(value));
+  await submit();
+  await settle(()=>document.querySelector('[aria-label="Declared import preview"]'));
+  const preview=document.querySelector('[aria-label="Declared import preview"]');
+  const orderSection=[...preview.querySelectorAll('section')].find(node=>node.getAttribute('aria-label')?.startsWith('Declared order'));
+  const heading=orderSection.querySelector('h4');
+  assert.match(heading.className,/break-all/);
+  assert.equal(heading.textContent,value.orders[0].orderId);
+  const line=[...preview.querySelectorAll('article')].find(node=>node.getAttribute('aria-label')?.includes(value.orders[0].lines[0].declaredLineId));
+  assert(line);
+  const reference=[...line.querySelectorAll('p')].find(node=>node.textContent.includes(value.orders[0].lines[0].declaredLineId));
+  assert.match(reference.className,/break-all/);
   await unmount();
 });

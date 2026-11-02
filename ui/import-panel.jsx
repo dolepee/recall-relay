@@ -21,50 +21,64 @@ function Count({label,value}){
 
 function OrderPreview({order,index,rows}){
   const capture=order.captureId||rows[0]?.declaredCaptureId||null;
-  return <section className="rr-card p-4" aria-label={`Declared order ${order.orderId}`}>
+  return <section className="rr-card min-w-0 p-4" aria-label={`Declared order ${order.orderId}`}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0"><h4 className="text-base font-semibold">{order.orderId}</h4><p className="mt-1 break-all font-mono text-[11px] text-slate-500">Declared capture: {capture||'none declared'}</p><p className="mt-1 text-xs text-slate-500">{order.capturedAt||'No declared date'} · {order.status||'No declared status'}</p></div>
+      <div className="min-w-0"><h4 className="break-all text-base font-semibold">{order.orderId}</h4><p className="mt-1 break-all font-mono text-[11px] text-slate-500">Declared capture: {capture||'none declared'}</p><p className="mt-1 break-words text-xs text-slate-500">{order.capturedAt||'No declared date'} · {order.status||'No declared status'}</p></div>
       <div className="flex flex-wrap items-center gap-2"><span className="rr-status" data-code="MANUAL">Capture unverified</span><span className="rr-status">Provider facts not checked</span></div>
     </div>
-    <div className="mt-3 space-y-3">{rows.map(row=><article key={`${row.lineIndex}-${row.declaredLineId}`} className="border-t border-slate-200 pt-3" aria-label={`Declared line ${row.declaredLineId}`}>
+    <div className="mt-3 min-w-0 space-y-3">{rows.map(row=><article key={`${row.lineIndex}-${row.declaredLineId}`} className="min-w-0 border-t border-slate-200 pt-3" aria-label={`Declared line ${row.declaredLineId}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div><p className="font-semibold">{row.sku||'SKU not declared'} · lot {row.lot||'not declared'}</p><p className="mt-1 text-xs text-slate-500">Declared line {row.declaredLineId} · quantity {row.quantity??'unknown'}</p></div>
+        <div className="min-w-0"><p className="break-all font-semibold">{row.sku||'SKU not declared'} · lot {row.lot||'not declared'}</p><p className="mt-1 break-all text-xs text-slate-500">Declared line {row.declaredLineId} · quantity {row.quantity??'unknown'}</p></div>
         <span className="rr-status" data-code={disposition[row.disposition]?.code}>{disposition[row.disposition]?.label||row.disposition}</span>
       </div>
       <dl className="mt-2 grid gap-1.5 text-xs sm:grid-cols-2 xl:grid-cols-4"><DeclaredAmount label="Item total after discounts" value={row.itemPaidCents}/><DeclaredAmount label="Tax" value={row.taxCents}/><DeclaredAmount label="Shipping" value={row.shippingCents}/><DeclaredAmount label="Prior refunds" value={row.refundedCents}/></dl>
       <p className="mt-2 text-xs leading-5 text-slate-700"><span className="font-semibold">Declared candidate: </span>{row.disposition==='AFFECTED'?amount(row.candidateCents):'Not counted'}</p>
-      {row.reasons?.length?<ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">{row.reasons.map((reason,i)=><li key={`${i}-${reason}`}>{reason}</li>)}</ul>:null}
+      {row.reasons?.length?<ul className="mt-1 list-disc space-y-1 break-words pl-4 text-xs leading-5 text-slate-600">{row.reasons.map((reason,i)=><li key={`${i}-${reason}`}>{reason}</li>)}</ul>:null}
       <p className="mt-1 text-[11px] leading-4 text-slate-500">Allocation: none established. Verification: {row.verification==='UNVERIFIED'?'declared only, unverified':row.verification}. An imported capture is not purchase provenance.</p>
     </article>)}</div>
   </section>;
 }
 
 export function ImportPanel(){
-  const [text,setText]=useState(''),[fileName,setFileName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(null),[notice,setNotice]=useState('');
-  const fileRef=useRef(null);
+  const [text,setText]=useState(''),[fileName,setFileName]=useState(''),[busy,setBusy]=useState(false),[reading,setReading]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(null),[notice,setNotice]=useState('');
+  const fileRef=useRef(null),readGeneration=useRef(0),previewGeneration=useRef(0);
+  function invalidate(){previewGeneration.current++;setResult(null);setNotice('');setError('');setBusy(false);}
+  function editText(value){invalidate();setText(value);}
   async function chooseFile(event){
     const file=event.target.files?.[0];
     if(!file)return;
-    setError('');setResult(null);setNotice('');setFileName(file.name);
-    if(file.size>fileLimit){setError(`${file.name} is ${Math.ceil(file.size/1024)} KB; choose a ledger file under 512 KB.`);return;}
-    try{setText(await readFile(file));setNotice(`Loaded ${file.name}. Review the declaration, then preview it.`);}
-    catch{setError(`${file.name} could not be read. Paste the JSON instead.`);}
+    const generation=++readGeneration.current;
+    previewGeneration.current++;
+    setText('');setResult(null);setNotice('');setError('');setBusy(false);setFileName(file.name);setReading(true);
+    if(file.size>fileLimit){if(generation===readGeneration.current){setError(`${file.name} is ${Math.ceil(file.size/1024)} KB; choose a ledger file under 512 KB.`);setReading(false);}return;}
+    try{
+      const value=await readFile(file);
+      if(generation!==readGeneration.current)return;
+      setText(value);setNotice(`Loaded ${file.name}. Review the declaration, then preview it.`);
+    }
+    catch{
+      if(generation!==readGeneration.current)return;
+      setText('');setError(`${file.name} could not be read. Paste the JSON instead.`);
+    }
+    finally{if(generation===readGeneration.current)setReading(false);}
   }
   async function preview(event){
     event.preventDefault();
+    const generation=++previewGeneration.current;
     setError('');setResult(null);setNotice('');
     let payload;
-    try{payload=JSON.parse(text);}catch{setError('That is not valid JSON. Fix the paste or choose another file.');return;}
+    try{payload=JSON.parse(text);}catch{if(generation===previewGeneration.current)setError('That is not valid JSON. Fix the paste or choose another file.');return;}
     setBusy(true);
     try{
       const value=await api('merchant/import-preview',payload);
+      if(generation!==previewGeneration.current)return;
       if(!value||value.mode!=='DECLARED_PREVIEW'||!Array.isArray(value.orders)||!Array.isArray(value.lines)||!value.summary){setError('The server returned an unexpected preview response. Reload the desk and try again.');return;}
       setResult(value);
     }
-    catch(e){setError(e.message);}
-    finally{setBusy(false);}
+    catch(e){if(generation===previewGeneration.current)setError(e.message);}
+    finally{if(generation===previewGeneration.current)setBusy(false);}
   }
-  function clear(){setText('');setFileName('');setError('');setResult(null);setNotice('');if(fileRef.current)fileRef.current.value='';}
+  function clear(){readGeneration.current++;previewGeneration.current++;setText('');setFileName('');setError('');setResult(null);setNotice('');setReading(false);setBusy(false);if(fileRef.current)fileRef.current.value='';}
   return <details className="rr-card mb-4 px-5" aria-label="Import existing purchases">
     <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-2 py-3 text-sm focus-visible:outline-2 focus-visible:outline-teal-700"><span className="font-semibold">Import existing purchases</span><span className="text-xs text-slate-600">Declared ledger · read-only preview</span></summary>
     <div className="border-t border-slate-100 pb-5 pt-4">
@@ -73,8 +87,8 @@ export function ImportPanel(){
         <div className="flex flex-wrap items-center gap-3"><label className="text-sm font-medium" htmlFor="ledger-file">Choose a JSON ledger file</label><input ref={fileRef} id="ledger-file" type="file" accept=".json,application/json" onChange={chooseFile} disabled={busy} className="max-w-full text-sm file:mr-3 file:min-h-11 file:rounded-md file:border file:border-slate-300 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold"/></div>
         <p className="mt-1 text-xs leading-5 text-slate-500">Or paste the version-1 ledger below. {fileName?`Selected file: ${fileName}.`:''}</p>
         <label className="mt-3 block text-sm font-medium" htmlFor="ledger-json">Ledger JSON</label>
-        <textarea id="ledger-json" value={text} onChange={event=>setText(event.target.value)} rows={8} spellCheck={false} disabled={busy} className={`${inputClass} font-mono text-xs leading-5`} placeholder={'{"version":1,"currency":"USD","source":{"kind":"merchant-ledger","label":"Order export","reference":null},"orders":[…]}'}/>
-        <div className="mt-3 flex flex-wrap items-center gap-3"><Action type="submit" disabled={busy||!text.trim()}>{busy?'Reading declared ledger…':'Preview declared import'}</Action><Action type="button" secondary disabled={busy||(!text&&!result)} onClick={clear}>Clear</Action>{busy&&<p role="status" className="text-sm text-slate-600">Checking the declared data with the server…</p>}</div>
+        <textarea id="ledger-json" value={text} onChange={event=>editText(event.target.value)} rows={8} spellCheck={false} disabled={busy||reading} className={`${inputClass} font-mono text-xs leading-5`} placeholder={'{"version":1,"currency":"USD","source":{"kind":"merchant-ledger","label":"Order export","reference":null},"orders":[…]}'}/>
+        <div className="mt-3 flex flex-wrap items-center gap-3"><Action type="submit" disabled={busy||reading||!text.trim()}>{busy?'Reading declared ledger…':'Preview declared import'}</Action><Action type="button" secondary disabled={busy||(!text&&!result)} onClick={clear}>Clear</Action>{reading&&<p role="status" className="text-sm text-slate-600">Reading the selected file…</p>}{busy&&<p role="status" className="text-sm text-slate-600">Checking the declared data with the server…</p>}</div>
         <ErrorText error={error}/>
         {notice&&<p role="status" className="mt-3 text-sm leading-6 text-slate-600">{notice}</p>}
       </form>
@@ -89,7 +103,7 @@ export function ImportPanel(){
         <section className="rr-card mt-3 p-4" aria-label="Import scope and provenance">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-[.1em] text-slate-500">Scope and provenance</p><h4 className="mt-1 text-base font-semibold">Server-applied scope, declared source</h4></div><span className="rr-status">Not persisted</span></div>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
-            <div><dt className="text-slate-500">Published scope</dt><dd className="break-words font-semibold">{result.scope?.sku?(<>SKU {result.scope.sku} · lot {result.scope.lot||'not set'}</>):'No published scope'}</dd></div>
+            <div><dt className="text-slate-500">Published scope</dt><dd className="break-all font-semibold">{result.scope?.sku?(<>SKU {result.scope.sku} · lot {result.scope.lot||'not set'}</>):'No published scope'}</dd></div>
             <div><dt className="text-slate-500">Source</dt><dd className="break-words font-semibold">{result.source?.label||'Not declared'}</dd></div>
             <div><dt className="text-slate-500">Source reference</dt><dd className="break-all font-mono text-xs">{result.source?.reference||'None'}</dd></div>
             <div><dt className="text-slate-500">Provider checked</dt><dd className="font-semibold">{result.providerChecked?'Yes':'No'}</dd></div>

@@ -7,9 +7,159 @@
 }
 .studio-workspace { width: 100%; min-width: 0; }
 .rr-workspace { height: calc(100dvh - 19rem); min-height: 28rem; max-height: 58rem; }
-.rr-case-heading:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
-.rr-outcome-notice:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
-.rr-desk-heading:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
+.rr-case-heading:focus-visible { outline: 2px solid #0f766e; outline-offset: 4px; }
+.rr-outcome-notice:focus-visible { outline: 2px solid #0f766e; outline-offset: 4px; }
+.rr-desk-heading:focus-visible { outline: 2px solid #0f766e; outline-offset: 4px; }
 ::selection { background: #ccfbf1; color: #134e4a; }
 input, textarea { caret-color: #0f766e; }
 header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; text-underline-offset: 8px; }
+
+/* Merchant shell: the landing palette, scoped so /claim and /practice stay unchanged. */
+.merchant-shell{
+  --m-paper:#F3EEE2;--m-paper-2:#EAE3D4;--m-card:#FBF8F0;--m-ink:#0E1417;--m-ink-2:#3B4448;--m-ink-3:#5C6669;
+  --m-rule:rgba(14,20,23,.17);--m-rule-2:rgba(14,20,23,.34);--m-cobalt:#1B3FD8;--m-cobalt-d:#152FA6;
+  --m-ok:#0B6A3C;--m-ok-bg:#E9F4ED;--m-ok-line:#A8D5BB;--m-warn:#7A4A00;--m-warn-bg:#FBF0D9;--m-warn-line:#D9BC85;
+  --m-danger:#A3231A;--m-danger-bg:#FBEAE7;--m-danger-line:#D9A39B;
+  --m-display:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif;
+  --m-text:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --m-mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  min-height:100dvh;background:var(--m-paper);color:var(--m-ink);font:400 15px/1.55 var(--m-text);letter-spacing:-.004em;
+}
+.merchant-shell h1,.merchant-shell h2,.merchant-shell h3{font-family:var(--m-display);font-weight:800;letter-spacing:-.038em;line-height:1.04;text-wrap:balance}
+.merchant-shell h1{font-size:clamp(1.7rem,2.7vw,2.25rem);letter-spacing:-.045em;line-height:1}
+.merchant-shell h2{font-size:clamp(1.15rem,1.7vw,1.4rem);letter-spacing:-.032em}
+.merchant-shell h3{font-size:1.02rem;letter-spacing:-.02em;font-weight:750}
+.merchant-shell .rr-skip:focus{position:fixed;left:16px;top:10px;z-index:60;display:inline-flex;min-height:44px;align-items:center;background:var(--m-ink);color:var(--m-paper);padding:10px 18px;font-weight:600}
+.merchant-shell :focus-visible{outline:2px solid var(--m-cobalt);outline-offset:3px}
+/* The sticky merchant header must not cover a focused heading or the #main
+   skip-link destination when a case or publication is brought into view. */
+.merchant-shell #main,.merchant-shell [tabindex="-1"]{scroll-margin-top:88px}
+
+/* header and lockup */
+.rr-mh{position:sticky;top:0;z-index:40;background:var(--m-paper);border-bottom:1px solid var(--m-rule-2)}
+.rr-mh__inner{max-width:1200px;margin:0 auto;padding:0 40px;min-height:68px;display:flex;align-items:center;gap:14px}
+.rr-lockup{display:inline-flex;align-items:center;gap:10px;min-height:44px;min-width:0;color:var(--m-ink);text-decoration:none}
+.rr-lockup svg{display:block;flex:none;color:var(--m-ink)}
+.rr-lockup__name{display:block;font:800 19px/1 var(--m-display);letter-spacing:-.045em;white-space:nowrap}
+.rr-lockup__name i{font-style:normal;color:var(--m-cobalt)}
+.rr-lockup__sub{display:block;margin-top:4px;font:600 9.5px/1 var(--m-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--m-ink-3);white-space:nowrap}
+.rr-mh__nav{display:flex;align-items:center;gap:2px;margin-left:auto}
+.rr-mh__nav a{display:inline-flex;min-height:44px;align-items:center;padding:0 12px;border-bottom:2px solid transparent;color:var(--m-ink-2);font:550 14px/1 var(--m-text);text-decoration:none;transition:color .16s ease,border-color .16s ease}
+.rr-mh__nav a:hover{color:var(--m-ink);border-bottom-color:var(--m-cobalt)}
+.rr-mh__nav a[aria-current="page"]{color:var(--m-ink);border-bottom-color:var(--m-cobalt)}
+.rr-mh__note{font:600 9.5px/1.4 var(--m-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--m-ink-3);margin-left:12px;white-space:nowrap}
+.rr-mh__menu{display:none;position:relative;margin-left:auto}
+.rr-mh__menu summary{display:inline-flex;min-height:44px;align-items:center;gap:9px;padding:0 14px;border:1px solid var(--m-rule-2);color:var(--m-ink);cursor:pointer;list-style:none;font:600 12px/1 var(--m-mono);letter-spacing:.1em;text-transform:uppercase}
+.rr-mh__menu summary::-webkit-details-marker{display:none}
+.rr-mh__menu summary::marker{content:""}
+.rr-mh__menu[open] summary{border-color:var(--m-ink)}
+.rr-mh__menu nav{position:absolute;right:0;top:calc(100% + 8px);z-index:50;width:min(280px,calc(100vw - 36px));background:var(--m-card);border:1px solid var(--m-rule-2);display:grid;padding:6px}
+.rr-mh__menu nav a{display:flex;min-height:46px;align-items:center;padding:0 12px;border-bottom:1px solid var(--m-rule);color:var(--m-ink-2);text-decoration:none;font:550 15px/1.2 var(--m-text)}
+.rr-mh__menu nav a:last-child{border-bottom:0}
+.rr-mh__menu nav a:hover,.rr-mh__menu nav a[aria-current="page"]{background:var(--m-paper-2);color:var(--m-ink)}
+.rr-main{max-width:1200px;margin:0 auto;padding:32px 40px 64px}
+
+/* merchant colour mapping; scoped to the merchant shell only */
+.merchant-shell .bg-white{background-color:var(--m-card)}
+.merchant-shell .bg-slate-50{background-color:var(--m-paper-2)}
+.merchant-shell .bg-slate-100{background-color:#E8E0D0}
+.merchant-shell .border-slate-100,.merchant-shell .border-slate-200{border-color:var(--m-rule)}
+.merchant-shell .border-slate-300{border-color:var(--m-rule-2)}
+.merchant-shell .text-slate-900,.merchant-shell .text-slate-800{color:var(--m-ink)}
+.merchant-shell .text-slate-700{color:var(--m-ink-2)}
+.merchant-shell .text-slate-600,.merchant-shell .text-slate-500{color:var(--m-ink-3)}
+.merchant-shell .bg-teal-700{background-color:var(--m-cobalt)}
+.merchant-shell .bg-teal-800{background-color:var(--m-cobalt-d)}
+.merchant-shell .bg-teal-50{background-color:#EEF1FC}
+.merchant-shell .text-teal-950,.merchant-shell .text-teal-900{color:var(--m-ink)}
+.merchant-shell .text-teal-800,.merchant-shell .text-teal-700{color:var(--m-cobalt)}
+.merchant-shell .border-teal-200{border-color:#C9D2F7}
+.merchant-shell .border-teal-600{border-color:var(--m-cobalt)}
+.merchant-shell .accent-teal-700{accent-color:var(--m-cobalt)}
+.merchant-shell .rounded-lg,.merchant-shell .rounded-md,.merchant-shell .rounded{border-radius:2px}
+.merchant-shell main a:not(.rr-action){color:var(--m-cobalt);text-underline-offset:3px}
+.merchant-shell footer a{color:var(--m-cobalt)}
+.merchant-shell input[type="checkbox"]{accent-color:var(--m-cobalt)}
+
+/* controls */
+.merchant-shell .rr-action{min-height:44px;border-radius:2px;font:600 14px/1 var(--m-text);letter-spacing:-.005em;box-shadow:none}
+.merchant-shell .rr-action:not([data-secondary="true"]){background:var(--m-cobalt);border:1px solid var(--m-cobalt);color:#fff}
+.merchant-shell .rr-action:not([data-secondary="true"]):hover{background:var(--m-cobalt-d);border-color:var(--m-cobalt-d)}
+.merchant-shell .rr-action[data-secondary="true"]{background:transparent;border:1px solid var(--m-rule-2);color:var(--m-ink)}
+.merchant-shell .rr-action[data-secondary="true"]:hover{background:var(--m-paper-2);border-color:var(--m-ink)}
+.merchant-shell .rr-action:disabled{opacity:.45}
+.merchant-shell .rr-input{min-height:44px;border:1px solid var(--m-rule-2);border-radius:2px;background:var(--m-card);color:var(--m-ink)}
+.merchant-shell .rr-input::placeholder{color:var(--m-ink-3)}
+.merchant-shell .rr-input:focus-visible{outline:2px solid var(--m-cobalt);outline-offset:2px;border-color:var(--m-cobalt)}
+.merchant-shell select.rr-input{background-color:var(--m-card)}
+
+/* semantic states */
+.merchant-shell .rr-error{border:1px solid var(--m-danger-line)!important;background:var(--m-danger-bg)!important;color:var(--m-danger)!important;border-radius:2px}
+.merchant-shell .rr-warning{border:1px solid var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-warn);border-radius:2px}
+.merchant-shell .rr-note{border:1px solid var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-ink);border-radius:2px}
+.merchant-shell .rr-receipt{border:1px solid var(--m-ok-line);border-left:3px solid var(--m-ok);background:var(--m-ok-bg);border-radius:2px}
+.merchant-shell .rr-receipt .text-teal-800,.merchant-shell .rr-receipt .text-teal-900,.merchant-shell .rr-receipt .text-teal-950{color:var(--m-ok)}
+.merchant-shell .rr-status{border:1px solid var(--m-rule);background:transparent;color:var(--m-ink-2);border-radius:2px;font:600 10px/1.3 var(--m-mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px}
+.merchant-shell .rr-status[data-code="COMPLETED"]{border-color:var(--m-ok-line);background:var(--m-ok-bg);color:var(--m-ok)}
+.merchant-shell .rr-status[data-code="READY_FOR_APPROVAL"]{border-color:#C9D2F7;background:#EEF1FC;color:var(--m-cobalt)}
+.merchant-shell .rr-status[data-code="AWAITING_CUSTOMER"],.merchant-shell .rr-status[data-code="NEEDS_INFORMATION"],.merchant-shell .rr-status[data-code="MANUAL"],.merchant-shell .rr-status[data-code="PAYMENT"]{border-color:var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-warn)}
+.merchant-shell .rr-status[data-code="FAILED"],.merchant-shell .rr-status[data-code="CANCELLED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}
+
+/* source, evidence and review surfaces */
+.merchant-shell .rr-card{background:var(--m-card);border:1px solid var(--m-rule);border-radius:2px;box-shadow:none}
+.merchant-shell .rr-quote{margin-top:12px;border:1px solid var(--m-rule);border-left:3px solid var(--m-cobalt);background:var(--m-card);padding:12px 14px;border-radius:2px;color:var(--m-ink-2);font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+.merchant-shell .rr-stages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:18px 0 0;padding:0;list-style:none;border-top:1px solid var(--m-rule);border-bottom:1px solid var(--m-rule)}
+.merchant-shell .rr-stages li{padding:11px 14px;border-right:1px solid var(--m-rule);color:var(--m-ink-3);font:600 10.5px/1.4 var(--m-mono);letter-spacing:.08em;text-transform:uppercase}
+.merchant-shell .rr-stages li:last-child{border-right:0}
+.merchant-shell .rr-stages li[aria-current="step"]{color:var(--m-ink);background:var(--m-card);box-shadow:inset 0 -2px 0 var(--m-cobalt)}
+.merchant-shell .rr-workspace{height:clamp(30rem,calc(100dvh - 20rem),54rem);min-height:30rem;max-height:54rem}
+.merchant-shell .rr-workspace>div:first-child{border:1px solid var(--m-rule);background:var(--m-card);border-radius:2px;overflow:hidden}
+.merchant-shell .rr-case-heading:focus-visible,.merchant-shell .rr-outcome-notice:focus-visible,.merchant-shell .rr-desk-heading:focus-visible{outline-color:var(--m-cobalt)}
+
+@media (max-width:1100px){
+  .rr-mh__note{display:none}
+}
+@media (max-width:900px){
+  .rr-mh__inner{padding:0 20px;min-height:64px}
+  .rr-mh__nav{display:none}
+  .rr-mh__menu{display:block}
+  .rr-lockup__sub{display:none}
+  .rr-main{padding:24px 20px 48px}
+  .merchant-shell h1{font-size:1.75rem}
+}
+@media (max-width:560px){
+  .rr-mh__inner{padding:0 16px}
+  .rr-lockup__name{font-size:17px}
+  .rr-main{padding:20px 16px 40px}
+  .merchant-shell .rr-stages{grid-template-columns:1fr}
+  .merchant-shell .rr-stages li{border-right:0;border-bottom:1px solid var(--m-rule);padding:9px 12px}
+  .merchant-shell .rr-stages li:last-child{border-bottom:0}
+  .merchant-shell h1{font-size:1.55rem}
+  .merchant-shell .rr-workspace{min-height:26rem;height:clamp(26rem,calc(100dvh - 18rem),46rem)}
+}
+
+/* Primary anchor actions need an explicit foreground; the generic link colour
+   must not inherit over their cobalt background. */
+.merchant-shell .rr-action--primary{background:var(--m-cobalt);border:1px solid var(--m-cobalt);color:#fff}
+.merchant-shell .rr-action--primary:hover{background:var(--m-cobalt-d);border-color:var(--m-cobalt-d);color:#fff}
+
+/* AlertDialog portals outside .merchant-shell. Theme only this portal popup,
+   leaving customer and practice dialogs untouched. */
+.rr-dialog-backdrop{background:rgba(14,20,23,.48)}
+.rr-dialog{
+  --m-paper:#F3EEE2;--m-card:#FBF8F0;--m-ink:#0E1417;--m-ink-2:#3B4448;--m-ink-3:#5C6669;
+  --m-rule:rgba(14,20,23,.17);--m-rule-2:rgba(14,20,23,.34);--m-cobalt:#1B3FD8;--m-cobalt-d:#152FA6;
+  --m-display:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif;
+  --m-text:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  background:var(--m-card);color:var(--m-ink);border:1px solid var(--m-rule-2);border-radius:2px;
+  font-family:var(--m-text);box-shadow:0 20px 60px rgba(14,20,23,.18)
+}
+.rr-dialog h2{font-family:var(--m-display);font-weight:800;letter-spacing:-.03em;color:var(--m-ink)}
+.rr-dialog p{color:var(--m-ink-3)}
+.rr-dialog .rr-action{min-height:44px;border-radius:2px;font:600 14px/1 var(--m-text)}
+.rr-dialog .rr-action:not([data-secondary="true"]){background:var(--m-cobalt);border:1px solid var(--m-cobalt);color:#fff}
+.rr-dialog .rr-action:not([data-secondary="true"]):hover{background:var(--m-cobalt-d);border-color:var(--m-cobalt-d)}
+.rr-dialog .rr-action[data-secondary="true"]{background:transparent;border:1px solid var(--m-rule-2);color:var(--m-ink)}
+.rr-dialog .rr-action[data-secondary="true"]:hover{background:var(--m-paper);border-color:var(--m-ink)}
+.rr-dialog .rr-action:focus-visible{outline:2px solid var(--m-cobalt);outline-offset:2px}
+.merchant-shell .rr-skip:focus-visible{outline:2px solid var(--m-paper);outline-offset:2px}

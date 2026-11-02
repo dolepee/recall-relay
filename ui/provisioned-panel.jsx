@@ -55,12 +55,19 @@ export function ProvisionedPurchases({state,run,busy=false}){
   // No field, no panel: an older backend keeps the desk exactly as it was.
   const grants=Array.isArray(state?.provisionedPurchases)?state.provisionedPurchases:null;
   if(!grants)return null;
-  const rows=grants.map(grant=>(boundGrants[grant.grantId]?{...grant,boundOrder:boundGrants[grant.grantId]}:grant));
+  // A refresh after a lost bind response must still show the capture as allocated.
+  // The claim list is server state; component memory alone is not authority.
+  const claims=Array.isArray(state?.cases)?state.cases:[];
+  const claimBindings=new Map(claims.filter(claim=>typeof claim?.purchaseProvenance?.grantId==='string'&&typeof claim?.order==='string').map(claim=>[claim.purchaseProvenance.grantId,claim.order]));
+  const rows=grants.map(grant=>{
+    const order=claimBindings.get(grant.grantId)||boundGrants[grant.grantId];
+    return order?{...grant,boundOrder:order}:grant;
+  });
   async function bind(grantId){
     setError('');
     const result=await run('bind-purchase',{grantId});
     setConfirming(null);
-    if(!result||typeof result.order!=='string'){setError('No claim was recorded for that purchase. Check the provider record before trying again.');return;}
+    if(!result||typeof result.order!=='string'){setError('The binding outcome could not be confirmed. The provider may still have bound this purchase; refresh and check the claim before trying again.');return;}
     setBound(result);setBoundGrants(current=>({...current,[grantId]:result.order}));
   }
   return <details className="rr-card mb-4 px-5" aria-label="Provisioned purchases" open={!!bound}>
@@ -71,7 +78,7 @@ export function ProvisionedPurchases({state,run,busy=false}){
       {bound&&<section className="mt-4 min-w-0 rounded-md border border-teal-200 bg-teal-50 p-4" aria-label="Recorded binding">
         <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-teal-900">Recorded</p>
         <h4 className="mt-1 break-words text-base font-semibold text-teal-950">{bound.order} · {statusLabel(bound.status?.code)}</h4>
-        <p className="mt-1 text-sm leading-6 text-teal-950">Refundable amount {amount(bound.amountCents)}. The amount follows the capture the server read, so it is not a fixed item price.</p>
+        <p className="mt-1 text-sm leading-6 text-teal-950">Affected item amount {amount(bound.amountCents)}. The amount follows the capture the server read, so it is not a fixed item price or a refund approval.</p>
         <p className="mt-2 break-words text-xs leading-5 text-teal-900">Binding is recorded evidence for this claim. It is not a refund or an approval: refunding still needs the usual evidence review.</p>
         <Provenance value={bound.purchaseProvenance}/>
       </section>}

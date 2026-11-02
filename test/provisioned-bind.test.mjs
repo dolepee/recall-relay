@@ -55,13 +55,13 @@ const claimView=()=>({id:'claim-1',order:'RR-0001',amountCents:3375,currency:'US
 
 // Every request other than the bind is answered by the real desk, so the panel renders inside
 // the same workspace the merchant actually sees.
-async function mountDesk({purchases,bind}={}){
+async function mountDesk({purchases,bind,stateClaim}={}){
   const desk=new ClaimDesk({path:':memory:',provider:noPayment});
   const posts=[];
   globalThis.fetch=async(path,options={})=>{
     if(path==='/api/merchant/state'){
       const state=desk.merchantState();
-      return new Response(JSON.stringify(purchases===undefined?state:{...state,workspaceId:'ws-4f21c9',provisionedPurchases:purchases}));
+      return new Response(JSON.stringify({...state,workspaceId:'ws-4f21c9',...(purchases===undefined?{}:{provisionedPurchases:purchases}),...(stateClaim?{cases:[stateClaim,...state.cases]}:{})}));
     }
     assert.equal(path,'/api/merchant/bind-purchase');
     assert.equal(options.method,'POST');
@@ -116,6 +116,8 @@ test('a recorded binding reports the claim and refuses to read as a refund',asyn
   assert.match(text(recorded),/RR-0001/);
   assert.match(text(recorded),/\$33\.75/,'the recorded amount is the capture amount the server returned, not the item price');
   assert.match(text(recorded),/not a refund or an approval/);
+  assert.match(text(recorded),/Affected item amount/);
+  assert.doesNotMatch(text(recorded),/Refundable amount/);
   const provenance=recorded.querySelector('[aria-label="Purchase provenance"]');
   assert(provenance,'the returned purchase provenance is rendered');
   assert.match(text(provenance),/Operator-provisioned/);
@@ -135,6 +137,7 @@ test('a failed bind records nothing and says so',async()=>{
   await act(async()=>{button('Bind and record').click();await tick();});
   await settle(()=>node.querySelector('[role="alert"]')||text(node).includes('cannot be bound'));
   assert.equal(node.querySelector('[aria-label="Recorded binding"]'),null,"no recorded claim without a server answer");
+  assert.match(text(document.body),/binding outcome could not be confirmed/);
   assert.match(text(document.body),/already allocated to another workspace/);
 });
 
@@ -146,4 +149,13 @@ test('long grant references wrap inside the panel instead of widening the page',
   assert(line,'the full grant reference is shown');
   assert.match(line.className,/break-all/);
   assert.match(node.querySelector('li').className,/min-w-0/);
+});
+
+
+test('a refresh derives an already-bound grant from the claim provenance, not component memory',async()=>{
+  const boundClaim={id:'claim-1',order:'RR-0001',campaign:{title:'Fictional cup',notice:'Local fixture',sourceUrl:'https://example.invalid',product:'Fictional cup',sku:'CUP-01',lot:'LOT-A',coverage:[],fields:[]},amountCents:3375,currency:'USD',status:{code:'SUBMITTED',reason:'The claim is with you for review.'},missing:[],revision:2,correction:null,submittedAt:'2026-11-02T00:00:00Z',submission:{lot:'LOT-A',acknowledged:true,hasPhoto:false,extra:{}},locked:false,receipt:null,plan:{status:'REVIEW',reason:'Evidence review required.'},review:null,payment:null,claimUrl:'/claim?claim=claim-1#fixture',purchaseProvenance:{...claimView().purchaseProvenance,grantId:'GRANT-0000000001'}};
+  const {panel}=await mountDesk({purchases:[grant()],stateClaim:boundClaim});
+  const node=panel();
+  assert.match(text(node),/Bound to RR-0001/,'the server claim marks the grant as allocated');
+  assert.equal(button('Bind purchase'),undefined,'a server-bound grant offers no second binding');
 });

@@ -8,27 +8,47 @@ This build uses fictional merchandise and **PayPal Sandbox**. Public CPSC
 notices supply scenarios; importing one does not create a manufacturer
 relationship or register a real recall claim.
 
+## Read-only sample desk
+
+`/sample` is the fastest way to inspect the product. It shows six fictional
+claims across waiting, review, ready, correction, payment-exception and
+sample-receipt states in the current merchant layout. It does not create a
+workspace or cookie, call PayPal, or consume an AI request. The source-linked
+requirement, payment-state and amount widgets are AG Studio custom widgets fed
+by the displayed fixture; selecting a queue row updates them. The receipt is
+labelled as an invented sample and no funds move.
+
+![Read-only sample desk](docs/sample-desk.png)
+
+![Sample receipt](docs/sample-receipt.png)
+
+![Read-only sample desk, mobile](docs/sample-mobile.png)
+
 ## Browser hosting
 
 The Cloudflare build runs AI on the server and works in a normal browser;
 visitors do not need a Mac or a local model. The hosted interface is at
-[recall-relay.dolepee.com](https://recall-relay.dolepee.com).
+[recall-relay.dolepee.com](https://recall-relay.dolepee.com); the read-only
+sample is at
+[recall-relay.dolepee.com/sample](https://recall-relay.dolepee.com/sample).
 Backend configuration is in `cloud/`; Pages uses the root `wrangler.jsonc`.
 
 The site root (`/`) serves the reviewed landing page in `public/landing.html`;
-the merchant desk is at `/desk`, claim instructions at `/setup` and the private
-customer claim at `/claim`. The landing source is not served directly at
-`/landing.html`.
+the merchant desk is at `/desk`, claim instructions at `/setup`, the private
+customer claim at `/claim`, the simulated practice journey at `/practice` and
+the read-only sample desk at `/sample`. The landing source is not served
+directly at `/landing.html`.
 
 Routing differs by environment, deliberately:
 
 - `npm run dev` (Vite middleware) serves `index.html` for every path, so all app
   routes, including `/training`, work there.
 - `npm run build` followed by `npm start` serves the built `dist/`: `/` returns
-  `landing.html`, `/desk`, `/setup`, `/claim` and `/training` return the app
-  document, and every other path returns 404.
+  `landing.html`, `/desk`, `/setup`, `/claim`, `/practice`, `/sample` and
+  `/training` return the app document, and every other path returns 404.
 - Cloudflare Pages (`cloud/pages-worker.mjs`) returns `landing.html` for `/`, the
-  app document for `/desk`, `/setup` and `/claim`, and 404 for everything else.
+  app document for `/desk`, `/setup`, `/claim`, `/practice` and `/sample`, and
+  404 for everything else.
   The training workspace is local-only and is not exposed on the hosted site.
 
 Each browser receives an isolated sandbox merchant workspace in an HttpOnly
@@ -121,16 +141,22 @@ The local server does not fall back to hosted inference.
    number such as `27-026`, inspect the complete notice, and review its remedy.
 2. Draft source-linked fields with AI or add an exact source
    sentence manually. Correct omissions and conditions before saving the
-   reviewed instructions. AI suggestions are not authoritative.
+   reviewed instructions. Every remedy sentence gets a disposition: a field
+   link, an information/manual note with a reason, or an unresolved marker.
+   AI suggestions are not authoritative.
 3. Preview and publish a **sandbox scenario** with an explicit test SKU and lot.
-   Only the supported original-payment remedy can use this settlement path.
+   Unresolved or manual coverage entries block publication of a connected
+   form; only the supported original-payment remedy can use this settlement
+   path.
 4. In the desk, create a Sandbox purchase: a $25.99 scenario item plus an
    unaffected $34 item. Approve the $59.99 purchase as the Sandbox buyer, then
    use **Verify approved purchase** for that same order. Do not create another
    order merely because approval or capture is pending.
-5. Open the private customer link. Submit a disposable PNG/JPEG image under
-   2 MB, the test lot, purchase confirmation and the required scenario responses.
-   Missing information can be saved and completed later.
+5. Open the private customer link. Submit a disposable image, the test lot,
+   purchase confirmation and the required scenario responses. The image must
+   be a valid decoded JPEG or non-interlaced 8-bit PNG, at most 2 MB, 4
+   megapixels and 4,096 pixels per side. Missing information can be saved and
+   completed later.
 6. Return to the merchant desk, refresh and inspect the submitted evidence.
    If it needs correction, ask for an update with a specific message and,
    optionally, a required replacement photo. The customer responds on the same
@@ -166,11 +192,16 @@ authorized endpoint. Evidence confirmation stays disabled until it displays.
   dispatch for that claim. Ambiguous provider responses stay unresolved.
 - If a refund reference survives, **Check PayPal status** reconciles it without
   sending another refund. A lost response without a reference requires manual
-  reconciliation. Do not retry through a new case. This does not claim
-  provider-wide exactly-once delivery.
+  reconciliation. A refund reported as failed or cancelled stays in manual
+  reconciliation; there is no automatic resend or replacement refund. Do not
+  retry through a new case. This does not claim provider-wide exactly-once
+  delivery.
+- Images are decoded under fixed bounds before they count as evidence: JPEG or
+  non-interlaced 8-bit PNG only, up to 2 MB, 4,000,000 pixels and 4,096 pixels
+  per side. Decoding does not prove authenticity, ownership, safety or disposal;
+  human evidence review remains.
 - The adapter has a fixed Sandbox origin. Unsupported, changed or conservatively
-  older-than-180-day purchases remain manual. Image validation does not prove
-  authenticity, ownership, safety or disposal. Human evidence review remains.
+  older-than-180-day purchases remain manual.
 - Local merchant launch links and hosted browser sessions use different
   authentication boundaries. Neither is production multi-merchant onboarding.
 

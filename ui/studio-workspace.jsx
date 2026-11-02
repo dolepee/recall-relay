@@ -5,7 +5,7 @@ import {caseAssistant} from './case-assistant.mjs';
 import {ClaimGuide} from './claim-guide.jsx';
 
 const ink='#0E1417',paper='#F3EEE2',card='#FBF8F0',cobalt='#1B3FD8',rule='rgba(14,20,23,.17)',ruleStrong='rgba(14,20,23,.34)',muted='#5C6669';
-const theme=studioTheme.withParams({
+export const merchantStudioTheme=studioTheme.withParams({
   accentColor:cobalt,backgroundColor:paper,foregroundColor:ink,textColor:ink,subtleTextColor:muted,
   borderColor:rule,borderWidth:1,borderRadius:2,fontFamily:'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',fontSize:14,
   studioMinWidth:280,studioMinHeight:400,studioCanvasMinWidth:280,
@@ -18,6 +18,7 @@ const theme=studioTheme.withParams({
   gridHeaderBackgroundColor:'#EAE3D4',gridHeaderTextColor:ink,gridHeaderFontFamily:'ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',gridHeaderFontSize:11,gridHeaderFontWeight:600,
   gridDataBackgroundColor:card,gridOddRowBackgroundColor:card,gridRowBorder:[1,'rgba(14,20,23,.12)'],gridHeaderRowBorder:[2,ruleStrong],gridRowHeight:56,
 });
+const theme=merchantStudioTheme;
 
 export default function StudioWorkspace({data,initialState,onView,ClaimReview,OrderCell,guideOpen,onGuideClose,customize}){
   const [harness,setHarness]=useState(null);

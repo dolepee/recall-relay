@@ -132,6 +132,7 @@ function deskFixture({ai}={}){
 async function preparedSetup(desk,ws,n,{sku,lot,publish}){
   let row=await ws.import(n);
   row=ws.addField(row.id,{revision:row.revision,kind:'PHOTO',quote:quotesFor(n)[0]});
+  row=ws.addField(row.id,{revision:row.revision,kind:'CONFIRMATION',quote:quotesFor(n)[1]});
   row=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});
   if(publish)row=ws.activate(row.id,{revision:row.revision,sku,lot,confirmed:true},desk);
   return row;

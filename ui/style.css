@@ -44,7 +44,7 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .rr-mh__nav a{display:inline-flex;min-height:44px;align-items:center;padding:0 12px;border-bottom:2px solid transparent;color:var(--m-ink-2);font:550 14px/1 var(--m-text);text-decoration:none;transition:color .16s ease,border-color .16s ease}
 .rr-mh__nav a:hover{color:var(--m-ink);border-bottom-color:var(--m-cobalt)}
 .rr-mh__nav a[aria-current="page"]{color:var(--m-ink);border-bottom-color:var(--m-cobalt)}
-.rr-mh__note{font:600 9.5px/1.4 var(--m-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--m-ink-3);margin-left:12px;max-width:24ch}
+.rr-mh__note{font:600 9.5px/1.4 var(--m-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--m-ink-3);margin-left:12px;white-space:nowrap}
 .rr-mh__menu{display:none;position:relative;margin-left:auto}
 .rr-mh__menu summary{display:inline-flex;min-height:44px;align-items:center;gap:9px;padding:0 14px;border:1px solid var(--m-rule-2);color:var(--m-ink);cursor:pointer;list-style:none;font:600 12px/1 var(--m-mono);letter-spacing:.1em;text-transform:uppercase}
 .rr-mh__menu summary::-webkit-details-marker{display:none}
@@ -99,7 +99,7 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .merchant-shell .rr-status{border:1px solid var(--m-rule);background:transparent;color:var(--m-ink-2);border-radius:2px;font:600 10px/1.3 var(--m-mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px}
 .merchant-shell .rr-status[data-code="COMPLETED"]{border-color:var(--m-ok-line);background:var(--m-ok-bg);color:var(--m-ok)}
 .merchant-shell .rr-status[data-code="READY_FOR_APPROVAL"]{border-color:#C9D2F7;background:#EEF1FC;color:var(--m-cobalt)}
-.merchant-shell .rr-status[data-code="WAITING_CUSTOMER"],.merchant-shell .rr-status[data-code="NEEDS_INFORMATION"],.merchant-shell .rr-status[data-code="MANUAL"],.merchant-shell .rr-status[data-code="PAYMENT"]{border-color:var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-warn)}
+.merchant-shell .rr-status[data-code="AWAITING_CUSTOMER"],.merchant-shell .rr-status[data-code="NEEDS_INFORMATION"],.merchant-shell .rr-status[data-code="MANUAL"],.merchant-shell .rr-status[data-code="PAYMENT"]{border-color:var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-warn)}
 .merchant-shell .rr-status[data-code="FAILED"],.merchant-shell .rr-status[data-code="CANCELLED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}
 
 /* source, evidence and review surfaces */

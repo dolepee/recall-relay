@@ -63,3 +63,13 @@ test('the landing page offers the simulated practice claim beside, not instead o
   assert.match(html,/Open the sandbox desk/);
   assert.doesNotMatch(html,/Practice claim only/i);
 });
+
+test('the landing example uses the active 27026 crystal-cup source and no dresser copy',async()=>{
+  const html=await readFile(landing,'utf8');
+  assert.match(html,/Crystal Glass Cups with Loose Crystal Chips/);
+  assert.match(html,/CPSC 27-026/);
+  assert.match(html,/Consumer will be asked to fill out an online form and submit a photograph/);
+  assert.match(html,/permanent black marker/);
+  assert.match(html,/SCENARIO-ITEM · LOT-A/);
+  assert.doesNotMatch(html,/Romorgniz|six-drawer|dresser|drawers|RECALLED|CPSC 27-020|RZ-6D/);
+});

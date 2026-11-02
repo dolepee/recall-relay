@@ -182,3 +182,28 @@ test('a real field edit in a legacy setup is still marked unsaved',async()=>{
  assert.match(document.body.textContent,/Last saved instructions · changes not yet saved/);
  await act(async()=>root.unmount());
 });
+
+const activeSetupState=()=>{
+ const make=(number,product,fieldId,digest,published=null)=>({id:`setup-${number}`,revision:1,source:{recallNumber:number,title:`${product} notice`,products:[{name:product}],description:'Local DOM fixture',retrievedAt:'2026-11-02T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:digest.repeat(64).slice(0,64),remedies:[`Submit a photograph of the marked ${product}.`],requirements:[]},suggestion:{model:'fixture model',createdAt:'2026-11-02T00:00:00Z',requirements:[{id:fieldId,kind:'PHOTO',quote:`Submit a photograph of the marked ${product}.`,sourceUrl:'https://example.invalid/notice'}]},review:{revision:1,digest:digest.repeat(64).slice(0,64),fields:[{id:fieldId,kind:'PHOTO',quote:`Submit a photograph of the marked ${product}.`,sourceUrl:'https://example.invalid/notice'}]},...(published?{publishedCampaign:{id:published,sku:'SCENARIO-ITEM',lot:'LOT-A'}}:{})});
+ const first=make('27020','First fixture','field-1','a');
+ const active=make('27026','Crystal Glass Cups','field-1','a7413b441c58', 'CPSC-27026-a7413b441c58');
+ return {ai:{available:false},activeCampaign:{id:'CPSC-27026-a7413b441c58',product:'Crystal Glass Cups',sku:'SCENARIO-ITEM',lot:'LOT-A'},setups:[first,active]};
+};
+
+test('first open selects the active published setup and preserves a deliberate edit',async()=>{
+ globalThis.fetch=async()=>new Response(JSON.stringify(activeSetupState()));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ const selector=[...document.querySelectorAll('select')].find(node=>node.parentElement.textContent.includes('Saved notice setups'));
+ assert.equal(selector.value,'setup-27026','the active published setup opens first');
+ await act(async()=>{selector.value='setup-27020';selector.dispatchEvent(new Event('change',{bubbles:true}));await tick();});
+ assert.equal(selector.value,'setup-27020');
+ await act(async()=>{[...document.querySelectorAll('button')].find(node=>node.textContent==='Edit reviewed fields').click();await tick();});
+ const field=[...document.querySelectorAll('label')].find(node=>node.textContent.includes('Submit a photograph of the marked First fixture'));
+ await act(async()=>{field.querySelector('input').click();await tick();});
+ assert.match(document.body.textContent,/Last saved instructions · changes not yet saved/);
+ await act(async()=>{[...document.querySelectorAll('button')].find(node=>node.textContent==='Check assistant availability').click();await tick();await tick();});
+ assert.equal(selector.value,'setup-27020','a refresh does not replace the merchant selection');
+ assert.match(document.body.textContent,/changes not yet saved/,'an unsaved edit survives the refresh');
+ await act(async()=>root.unmount());
+});

@@ -82,7 +82,7 @@ async function mountDesk({purchases,bind,stateClaim,stateFailsAfterBind=false,st
   return {unmount,posts,panel};
 }
 
-test('with no provisioned grants, creating a new sandbox purchase is the primary action',async()=>{
+test('with no provisioned grants on a published desk, Create sandbox purchase is the primary action',async()=>{
   const {panel}=await mountDesk({purchases:[],stateOverrides:{published:true}});
   const node=panel();
   const purchase=[...document.querySelectorAll('details')].find(item=>text(item.querySelector('summary')).includes('Create sandbox purchase'));
@@ -91,6 +91,19 @@ test('with no provisioned grants, creating a new sandbox purchase is the primary
   assert(create,'the ordinary purchase action is present');
   assert.equal(create.dataset.secondary,'false','with no grant, the ordinary purchase action is primary');
   assert.match(text(node),/No operator-provisioned purchases/);
+  assert.match(text(node),/Use Create sandbox purchase above/);
+  assert.doesNotMatch(text(node),/Prepare and publish your claim instructions first/);
+  assert.match(text(node),/Workspace reference ws-4f21c9/,'the workspace reference remains available');
+});
+
+test('an unpublished desk points to instructions before creating a purchase',async()=>{
+  const {panel}=await mountDesk({purchases:[],stateOverrides:{published:false}});
+  const node=panel();
+  assert(node,'the provisioned section remains available before publication');
+  assert.match(text(node),/No operator-provisioned purchases/);
+  assert.match(text(node),/Prepare and publish your claim instructions first/);
+  assert.doesNotMatch(text(node),/Use Create sandbox purchase above/);
+  assert.equal(button('Create sandbox purchase'),undefined,'the purchase action is absent before publication');
   assert.match(text(node),/Workspace reference ws-4f21c9/,'the workspace reference remains available');
 });
 

@@ -5,6 +5,7 @@ import {views,casesForView} from '../src/case-views.mjs';
 import {useClaimPhoto} from './use-claim-photo.mjs';
 import {Action,ErrorText,Status,Frame,Receipt,CorrectionNote,inputClass,money,titles,api} from './components.jsx';
 import {beginActionFocus} from '../src/focus-guard.mjs';
+import {projectClaimState} from './connected-state.mjs';
 // The recorded workflow states are authored for the customer's private claim page, and the
 // merchant desk reuses them. Only the customer-directed wording is re-expressed here for the
 // merchant: audience-neutral text, and any dynamic reason such as a manual policy outcome,
@@ -61,34 +62,23 @@ function ConnectedCoverageWidget(){
     <p className="mt-2 text-[10px] leading-4 text-slate-500">A FIELD entry is a quote link, not a completeness score.</p>
   </section>;
 }
-function paymentLabel(payment){
-  if(!payment)return 'No payment attempt';
-  return ({RESERVED:'Refund reserved, not sent',UNKNOWN:'Payment result unknown',PENDING:'PayPal processing',FAILED:'Refund failed — manual reconciliation',CANCELLED:'Refund cancelled — manual reconciliation',COMPLETED:'Refund confirmed'}[payment.state]||payment.state);
-}
 function ConnectedExceptionsWidget(){
   const context=useContext(DeskContext),item=selectedItem(context);
   if(!item)return <section className="h-full overflow-auto p-4"><h2 className="text-base font-semibold">Exceptions and amounts</h2><p className="mt-2 text-sm leading-6 text-slate-600">Select a claim to inspect its blockers and recorded amounts.</p></section>;
-  const blockers=[];
-  if(!item.submission)blockers.push('No customer submission yet.');
-  for(const missing of item.missing||[])blockers.push(missing);
-  if(item.correction?.state==='REQUESTED')blockers.push(`Correction requested: ${item.correction.message}`);
-  if(item.submission?.lot&&item.campaign.lot&&item.submission.lot!==item.campaign.lot)blockers.push(`Lot mismatch: customer ${item.submission.lot}, expected ${item.campaign.lot}.`);
-  if(item.plan?.status==='MANUAL')blockers.push(item.plan.reason||'Manual review required.');
-  if(item.plan?.status==='REVIEW')blockers.push(item.plan.reason||'Evidence review required.');
-  for(const entry of item.campaign.coverage||[])if(['UNRESOLVED','MANUAL'].includes(entry.disposition))blockers.push(`${dispositionLabel[entry.disposition]}: ${entry.reason||entry.quote}`);
-  if(item.payment&&!['COMPLETED'].includes(item.payment.state))blockers.push(paymentLabel(item.payment));
-  if(item.locked)blockers.push('Payment review is locked to the current reservation.');
+  const projection=projectClaimState(item);
   return <section aria-label="Exceptions and amounts" className="h-full overflow-auto p-4">
     <h2 className="text-base font-semibold">Exceptions and amounts</h2>
     <p className="mt-1 text-xs leading-5 text-slate-500">{item.order} · revision {item.revision}</p>
-    <div className="mt-3"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-slate-500">Recorded blockers</p>{blockers.length?<ul className="mt-1 space-y-1.5 text-[11px] leading-4 text-slate-700">{blockers.map((blocker,index)=><li key={`${index}-${blocker}`} className="border-l-2 border-[color:var(--m-warn-line)] pl-2">{blocker}</li>)}</ul>:<p className="mt-1 text-xs leading-5 text-slate-600">No recorded blockers.</p>}</div>
-    <dl className="mt-3 space-y-1.5 border-t border-slate-200 pt-2 text-xs"><div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Item refund</dt><dd className="font-semibold tabular-nums">{money(item.amountCents)}</dd></div><div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Payment</dt><dd className="text-right">{paymentLabel(item.payment)}</dd></div>{item.receipt&&<div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Receipt</dt><dd className="break-all text-right font-mono text-[10px]">{item.receipt.refundId}</dd></div>}</dl>
+    <div className="mt-3"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-slate-500">Recorded blockers</p>{projection.blockers.length?<ul className="mt-1 space-y-1.5 text-[11px] leading-4 text-slate-700">{projection.blockers.map((blocker,index)=><li key={`${index}-${blocker}`} className="border-l-2 border-[color:var(--m-warn-line)] pl-2">{blocker}</li>)}</ul>:<p className="mt-1 text-xs leading-5 text-slate-600">{projection.settlementComplete?'Settlement complete; no blocker recorded.':'No recorded blockers.'}</p>}</div>
+    <dl className="mt-3 space-y-1.5 border-t border-slate-200 pt-2 text-xs"><div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Item refund</dt><dd className="font-semibold tabular-nums">{money(item.amountCents)}</dd></div><div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Payment</dt><dd className="text-right">{projection.paymentLabel}</dd></div>{item.receipt&&<div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Receipt</dt><dd className="break-all text-right font-mono text-[10px]">{item.receipt.refundId}</dd></div>}</dl>
+    {projection.lockNote&&<p className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-[10px] leading-4 text-slate-600">{projection.lockNote}</p>}
   </section>;
 }
 function ConnectedReviewBrief(){
   const context=useContext(DeskContext),item=selectedItem(context);
   if(!item)return <section className="h-full overflow-auto p-4"><h2 className="text-base font-semibold">Recorded review brief</h2><p className="mt-2 text-sm leading-6 text-slate-600">Select a claim to build its review brief.</p></section>;
   const fields=item.campaign.fields||[];
+  const projection=projectClaimState(item);
   const response=field=>field.kind==='PHOTO'?(item.submission?.hasPhoto?'Photograph submitted':'Missing'):field.kind==='CONFIRMATION'?(item.submission?.extra?.[field.id]===true?'Confirmed by customer':'Not confirmed'):(item.submission?.extra?.[field.id]||'Not provided');
   return <section aria-label="Recorded review brief" className="h-full overflow-auto p-4">
     <h2 className="text-base font-semibold">Recorded review brief</h2>
@@ -96,7 +86,7 @@ function ConnectedReviewBrief(){
     <div className="mt-3"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-slate-500">Source requirements</p><ul className="mt-1 space-y-2">{fields.map(field=><li key={field.id} className="border-b border-slate-200 pb-2 text-[11px] leading-4"><p className="text-slate-700">“{field.quote}”</p><p className="mt-1 text-slate-500">{fieldKind[field.kind]||field.kind} · {response(field)}</p></li>)}</ul></div>
     <div className="mt-3"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-slate-500">Missing or unresolved</p>{item.missing?.length?<ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] leading-4 text-slate-700">{item.missing.map(missing=><li key={missing}>{missing}</li>)}</ul>:<p className="mt-1 text-[11px] leading-4 text-slate-600">No missing customer information recorded.</p>}</div>
     {item.correction&&<div className="mt-3 border-t border-slate-200 pt-2"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-slate-500">Correction history</p><p className="mt-1 text-[11px] leading-4 text-slate-700">{item.correction.state}: {item.correction.message}</p>{item.correction.response&&<p className="mt-1 text-[11px] leading-4 text-slate-500">Customer response: {item.correction.response}</p>}</div>}
-    <div className="mt-3 border-t border-slate-200 pt-2 text-[11px] leading-4 text-slate-600"><p>Plan: {item.plan?.status||'Not prepared'}{item.plan?.reason?` — ${item.plan.reason}`:''}</p><p className="mt-1">Evidence review: {item.review?'Recorded':'Not recorded'} · revision {item.revision}</p></div>
+    <div className="mt-3 border-t border-slate-200 pt-2 text-[11px] leading-4 text-slate-600"><p>Status: {projection.planLabel}{projection.planReason?` — ${projection.planReason}`:''}</p><p className="mt-1">Evidence review: {item.review?'Recorded':'Not recorded'} · revision {item.revision}</p>{projection.lockNote&&<p className="mt-1">{projection.lockNote}</p>}</div>
   </section>;
 }
 function MobileReviewExtras(){

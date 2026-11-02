@@ -95,14 +95,15 @@ test('regeneration retains unchanged field identities without reusing replaced f
   try{
     let row=await ws.import('27026');
     const other='Confirm that the label identifier has been supplied.';
-    row.source.remedies.push(other);ws.save(row);
+    const identifier='Provide the printed serial number.';
+    row.source.remedies.push(other,identifier);ws.save(row);
     row=await ws.suggest(row.id,row.revision);const original=row.suggestion.requirements[0];
     response=JSON.stringify({requirements:[{kind:'CONFIRMATION',quote:other},{kind:'PHOTO',quote}]});
     row=await ws.suggest(row.id,row.revision);
     assert.deepEqual(row.suggestion.requirements[1],original);
     assert.notEqual(row.suggestion.requirements[0].id,original.id);
     const added=row.suggestion.requirements[0];
-    response=JSON.stringify({requirements:[{kind:'TEXT',quote},{kind:'CONFIRMATION',quote:other}]});
+    response=JSON.stringify({requirements:[{kind:'TEXT',quote:identifier},{kind:'CONFIRMATION',quote:other}]});
     row=await ws.suggest(row.id,row.revision);
     assert.deepEqual(row.suggestion.requirements[1],added);
     assert.notEqual(row.suggestion.requirements[0].id,original.id);
@@ -381,4 +382,30 @@ test('a compound instruction can carry a photograph and an explicit attestation 
   row=await ws.suggest(row.id,row.revision);
   assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
   db.close();
+});
+
+test('TEXT requires a written-value request rather than a photograph instruction',()=>{
+  const compound='Submit a photograph of the marked cup and enter the serial number.';
+  const source=notice([
+    'Provide a photograph of the destroyed lamp.',
+    'Submit a photograph of the serial plate.',
+    'Provide a photograph of the model number.',
+    compound,
+    'Enter the number shown in the photograph.',
+  ],'27-092');
+  for(const quote of source.remedies.slice(0,3)){
+    const result=validateSourceSuggestion(draft([{kind:'TEXT',quote}]),source);
+    assert.equal(result.requirements.length,0,quote);
+    assert.equal(result.filtered.length,1,quote);
+    assert.match(result.filtered[0].reason,/written field/);
+  }
+  const pair=validateSourceSuggestion(draft([
+    {kind:'PHOTO',quote:compound},
+    {kind:'TEXT',quote:compound},
+  ]),source);
+  assert.equal(pair.filtered.length,0);
+  assert.deepEqual(pair.requirements.map(f=>f.kind),['PHOTO','TEXT']);
+  const shown=validateSourceSuggestion(draft([{kind:'TEXT',quote:'Enter the number shown in the photograph.'}]),source);
+  assert.equal(shown.filtered.length,0);
+  assert.equal(shown.requirements[0].kind,'TEXT');
 });

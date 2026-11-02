@@ -32,7 +32,7 @@ function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').r
 const KINDS=['PHOTO','CONFIRMATION','TEXT'];
 const PHOTO_CUE=/\b(photo|photograph|photographs|photos|picture|pictures|image|images)\b/i;
 const CONFIRM_CUE=/\b(confirm|confirms|confirmed|confirmation|confirmations|attest|attests|attested|attestation|attestations|certify|certifies|certification|certifications|verify|verifies|declare|declares|declaration|declarations)\b/i;
-const TEXT_CUE=/\b(enter|provide|identify|describe|supply|serial|model|lot|batch|order number|purchase date|date of purchase|product code|item number|identifier|sku|upc)\b/i;
+const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|include|write|tell(?:\s+us)?)\b(?:(?!\b(?:photo|photograph|picture|image)\b)[^.!?]){0,60}?\b(?:(?:serial|batch|lot|model|order|item|product)\s+)?(?:number|code|identifier|description|name|address|date|receipt|invoice|amount|price|quantity|size|color)\b/i;
 
 // Applies to assistant output only. The notice may legitimately contain disposal
 // attestations, URLs, e-mail destinations or contact text; those are not rejected
@@ -41,7 +41,7 @@ const TEXT_CUE=/\b(enter|provide|identify|describe|supply|serial|model|lot|batch
 export function aiFieldProblem({kind,quote}){
   if(kind==='PHOTO'&&!PHOTO_CUE.test(quote))return 'A photograph field needs a request for a photograph or image.';
   if(kind==='CONFIRMATION'&&!CONFIRM_CUE.test(quote))return 'A confirmation field needs an explicit confirm, attest, certify, verify or declare request, including its noun form.';
-  if(kind==='TEXT'&&!TEXT_CUE.test(quote))return 'A written field needs an explicit value, identifier or description request.';
+  if(kind==='TEXT'&&!TEXT_CUE.test(quote))return 'A written field needs an explicit request for a value, identifier or description, not a photograph.';
   return null;
 }
 

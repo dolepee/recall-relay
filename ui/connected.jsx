@@ -23,7 +23,29 @@ const merchantStatusReasons={
 };
 const merchantReason=reason=>merchantStatusReasons[reason]||reason;
 const DeskContext=createContext(null);
-function CaseCell({value}){const {state,selectCase,selected}=useContext(DeskContext);const item=state.cases.find(c=>c.order===String(value));return <Button aria-pressed={selected===String(value)} aria-controls="claim-review" title={item?.campaign.product} className="flex min-h-11 w-full min-w-0 flex-col justify-center text-left focus-visible:outline-2 focus-visible:outline-teal-700" onClick={()=>selectCase(String(value))}><span className="max-w-full truncate text-sm font-semibold text-teal-900">{item?.campaign.product||value}</span><span className="text-xs text-slate-500">{value}</span><span className="text-xs font-medium tabular-nums text-slate-700">{money(item?.amountCents||0)}</span></Button>;}
+function CaseCell({value,api,eGridCell}){const {state,selectCase,selected}=useContext(DeskContext);const item=state.cases.find(c=>c.order===String(value));
+  // Keep the order column inside the queue panel. A content-sized order column can
+  // otherwise grow past the panel and hide the status; cap each column at half the
+  // viewport, then let AG Grid distribute the remaining space. The full product
+  // title remains in the title attribute and in the selected review heading.
+  useEffect(()=>{
+    if(!api||!eGridCell||typeof api.autoSizeAllColumns!=='function')return;
+    const viewport=eGridCell.closest('.ag-center-cols-viewport')||eGridCell.closest('.ag-grid-viewport')||eGridCell.closest('.ag-body-viewport');
+    if(!viewport)return;
+    let timer=0;
+    const fit=()=>{
+      clearTimeout(timer);
+      timer=setTimeout(()=>{
+        const width=viewport.clientWidth;
+        if(width>0)api.autoSizeAllColumns({defaultMaxWidth:Math.max(100,Math.floor(width/2)),scaleUpToFitGridWidth:true});
+      },0);
+    };
+    fit();
+    const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(fit);
+    observer?.observe(viewport);
+    return()=>{clearTimeout(timer);observer?.disconnect();};
+  },[api,eGridCell]);
+  return <Button aria-pressed={selected===String(value)} aria-controls="claim-review" title={item?.campaign.product} className="flex min-h-11 w-full min-w-0 flex-col justify-center text-left focus-visible:outline-2 focus-visible:outline-teal-700" onClick={()=>selectCase(String(value))}><span className="max-w-full truncate text-sm font-semibold text-teal-900">{item?.campaign.product||value}</span><span className="text-xs text-slate-500">{value}</span><span className="text-xs font-medium tabular-nums text-slate-700">{money(item?.amountCents||0)}</span></Button>;}
 function MerchantCase(){
   const {state,selected,run,busy,error:operationError,focusToken,restoreCaseFocus,wide}=useContext(DeskContext),item=state.cases.find(c=>c.order===selected);
   const error=operationError?.scope==='case'&&operationError.id===item?.id?operationError.message:'';
@@ -105,7 +127,7 @@ export function MerchantDesk(){
   // empty: the outcome notice, or the case view selector that can bring the case back.
   useEffect(()=>{if(focusToken===lastRepair.current)return;lastRepair.current=focusToken;if(activeSelected)return;const target=outcomeNotice.current||viewSelect.current;if(target)target.focus({preventScroll:true});},[focusToken,activeSelected]);
   const data=useMemo(()=>({sources:[{id:'claims',data:rows}]}),[rows]);
-  const initialState=useMemo(()=>({pages:[{id:'claims',widgets:{queue:{type:'grid',dataMapping:{cols:['order','status'].map(id=>({id:`claims.${id}`}))},format:{title:{text:'Claim queue',enabled:true},style:{theme:{rowHeight:84},columnAutoSize:true}}},review:{type:'connected-case',dataMapping:{}}},widgetLayout:{queue:{xTrack:0,yTrack:0,xSpan:9,ySpan:24},review:{xTrack:9,yTrack:0,xSpan:15,ySpan:24}},layout:{minWidth:280,columns:24,rowHeight:Math.max(18,Math.floor((window.innerHeight-304)/24)),pagePadding:0,widgetPadding:0,widgetBorderEnabled:true,widgetBorderColor:'rgba(14,20,23,.17)',widgetBorderRadius:2}}],selectedPageId:'claims'}),[]);
+  const initialState=useMemo(()=>({pages:[{id:'claims',widgets:{queue:{type:'grid',dataMapping:{cols:['order','status'].map(id=>({id:`claims.${id}`}))},format:{title:{text:'Claim queue',enabled:true},style:{theme:{rowHeight:84},columnAutoSize:false,columnWidth:120}}},review:{type:'connected-case',dataMapping:{}}},widgetLayout:{queue:{xTrack:0,yTrack:0,xSpan:9,ySpan:24},review:{xTrack:9,yTrack:0,xSpan:15,ySpan:24}},layout:{minWidth:280,columns:24,rowHeight:Math.max(18,Math.floor((window.innerHeight-304)/24)),pagePadding:0,widgetPadding:0,widgetBorderEnabled:true,widgetBorderColor:'rgba(14,20,23,.17)',widgetBorderRadius:2}}],selectedPageId:'claims'}),[]);
   const selectedCaseId=state?.cases.find(item=>item.order===activeSelected)?.id;
   const workspaceError=error&&(error.scope==='workspace'||error.id!==selectedCaseId)?error.message:'';
   return <Frame merchant>

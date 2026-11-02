@@ -409,3 +409,27 @@ test('TEXT requires a written-value request rather than a photograph instruction
   assert.equal(shown.filtered.length,0);
   assert.equal(shown.requirements[0].kind,'TEXT');
 });
+
+test('TEXT rejects plural photograph words while preserving a later written request',()=>{
+  const compound='Send photos showing the marked cup and enter the serial number.';
+  const source=notice([
+    'Send photos showing the serial number.',
+    'Provide photographs of the model number.',
+    'Send pictures showing the batch number.',
+    'Provide images of the item number.',
+    compound,
+  ],'27-091');
+  for(const quote of source.remedies.slice(0,4)){
+    const result=validateSourceSuggestion(draft([{kind:'TEXT',quote}]),source);
+    assert.equal(result.requirements.length,0,quote);
+    assert.equal(result.filtered.length,1,quote);
+    assert.match(result.filtered[0].reason,/written field/);
+  }
+  const pair=validateSourceSuggestion(draft([
+    {kind:'PHOTO',quote:compound},
+    {kind:'TEXT',quote:compound},
+  ]),source);
+  assert.equal(pair.filtered.length,0);
+  assert.deepEqual(pair.requirements.map(f=>f.kind),['PHOTO','TEXT']);
+  assert.match(pair.requirements[1].quote,/and enter the serial number/);
+});

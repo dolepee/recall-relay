@@ -63,6 +63,17 @@ export class ClaimDeskCore {
     const policy=this.activeCampaign(),policyDigest=bindingHash(policy),id='bound-'+bindingHash([grant.merchantId,grant.captureId]).slice(0,48);
     const prior=()=>{const row=this.db.prepare('SELECT data FROM claims WHERE id=?').get(id);if(!row)return null;const claim=JSON.parse(row.data);if(claim.purchase.provenance?.grantDigest!==bindingHash(grant))throw new Error('The provisioned allocation changed. Manual reconciliation is required.');return this.merchantView(claim);};
     const existing=prior();if(existing)return existing;
+    const pendingRow=this.db.prepare('SELECT data FROM purchase_bindings WHERE id=?').get(id);
+    if(pendingRow){
+      const pending=JSON.parse(pendingRow.data);
+      if(pending.purchase.provenance.grantDigest!==bindingHash(grant))throw new Error('The pending allocation changed. Manual reconciliation is required.');
+      const provider=await this.provider();
+      verifyProvisionedPurchase(grant,await provider.orderDetails(grant.orderId),await provider.captureDetails(grant.captureId),this.now());
+      await this.ownCapture(pending.purchase,id);
+      const raced=prior();if(raced)return raced;
+      this.saveClaim(pending);return this.merchantView(pending);
+    }
+
     if(Date.parse(grant.provisionedAt)>Date.parse(this.now())||Date.parse(grant.expiresAt)<=Date.parse(this.now()))throw new Error('This purchase provisioning grant is not active. Ask the operator to review it.');
     if(grant.sku!==policy.sku||grant.lot!==policy.lot)throw new Error('The reviewed catalog mapping does not match this campaign.');
     const provider=await this.provider();

@@ -70,3 +70,8 @@ test('concurrent different bindings reserve capacity before global ownership',as
  let acquired=0;const original=desk.captureOwnership;desk.captureOwnership={claim(input){acquired++;return original.claim(input);}};
  try{const results=await Promise.allSettled([desk.bindPurchase({grantId:'grant-a'}),desk.bindPurchase({grantId:'grant-b'})]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(acquired,1);assert.equal(desk.merchantState().cases.length,1);}finally{desk.close();owner.close();}
 });
+test('lost ownership response resumes the same pending allocation after grant expiry',async()=>{
+ const f=fixture(),owner=registry(),{desk}=setup(f,owner);let lose=true;
+ desk.captureOwnership={claim(input){const result=owner.claim(input);if(lose){lose=false;throw new Error('Lost ownership response');}return result;}};
+ try{await assert.rejects(desk.bindPurchase({grantId:f.grant.id}),/Lost ownership/);assert.equal(desk.merchantState().cases.length,0);desk.now=()=> '2026-11-04T12:00:00Z';const bound=await desk.bindPurchase({grantId:f.grant.id});assert.equal(bound.amountCents,3875);assert.equal(desk.claimSlotsUsed(),1);assert.equal(desk.merchantState().cases.length,1);}finally{desk.close();owner.close();}
+});

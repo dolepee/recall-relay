@@ -7,9 +7,9 @@
 }
 .studio-workspace { width: 100%; min-width: 0; }
 .rr-workspace { height: calc(100dvh - 19rem); min-height: 28rem; max-height: 58rem; }
-.rr-case-heading:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
-.rr-outcome-notice:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
-.rr-desk-heading:focus { outline: 2px solid #0f766e; outline-offset: 4px; }
+.rr-case-heading:focus-visible { outline: 2px solid #0f766e; outline-offset: 4px; }
+.rr-outcome-notice:focus-visible { outline: 2px solid #0f766e; outline-offset: 4px; }
+.rr-desk-heading:focus-visible { outline: 2px solid #0f766e; outline-offset: 4px; }
 ::selection { background: #ccfbf1; color: #134e4a; }
 input, textarea { caret-color: #0f766e; }
 header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; text-underline-offset: 8px; }
@@ -111,7 +111,7 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .merchant-shell .rr-stages li[aria-current="step"]{color:var(--m-ink);background:var(--m-card);box-shadow:inset 0 -2px 0 var(--m-cobalt)}
 .merchant-shell .rr-workspace{height:clamp(30rem,calc(100dvh - 20rem),54rem);min-height:30rem;max-height:54rem}
 .merchant-shell .rr-workspace>div:first-child{border:1px solid var(--m-rule);background:var(--m-card);border-radius:2px;overflow:hidden}
-.merchant-shell .rr-case-heading:focus,.merchant-shell .rr-outcome-notice:focus,.merchant-shell .rr-desk-heading:focus{outline-color:var(--m-cobalt)}
+.merchant-shell .rr-case-heading:focus-visible,.merchant-shell .rr-outcome-notice:focus-visible,.merchant-shell .rr-desk-heading:focus-visible{outline-color:var(--m-cobalt)}
 
 @media (max-width:1100px){
   .rr-mh__note{display:none}
@@ -134,3 +134,28 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
   .merchant-shell h1{font-size:1.55rem}
   .merchant-shell .rr-workspace{min-height:26rem;height:clamp(26rem,calc(100dvh - 18rem),46rem)}
 }
+
+/* Primary anchor actions need an explicit foreground; the generic link colour
+   must not inherit over their cobalt background. */
+.merchant-shell .rr-action--primary{background:var(--m-cobalt);border:1px solid var(--m-cobalt);color:#fff}
+.merchant-shell .rr-action--primary:hover{background:var(--m-cobalt-d);border-color:var(--m-cobalt-d);color:#fff}
+
+/* AlertDialog portals outside .merchant-shell. Theme only this portal popup,
+   leaving customer and practice dialogs untouched. */
+.rr-dialog-backdrop{background:rgba(14,20,23,.48)}
+.rr-dialog{
+  --m-paper:#F3EEE2;--m-card:#FBF8F0;--m-ink:#0E1417;--m-ink-2:#3B4448;--m-ink-3:#5C6669;
+  --m-rule:rgba(14,20,23,.17);--m-rule-2:rgba(14,20,23,.34);--m-cobalt:#1B3FD8;--m-cobalt-d:#152FA6;
+  --m-display:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif;
+  --m-text:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  background:var(--m-card);color:var(--m-ink);border:1px solid var(--m-rule-2);border-radius:2px;
+  font-family:var(--m-text);box-shadow:0 20px 60px rgba(14,20,23,.18)
+}
+.rr-dialog h2{font-family:var(--m-display);font-weight:800;letter-spacing:-.03em;color:var(--m-ink)}
+.rr-dialog p{color:var(--m-ink-3)}
+.rr-dialog .rr-action{min-height:44px;border-radius:2px;font:600 14px/1 var(--m-text)}
+.rr-dialog .rr-action:not([data-secondary="true"]){background:var(--m-cobalt);border:1px solid var(--m-cobalt);color:#fff}
+.rr-dialog .rr-action:not([data-secondary="true"]):hover{background:var(--m-cobalt-d);border-color:var(--m-cobalt-d)}
+.rr-dialog .rr-action[data-secondary="true"]{background:transparent;border:1px solid var(--m-rule-2);color:var(--m-ink)}
+.rr-dialog .rr-action[data-secondary="true"]:hover{background:var(--m-paper);border-color:var(--m-ink)}
+.rr-dialog .rr-action:focus-visible{outline:2px solid var(--m-cobalt);outline-offset:2px}

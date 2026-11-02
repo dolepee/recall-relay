@@ -83,6 +83,13 @@ function ReadFacts({item}){
 }
 
 function Clause({clause}){
+  if(clause.interpretationAvailable===false){
+    return <li className="border-t border-slate-200 bg-amber-50/60 py-2 first:border-t-0 first:pt-0">
+      <p className="break-words text-[11px] leading-4 text-slate-700">“{clause.quote}”</p>
+      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[.06em] text-amber-900">Interpretation withheld</p>
+      {clean(clause.explanation)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-600">{clause.explanation}</p>}
+    </li>;
+  }
   return <li className="border-t border-slate-200 py-2 first:border-t-0 first:pt-0">
     <p className="break-words text-[11px] leading-4 text-slate-700">“{clause.quote}”</p>
     <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] leading-4 text-slate-500"><span>{actorLabel[clause.actor]||clause.actor||'Actor unknown'}</span><span>·</span><span>{timingLabel[clause.timing]||clause.timing||'Timing not stated'}</span><span>·</span><span>{dispositionLabel[clause.disposition]||clause.disposition}</span></p>
@@ -113,13 +120,15 @@ export function AdvisoryPanel({item}){
     }finally{if(current===generation.current&&fingerprintRef.current===requested.fingerprint)setBusy(false);}
   }
   if(!item)return <section aria-label="AI advisory" className="h-full overflow-auto p-4"><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-2 text-sm leading-6 text-slate-600">Select a claim to prepare a cited advisory.</p></section>;
+  const available=result?.clauses?.filter(clause=>clause.interpretationAvailable!==false).length||0;
+  const statusLabel=result?result.status==='CITED'?'Cited advisory':available>0?'Some interpretations unavailable':'Source insufficient':'Read-only';
   return <section aria-label="AI advisory" className="h-full overflow-auto p-4">
-    <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-1 text-[11px] leading-4 text-slate-500">Advisory · revision {item.revision} · not a recorded fact</p></div><span className="rr-status">{result?.status==='INSUFFICIENT'?'Insufficient source':'Read-only'}</span></div>
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-1 text-[11px] leading-4 text-slate-500">Advisory · revision {item.revision} · not a recorded fact</p></div><span className="rr-status">{statusLabel}</span></div>
     <p className="mt-2 text-[11px] leading-4 text-slate-600">Interprets the source instructions; recorded gaps are shown separately. It cannot inspect the photograph, approve a refund or change evidence.</p>
     <div className="mt-2 flex flex-wrap items-center gap-2"><Action secondary disabled={busy} onClick={prepare}>{busy?'Preparing advisory…':result?'Prepare again':'Prepare advisory'}</Action>{busy&&<p role="status" className="text-[11px] text-slate-600">Reading the selected revision.</p>}</div>
     <ErrorText error={error}/>
     {result&&<div className="mt-2" aria-label="Prepared AI advisory">
-      <p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">{result.status==='CITED'?'Cited advisory':'Source insufficient'}</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">{statusLabel}</p>{clean(result.model)&&<p className="break-all text-[10px] leading-4 text-slate-500">Model: {result.model}</p>}</div>
       {clean(result.summary)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-700">{result.summary}</p>}
       {result.clauses.length>0?<ul className="mt-2">{result.clauses.map(clause=><Clause key={clause.citationId} clause={clause}/>)}</ul>:<p className="mt-2 text-[11px] leading-4 text-slate-600">No usable cited clause was returned.</p>}
       {result.gaps.length>0&&<div className="mt-2 border-t border-slate-200 pt-2"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">Recorded evidence gaps</p><ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] leading-4 text-slate-600">{result.gaps.map((gap,index)=><li key={`${index}-${gap}`} className="break-words">{gap}</li>)}</ul></div>}

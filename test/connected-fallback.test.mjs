@@ -210,3 +210,22 @@ test('the recorded read rejects a returned case that is not the selected revisio
   assert.match(text(facts),/different case revision/);
   assert.doesNotMatch(text(facts),/Wrong case/);
 });
+
+test('a partial advisory keeps good clauses and calls withheld clauses some interpretations unavailable',async()=>{
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory')return new Response(JSON.stringify({caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,status:'INSUFFICIENT',model:'gpt-oss-120b',summary:'1 of 2 source clauses have an advisory interpretation. Read every complete quotation; rejected interpretations are withheld.',clauses:[{citationId:'good',quote:'Confirm the item was returned',actor:'CUSTOMER',timing:'BEFORE_ACTION',condition:null,explanation:'Confirm the return before approving a refund.',disposition:'FIELD',fieldIds:[],interpretationAvailable:true},{citationId:'withheld',quote:'The customer must unplug the lamp before photographing its label.',actor:'UNKNOWN',timing:'UNSPECIFIED',condition:null,explanation:'The model interpretation did not pass source-fidelity checks. Read the complete quotation directly.',disposition:'MANUAL',fieldIds:[],interpretationAvailable:false}],gaps:[],limitations:['AI interpretation can be wrong.']}),{status:200,headers:{'Content-Type':'application/json'}});
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  await act(async()=>{prepare.click();await tick();});
+  await settle(()=>/Some interpretations unavailable/.test(text(panel)));
+  assert.match(text(panel),/Some interpretations unavailable/);
+  assert.doesNotMatch(text(panel),/Source insufficient/);
+  assert.match(text(panel),/Model: gpt-oss-120b/);
+  assert.match(text(panel),/Interpretation withheld/);
+  assert.match(text(panel),/did not pass source-fidelity checks/);
+  assert.match(text(panel),/Confirm the return before approving a refund/);
+});

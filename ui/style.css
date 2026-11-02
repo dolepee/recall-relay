@@ -104,6 +104,7 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .merchant-shell .rr-status[data-code="READY_FOR_APPROVAL"]{border-color:#C9D2F7;background:#EEF1FC;color:var(--m-cobalt)}
 .merchant-shell .rr-status[data-code="AWAITING_CUSTOMER"],.merchant-shell .rr-status[data-code="NEEDS_INFORMATION"],.merchant-shell .rr-status[data-code="MANUAL"],.merchant-shell .rr-status[data-code="PAYMENT"]{border-color:var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-warn)}
 .merchant-shell .rr-status[data-code="FAILED"],.merchant-shell .rr-status[data-code="CANCELLED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}
+.merchant-shell .rr-status[data-code="UNRESOLVED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}
 
 /* source, evidence and review surfaces */
 .merchant-shell .rr-card{background:var(--m-card);border:1px solid var(--m-rule);border-radius:2px;box-shadow:none}

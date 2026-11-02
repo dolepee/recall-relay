@@ -166,7 +166,9 @@ The local server does not fall back to hosted inference.
    PayPal readback verifies refund status, amount, currency and original capture.
 
 The desktop merchant workspace uses AG Studio's Agent Framework, a custom
-runner, case-review widget and view-only tool. Its fixed layout opens in review
+runner, case-review widget and view-only tool. The connected desk also shows
+source coverage, exceptions/amounts and a **Recorded review brief** derived from
+stored claim state; the brief is not model output. Its fixed layout opens in review
 mode. Open **Claim guide** when needed; **Arrange workspace** exposes optional
 layout editing, without changing payment authority. Ask which customers owe
 information or which claims are ready for review. The model selects a closed

@@ -28,6 +28,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
           '/api/merchant/case-context':()=>caseContext(desk,input),
           '/api/merchant/case-advisory':()=>caseAdvisory(ai,desk,input),
           '/api/merchant/import-preview':()=>desk.previewLedger(input),
+          '/api/merchant/bind-purchase':()=>desk.bindPurchase(input),
           '/api/merchant/publish':()=>desk.publish(input.confirmed),
           '/api/merchant/checkout':()=>desk.createCheckout(),
           '/api/merchant/resume-checkout':()=>desk.resumeCheckout(input.id),

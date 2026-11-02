@@ -9,9 +9,10 @@
   "durable_objects": {"bindings": [
     {"name":"WORKSPACES","class_name":"RecallWorkspace"},
     {"name":"BUDGET","class_name":"UsageBudget"},
-    {"name":"PRACTICE","class_name":"PracticeCase"}
+    {"name":"PRACTICE","class_name":"PracticeCase"},
+    {"name":"CAPTURE_OWNERS","class_name":"CaptureOwnership"}
   ]},
-  "migrations": [{"tag":"v1","new_sqlite_classes":["RecallWorkspace","UsageBudget"]},{"tag":"v2","new_sqlite_classes":["PracticeCase"]}],
+  "migrations": [{"tag":"v1","new_sqlite_classes":["RecallWorkspace","UsageBudget"]},{"tag":"v2","new_sqlite_classes":["PracticeCase"]},{"tag":"v3","new_sqlite_classes":["CaptureOwnership"]}],
   "ai": {"binding":"AI"},
   "vars": {
     "AI_ENABLED": true,

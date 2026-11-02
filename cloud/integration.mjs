@@ -8,6 +8,7 @@ import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 
 const origin='https://recall-relay.test',state=await mkdtemp(join(tmpdir(),'recall-cloud-test-'));
 const recallFixture=JSON.parse(await readFile(new URL('../test/fixtures/cpsc-20261021.json',import.meta.url),'utf8'));
+let purchaseSequence=0;
 let reference,captured=false,refundPosts=0,unexpected=0,loseRefundResponse=false,failReadback=false;
 const amount={value:'59.99',currency_code:'USD'};
 const capture={id:'FAKE-CAPTURE',status:'COMPLETED',amount,create_time:new Date().toISOString()};
@@ -17,20 +18,20 @@ async function fakeNetwork(request){
   if(u.origin==='https://www.saferproducts.gov'&&path==='/RestWebServices/Recall'&&u.searchParams.get('RecallNumber')==='27026')return json([recallFixture.records.find(record=>record.RecallNumber==='27026')]);
   if(u.origin!=='https://api-m.sandbox.paypal.com'){unexpected++;throw new Error('Unexpected external request in isolated test');}
   if(path==='/v1/oauth2/token')return json({token_type:'Bearer',access_token:'test-token',expires_in:300});
-  if(path==='/v2/checkout/orders'&&request.method==='POST'){const input=await request.json();reference=input.purchase_units[0].reference_id;captured=false;return json({id:'FAKE-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=FAKE-ORDER'}]});}
+  if(path==='/v2/checkout/orders'&&request.method==='POST'){const input=await request.json();reference=input.purchase_units[0].reference_id;captured=false;capture.id='FAKE-CAPTURE-'+(++purchaseSequence);return json({id:'FAKE-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=FAKE-ORDER'}]});}
   if(path==='/v2/checkout/orders/FAKE-ORDER/capture'){captured=true;return json({id:'FAKE-ORDER',status:'COMPLETED'});}
   if(path==='/v2/checkout/orders/FAKE-ORDER')return json({id:'FAKE-ORDER',status:captured?'COMPLETED':'APPROVED',purchase_units:[{reference_id:reference,amount,payee:{merchant_id:'TEST-MERCHANT'},...(captured?{payments:{captures:[capture]}}:{})}]});
-  if(path==='/v2/payments/captures/FAKE-CAPTURE')return json(capture);
-  if(path==='/v2/payments/captures/FAKE-CAPTURE/refund'){refundPosts++;assert.deepEqual((await request.json()).amount,{value:'25.99',currency_code:'USD'});if(loseRefundResponse)return new Response('Interrupted fake response',{status:503});return json({id:'FAKE-REFUND'});}
+  if(path===`/v2/payments/captures/${capture.id}`)return json(capture);
+  if(path===`/v2/payments/captures/${capture.id}/refund`){refundPosts++;assert.deepEqual((await request.json()).amount,{value:'25.99',currency_code:'USD'});if(loseRefundResponse)return new Response('Interrupted fake response',{status:503});return json({id:'FAKE-REFUND'});}
   if(path==='/v2/payments/refunds/FAKE-REFUND'&&failReadback)return new Response('Readback unavailable',{status:503});
-  if(path==='/v2/payments/refunds/FAKE-REFUND')return json({id:'FAKE-REFUND',status:'COMPLETED',amount:{value:'25.99',currency_code:'USD'},links:[{rel:'up',href:'https://api-m.sandbox.paypal.com/v2/payments/captures/FAKE-CAPTURE'}]});
+  if(path==='/v2/payments/refunds/FAKE-REFUND')return json({id:'FAKE-REFUND',status:'COMPLETED',amount:{value:'25.99',currency_code:'USD'},links:[{rel:'up',href:`https://api-m.sandbox.paypal.com/v2/payments/captures/${capture.id}`}]});
   unexpected++;throw new Error('Unexpected sandbox route in isolated test');
 }
 // Test-only overlay seeds durable crash boundaries. It exists only in this
 // Miniflare module list, never in the production bundle or deployment config.
 const recoveryFixture=`
-import worker,{RecallWorkspace as ProductionWorkspace,UsageBudget} from './production.mjs';
-export {UsageBudget};
+import worker,{RecallWorkspace as ProductionWorkspace,UsageBudget,CaptureOwnership} from './production.mjs';
+export {UsageBudget,CaptureOwnership};
 export class RecallWorkspace extends ProductionWorkspace {
   async handle(input){
     if(input.path==='/api/merchant/test-reserve'&&input.owner){
@@ -57,7 +58,7 @@ const options=()=>convertV4MiniflareOptions({
   ],
   compatibilityDate:'2026-10-23',compatibilityFlags:['nodejs_compat'],
   bindings:{PUBLIC_ORIGINS:[origin],AI_ENABLED:false,PAYPAL_SANDBOX_CLIENT_ID:'test-application',PAYPAL_SANDBOX_CLIENT_SECRET:'disposable-test-secret'},
-  durableObjects:{WORKSPACES:{className:'RecallWorkspace',useSQLite:true},BUDGET:{className:'UsageBudget',useSQLite:true}},
+  durableObjects:{WORKSPACES:{className:'RecallWorkspace',useSQLite:true},BUDGET:{className:'UsageBudget',useSQLite:true},CAPTURE_OWNERS:{className:'CaptureOwnership',useSQLite:true}},
   resourcePersistencePath:state,outboundService:fakeNetwork,
 });
 let mf=new Miniflare(options());

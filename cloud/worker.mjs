@@ -8,7 +8,7 @@ import {HostedAI} from '../src/cloud-ai.mjs';
 import {PayPalSandbox} from '../src/paypal-sandbox.mjs';
 import {routeWorkspace,boundedJSON} from '../src/cloud-routing.mjs';
 import {UsageBudgetCore,aiRefusal,resetLabel} from '../src/cloud-budget.mjs';
-import {practiceCookie,resolvePracticeSession,practiceCookieHeader,validatePracticeRequest,PRACTICE_MAX_BYTES} from '../src/cloud-practice-routing.mjs';
+import {practiceAction,practiceCookie,resolvePracticeSession,practiceCookieHeader,validatePracticeRequest,PRACTICE_MAX_BYTES} from '../src/cloud-practice-routing.mjs';
 import {PracticeCase} from './practice-case.mjs';
 export {PracticeCase};
 
@@ -66,6 +66,7 @@ export class RecallWorkspace extends DurableObject {
 // Practice has its own cookie, object name, quota scope and error surface. It is
 // validated before a Durable Object exists and never reaches the connected desk.
 async function practiceFetch(request,env,url){
+  const action=practiceAction(url.pathname);
   const invalid=validatePracticeRequest({method:request.method,pathname:url.pathname,requestOrigin:request.headers.get('origin'),contentType:request.headers.get('content-type'),origin:url.origin});
   if(invalid)return json({error:invalid.error},invalid.status);
   let body;

@@ -37,3 +37,5 @@ instruction text and missing or oversized source context abstain before inferenc
 Compare every explanation with its quotation. The source remains authoritative;
 model actor/timing labels and prose are advisory. No accuracy, time-saving,
 photo-authenticity or eligibility guarantee is made.
+
+`UNSPECIFIED` means no supported sequence category was assigned; it also covers immediate actions. The UI says “See source for timing”, not that timing is absent from the notice. The complete quotation remains authoritative.

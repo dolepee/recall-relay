@@ -14,7 +14,8 @@ export function readCaseAdvisory(caseId,revision){
 
 const sectionLabel={brief:'Case brief',source:'Source requirements',gaps:'Recorded gaps'};
 const actorLabel={CUSTOMER:'Customer',MERCHANT:'Merchant',MANUFACTURER:'Manufacturer',PROVIDER:'Provider',UNKNOWN:'Actor unknown'};
-const timingLabel={BEFORE_ACTION:'Before the action',AFTER_ACTION:'After the action',AT_SUBMISSION:'At submission',CONDITIONAL:'Conditional',UNSPECIFIED:'Timing not stated'};
+// UNSPECIFIED also covers immediate actions; it does not mean the source omits timing.
+const timingLabel={BEFORE_ACTION:'Before the action',AFTER_ACTION:'After the action',AT_SUBMISSION:'At submission',CONDITIONAL:'Conditional',UNSPECIFIED:'See source for timing'};
 const dispositionLabel={FIELD:'Field link',INFORMATION:'Information',MANUAL:'Manual',UNRESOLVED:'Unresolved'};
 const clean=value=>typeof value==='string'?value.trim():'';
 const readError=message=>/unknown action|not found|not available|unsupported/i.test(message||'')?'The advisory service is not available for this workspace yet. The recorded brief remains available.':message;
@@ -92,7 +93,7 @@ function Clause({clause}){
   }
   return <li className="border-t border-slate-200 py-2 first:border-t-0 first:pt-0">
     <p className="break-words text-[11px] leading-4 text-slate-700">“{clause.quote}”</p>
-    <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] leading-4 text-slate-500"><span>{actorLabel[clause.actor]||clause.actor||'Actor unknown'}</span><span>·</span><span>{timingLabel[clause.timing]||clause.timing||'Timing not stated'}</span><span>·</span><span>{dispositionLabel[clause.disposition]||clause.disposition}</span></p>
+    <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] leading-4 text-slate-500"><span>{actorLabel[clause.actor]||clause.actor||'Actor unknown'}</span><span>·</span><span>{timingLabel[clause.timing]||'See source for timing'}</span><span>·</span><span>{dispositionLabel[clause.disposition]||clause.disposition}</span></p>
     {clean(clause.condition)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-600"><span className="font-medium">Condition: </span>“{clause.condition}”</p>}
     {clean(clause.explanation)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-600">{clause.explanation}</p>}
   </li>;

@@ -229,3 +229,20 @@ test('a partial advisory keeps good clauses and calls withheld clauses some inte
   assert.match(text(panel),/did not pass source-fidelity checks/);
   assert.match(text(panel),/Confirm the return before approving a refund/);
 });
+
+
+test('an unspecified timing classification does not deny explicit source urgency',async()=>{
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory')return new Response(JSON.stringify({caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,status:'CITED',model:'gpt-oss-120b',summary:'Read the complete source quotation.',clauses:[{citationId:'urgent',quote:'Consumers should immediately stop using the recalled cups.',actor:'CUSTOMER',timing:'UNSPECIFIED',condition:null,explanation:'Consumers should immediately stop using the recalled cups.',disposition:'INFORMATION',fieldIds:[],interpretationAvailable:true}],gaps:[],limitations:[]}));
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  await act(async()=>{prepare.click();await tick();});
+  await settle(()=>/See source for timing/.test(text(panel)));
+  assert.match(text(panel),/See source for timing/);
+  assert.match(text(panel),/Consumers should immediately stop using the recalled cups/);
+  assert.doesNotMatch(text(panel),/Timing not stated/);
+});

@@ -148,12 +148,20 @@ test('the advisory is a separate revision-bound panel and the read tools stay re
   assert.deepEqual(readPosts[0],{caseId:'claim-1',revision:2,section:'source'});
   assert.match(text(facts),/Source requirements · revision 2 · read-only/);
   assert.match(text(facts),/Photograph recorded:/);
+  // A review change keeps the same revision but must invalidate both panels.
+  state.cases[0].review={state:'APPROVED',reviewedAt:'2026-11-02T17:00:00Z'};
+  const refresh=[...document.querySelectorAll('button')].find(node=>text(node)==='Refresh claims');
+  await act(async()=>{refresh.click();await tick();});
+  await settle(()=>!text(panel).includes('CITED ADVISORY')&&!text(facts).includes('Source requirements · revision'));
+  assert.doesNotMatch(text(panel),/CITED ADVISORY/i);
+  assert.doesNotMatch(text(facts),/Source requirements · revision 2 · read-only/);
+  state.cases[0].review=null;
 });
 
 test('a stale advisory is hidden rather than shown beside a newer case revision',async()=>{
   globalThis.fetch=async(path)=>{
     if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
-    if(path==='/api/merchant/case-advisory')return new Response(JSON.stringify({error:'STALE_REVISION',stale:true}),{status:409,headers:{'Content-Type':'application/json'}});
+    if(path==='/api/merchant/case-advisory')return new Response(JSON.stringify({error:'Evidence changed',reason:'STALE_CONTEXT'}),{status:400,headers:{'Content-Type':'application/json'}});
     throw new Error(`Unexpected request: ${path}`);
   };
   await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
@@ -164,4 +172,41 @@ test('a stale advisory is hidden rather than shown beside a newer case revision'
   assert.match(text(panel),/This claim changed while the advisory was being prepared/);
   assert.doesNotMatch(text(panel),/CITED ADVISORY/i);
   assert.doesNotMatch(text(panel),/The recorded source asks/);
+});
+
+
+test('a same-revision review change during an advisory request discards the pending result',async()=>{
+  let release;const pending=new Promise(resolve=>{release=resolve;});
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-advisory')return pending;
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const prepare=[...panel.querySelectorAll('button')].find(node=>text(node)==='Prepare advisory');
+  await act(async()=>{prepare.click();await tick();});
+  state.cases[0].review={state:'APPROVED',reviewedAt:'2026-11-02T17:00:00Z'}; // revision deliberately unchanged
+  const refresh=[...document.querySelectorAll('button')].find(node=>text(node)==='Refresh claims');
+  await act(async()=>{refresh.click();await step(3);});
+  release(new Response(JSON.stringify({caseId:'claim-1',revision:2,sourceDigest:'source-fixture',contextDigest:'context-fixture',readOnly:true,status:'CITED',summary:'Pending result',clauses:[{citationId:'cov-1',quote:'Pending quotation',actor:'CUSTOMER',timing:'BEFORE_ACTION',condition:null,explanation:'Pending',disposition:'UNRESOLVED',fieldIds:[]}],gaps:[],limitations:[]}),{status:200,headers:{'Content-Type':'application/json'}}));
+  await settle(()=>!text(panel).includes('Preparing advisory'));
+  assert.doesNotMatch(text(panel),/CITED ADVISORY|Pending quotation/i);
+  state.cases[0].review=null;
+});
+
+test('the recorded read rejects a returned case that is not the selected revision',async()=>{
+  globalThis.fetch=async(path)=>{
+    if(path==='/api/merchant/state')return new Response(JSON.stringify(state));
+    if(path==='/api/merchant/case-context')return new Response(JSON.stringify({caseId:'claim-other',revision:2,readOnly:true,clauses:[{citationId:'c',quote:'Wrong case',disposition:'FIELD',fieldIds:[]}],facts:{},gaps:[]}));
+    throw new Error(`Unexpected request: ${path}`);
+  };
+  await render(React.createElement(MerchantDesk),()=>document.querySelector('[aria-label="AI advisory"]'));
+  const panel=document.querySelector('[aria-label="AI advisory"]');
+  const facts=panel.querySelector('details');facts.open=true;
+  const brief=[...facts.querySelectorAll('button')].find(node=>text(node)==='Case brief');
+  await act(async()=>{brief.click();await tick();});
+  await settle(()=>/different case revision/.test(text(facts)));
+  assert.match(text(facts),/different case revision/);
+  assert.doesNotMatch(text(facts),/Wrong case/);
 });

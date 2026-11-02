@@ -18,6 +18,26 @@ const timingLabel={BEFORE_ACTION:'Before the action',AFTER_ACTION:'After the act
 const dispositionLabel={FIELD:'Field link',INFORMATION:'Information',MANUAL:'Manual',UNRESOLVED:'Unresolved'};
 const clean=value=>typeof value==='string'?value.trim():'';
 const readError=message=>/unknown action|not found|not available|unsupported/i.test(message||'')?'The advisory service is not available for this workspace yet. The recorded brief remains available.':message;
+const stableValue=value=>{
+  if(Array.isArray(value))return value.map(stableValue);
+  if(value&&typeof value==='object'){
+    if(value instanceof Date)return value.toISOString();
+    return Object.keys(value).sort().reduce((out,key)=>{out[key]=stableValue(value[key]);return out;},{});
+  }
+  return value;
+};
+// A claim can change without its revision changing: a review, payment or source
+// update is still a different advisory context. Include the recorded objects the
+// server can replace, not just the claim id and revision.
+export function caseFingerprint(item){
+  if(!item)return '';
+  return JSON.stringify({
+    id:item.id??null,revision:item.revision??null,
+    campaign:stableValue(item.campaign??null),review:stableValue(item.review??null),
+    correction:stableValue(item.correction??null),payment:stableValue(item.payment??null),
+    status:stableValue(item.status??null),
+  });
+}
 
 function FactList({facts}){
   if(!facts||typeof facts!=='object')return null;
@@ -31,19 +51,21 @@ function FactList({facts}){
 
 function ReadFacts({item}){
   const [busy,setBusy]=useState(''),[error,setError]=useState(''),[section,setSection]=useState(''),[result,setResult]=useState(null);
-  const generation=useRef(0);
-  useEffect(()=>{generation.current++;setBusy('');setError('');setSection('');setResult(null);},[item?.id,item?.revision]);
+  const generation=useRef(0),fingerprint=caseFingerprint(item),fingerprintRef=useRef(fingerprint);
+  fingerprintRef.current=fingerprint;
+  useEffect(()=>{generation.current++;setBusy('');setError('');setSection('');setResult(null);},[fingerprint]);
   async function load(next){
     if(!item?.id||!Number.isSafeInteger(item.revision)){setError('Select a saved claim before reading its recorded context.');return;}
-    const current=++generation.current;
+    const current=++generation.current,requested={id:item.id,revision:item.revision,fingerprint:fingerprintRef.current};
     setBusy(next);setError('');setResult(null);setSection(next);
     try{
-      const value=await readCaseContext(item.id,item.revision,next);
-      if(current!==generation.current)return;
+      const value=await readCaseContext(requested.id,requested.revision,next);
+      if(current!==generation.current||fingerprintRef.current!==requested.fingerprint)return;
       if(!value||value.readOnly!==true||!Array.isArray(value.clauses)||!Array.isArray(value.gaps))throw new Error('The server returned an unexpected read-only response.');
+      if(value.caseId!==requested.id||value.revision!==requested.revision)throw new Error('This read is for a different case revision. Refresh the claim and try again.');
       setResult(value);
-    }catch(e){if(current===generation.current)setError(readError(e.message));}
-    finally{if(current===generation.current)setBusy('');}
+    }catch(e){if(current===generation.current&&fingerprintRef.current===requested.fingerprint)setError(readError(e.message));}
+    finally{if(current===generation.current&&fingerprintRef.current===requested.fingerprint)setBusy('');}
   }
   return <details className="mt-3 border-t border-slate-200 pt-2">
     <summary className="min-h-11 cursor-pointer py-2 text-xs font-semibold text-slate-700 focus-visible:outline-2 focus-visible:outline-teal-700">Read recorded case facts</summary>
@@ -71,28 +93,29 @@ function Clause({clause}){
 
 export function AdvisoryPanel({item}){
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(null);
-  const generation=useRef(0);
-  const identity=item?`${item.id}:${item.revision}`:'';
-  useEffect(()=>{generation.current++;setBusy(false);setError('');setResult(null);},[identity]);
+  const generation=useRef(0),fingerprint=caseFingerprint(item),fingerprintRef=useRef(fingerprint);
+  fingerprintRef.current=fingerprint;
+  useEffect(()=>{generation.current++;setBusy(false);setError('');setResult(null);},[fingerprint]);
   async function prepare(){
     if(!item?.id||!Number.isSafeInteger(item.revision)){setError('Select a saved claim before preparing an advisory.');return;}
-    const current=++generation.current;
+    const current=++generation.current,requested={id:item.id,revision:item.revision,fingerprint:fingerprintRef.current};
     setBusy(true);setError('');setResult(null);
     try{
-      const value=await readCaseAdvisory(item.id,item.revision);
-      if(current!==generation.current)return;
+      const value=await readCaseAdvisory(requested.id,requested.revision);
+      if(current!==generation.current||fingerprintRef.current!==requested.fingerprint)return;
       if(!value||value.readOnly!==true||!value.status||!Array.isArray(value.clauses)||!Array.isArray(value.gaps))throw new Error('The server returned an unexpected advisory response.');
-      if(value.caseId!==item.id||value.revision!==item.revision)throw new Error('This advisory is for a different case revision. Refresh the claim and prepare it again.');
+      if(value.caseId!==requested.id||value.revision!==requested.revision)throw new Error('This advisory is for a different case revision. Refresh the claim and prepare it again.');
       setResult(value);
     }catch(e){
-      if(current!==generation.current)return;
-      setError(e.stale||/STALE_(REVISION|CONTEXT)/.test(e.message)?'This claim changed while the advisory was being prepared. Refresh the claim, then prepare it again.':readError(e.message));
-    }finally{if(current===generation.current)setBusy(false);}
+      if(current!==generation.current||fingerprintRef.current!==requested.fingerprint)return;
+      const stale=e.stale||/^STALE_(REVISION|CONTEXT)$/.test(e.reason||'')||/STALE_(REVISION|CONTEXT)/.test(e.message||'');
+      setError(stale?'This claim changed while the advisory was being prepared. Refresh the claim, then prepare it again.':readError(e.message));
+    }finally{if(current===generation.current&&fingerprintRef.current===requested.fingerprint)setBusy(false);}
   }
   if(!item)return <section aria-label="AI advisory" className="h-full overflow-auto p-4"><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-2 text-sm leading-6 text-slate-600">Select a claim to prepare a cited advisory.</p></section>;
   return <section aria-label="AI advisory" className="h-full overflow-auto p-4">
     <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-1 text-[11px] leading-4 text-slate-500">Advisory · revision {item.revision} · not a recorded fact</p></div><span className="rr-status">{result?.status==='INSUFFICIENT'?'Insufficient source':'Read-only'}</span></div>
-    <p className="mt-2 text-[11px] leading-4 text-slate-600">Explains how the recorded source applies to this claim. It cannot inspect the photograph, approve a refund or change evidence.</p>
+    <p className="mt-2 text-[11px] leading-4 text-slate-600">Interprets the source instructions; recorded gaps are shown separately. It cannot inspect the photograph, approve a refund or change evidence.</p>
     <div className="mt-2 flex flex-wrap items-center gap-2"><Action secondary disabled={busy} onClick={prepare}>{busy?'Preparing advisory…':result?'Prepare again':'Prepare advisory'}</Action>{busy&&<p role="status" className="text-[11px] text-slate-600">Reading the selected revision.</p>}</div>
     <ErrorText error={error}/>
     {result&&<div className="mt-2" aria-label="Prepared AI advisory">

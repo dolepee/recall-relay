@@ -101,7 +101,7 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .merchant-shell .rr-receipt .text-teal-800,.merchant-shell .rr-receipt .text-teal-900,.merchant-shell .rr-receipt .text-teal-950{color:var(--m-ok)}
 .merchant-shell .rr-status{border:1px solid var(--m-rule);background:transparent;color:var(--m-ink-2);border-radius:2px;font:600 10px/1.3 var(--m-mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px}
 .merchant-shell .rr-status[data-code="COMPLETED"]{border-color:var(--m-ok-line);background:var(--m-ok-bg);color:var(--m-ok)}
-.merchant-shell .rr-status[data-code="READY_FOR_APPROVAL"]{border-color:#C9D2F7;background:#EEF1FC;color:var(--m-cobalt)}
+.merchant-shell .rr-status[data-code="READY_FOR_APPROVAL"],.merchant-shell .rr-status[data-code="CANDIDATE"]{border-color:#C9D2F7;background:#EEF1FC;color:var(--m-cobalt)}
 .merchant-shell .rr-status[data-code="AWAITING_CUSTOMER"],.merchant-shell .rr-status[data-code="NEEDS_INFORMATION"],.merchant-shell .rr-status[data-code="MANUAL"],.merchant-shell .rr-status[data-code="PAYMENT"]{border-color:var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-warn)}
 .merchant-shell .rr-status[data-code="FAILED"],.merchant-shell .rr-status[data-code="CANCELLED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}
 .merchant-shell .rr-status[data-code="UNRESOLVED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}

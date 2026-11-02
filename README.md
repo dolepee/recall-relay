@@ -24,6 +24,21 @@ labelled as an invented sample and no funds move.
 
 ![Read-only sample desk, mobile](docs/sample-mobile.png)
 
+## Importing existing purchases
+
+An authenticated merchant desk has an **Import existing purchases** action. Choose
+a version-1 JSON ledger or paste the same JSON; the browser sends the declaration
+to `POST /api/merchant/import-preview` and shows the server's answer. The preview
+classifies each declared line as affected, unaffected or manual against the
+published product and lot, and separates the declared candidate value from a
+verified refundable amount and confirmed refunds (both unknown here). Explicit
+zero stays zero and an unknown amount stays unknown.
+
+Nothing is persisted and no provider is contacted. Imported rows carry no
+allocation and no refund or approval action; duplicate capture declarations stay
+manual until reconciled. See the
+[import preview contract](docs/ledger-import-contract.md).
+
 ## Browser hosting
 
 The Cloudflare build runs AI on the server and works in a normal browser;
@@ -204,6 +219,10 @@ authorized endpoint. Evidence confirmation stays disabled until it displays.
   human evidence review remains.
 - The adapter has a fixed Sandbox origin. Unsupported, changed or conservatively
   older-than-180-day purchases remain manual.
+- An imported ledger is a declared preview only. Its capture, status and amounts
+  are merchant-supplied, not provider facts; every line starts unverified and no
+  allocation or payment authority is created. The published scope is applied by
+  the server, and a missing or unmatched scope keeps lines manual.
 - Local merchant launch links and hosted browser sessions use different
   authentication boundaries. Neither is production multi-merchant onboarding.
 

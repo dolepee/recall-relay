@@ -72,7 +72,7 @@ const options=()=>convertV4MiniflareOptions({
   name:'recall-relay-ai-test',scriptPath:resolve('cloud-dist/ai/integration-ai-worker.js'),modules:true,
   compatibilityDate:'2026-10-23',compatibilityFlags:['nodejs_compat'],
   bindings:{PUBLIC_ORIGINS:[origin],AI_ENABLED:true,PAYPAL_SANDBOX_CLIENT_ID:'test-application',PAYPAL_SANDBOX_CLIENT_SECRET:'disposable-test-secret'},
-  durableObjects:{WORKSPACES:{className:'RecallWorkspace',useSQLite:true},BUDGET:{className:'UsageBudget',useSQLite:true}},
+  durableObjects:{WORKSPACES:{className:'RecallWorkspace',useSQLite:true},BUDGET:{className:'UsageBudget',useSQLite:true},CAPTURE_OWNERS:{className:'CaptureOwnership',useSQLite:true}},
   resourcePersistencePath:state,outboundService:fakeNetwork,
 });
 

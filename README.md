@@ -8,27 +8,45 @@ This build uses fictional merchandise and **PayPal Sandbox**. Public CPSC
 notices supply scenarios; importing one does not create a manufacturer
 relationship or register a real recall claim.
 
+## Read-only sample desk
+
+`/sample` is the fastest way to inspect the product. It shows six fictional
+claims across waiting, review, ready, correction, payment-exception and
+sample-receipt states in the current merchant layout. It does not create a
+workspace or cookie, call PayPal, or consume an AI request. The source-linked
+requirement, payment-state and amount widgets are AG Studio custom widgets fed
+by the displayed fixture; selecting a queue row updates them. The receipt is
+labelled as an invented sample and no funds move.
+
+![Read-only sample desk](docs/sample-desk.png)
+
+![Sample receipt](docs/sample-receipt.png)
+
 ## Browser hosting
 
 The Cloudflare build runs AI on the server and works in a normal browser;
 visitors do not need a Mac or a local model. The hosted interface is at
-[recall-relay.dolepee.com](https://recall-relay.dolepee.com).
+[recall-relay.dolepee.com](https://recall-relay.dolepee.com); the read-only
+sample is at
+[recall-relay.dolepee.com/sample](https://recall-relay.dolepee.com/sample).
 Backend configuration is in `cloud/`; Pages uses the root `wrangler.jsonc`.
 
 The site root (`/`) serves the reviewed landing page in `public/landing.html`;
-the merchant desk is at `/desk`, claim instructions at `/setup` and the private
-customer claim at `/claim`. The landing source is not served directly at
-`/landing.html`.
+the merchant desk is at `/desk`, claim instructions at `/setup`, the private
+customer claim at `/claim`, the simulated practice journey at `/practice` and
+the read-only sample desk at `/sample`. The landing source is not served
+directly at `/landing.html`.
 
 Routing differs by environment, deliberately:
 
 - `npm run dev` (Vite middleware) serves `index.html` for every path, so all app
   routes, including `/training`, work there.
 - `npm run build` followed by `npm start` serves the built `dist/`: `/` returns
-  `landing.html`, `/desk`, `/setup`, `/claim` and `/training` return the app
-  document, and every other path returns 404.
+  `landing.html`, `/desk`, `/setup`, `/claim`, `/practice`, `/sample` and
+  `/training` return the app document, and every other path returns 404.
 - Cloudflare Pages (`cloud/pages-worker.mjs`) returns `landing.html` for `/`, the
-  app document for `/desk`, `/setup` and `/claim`, and 404 for everything else.
+  app document for `/desk`, `/setup`, `/claim`, `/practice` and `/sample`, and
+  404 for everything else.
   The training workspace is local-only and is not exposed on the hosted site.
 
 Each browser receives an isolated sandbox merchant workspace in an HttpOnly
@@ -184,6 +202,17 @@ time-saving claim.
 `/training` retains a separate fictional non-settling workspace, and it is
 **local only**. The hosted build does not route to or link to it. Its invented
 payment IDs are simulation, not PayPal Sandbox evidence.
+
+## Current screenshots
+
+The sample desk is a read-only fixture; the real sandbox desk and customer claim
+are separate routes.
+
+![Read-only sample desk, desktop](docs/sample-desk.png)
+
+![Sample receipt state](docs/sample-receipt.png)
+
+![Read-only sample desk, mobile](docs/sample-mobile.png)
 
 ## Components and licenses
 

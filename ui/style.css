@@ -163,3 +163,7 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .rr-dialog .rr-action[data-secondary="true"]:hover{background:var(--m-paper);border-color:var(--m-ink)}
 .rr-dialog .rr-action:focus-visible{outline:2px solid var(--m-cobalt);outline-offset:2px}
 .merchant-shell .rr-skip:focus-visible{outline:2px solid var(--m-paper);outline-offset:2px}
+
+/* Read-only sample desk */
+.merchant-shell .rr-sample-banner{border:1px solid var(--m-rule-2);background:var(--m-card);padding:12px 14px;color:var(--m-ink-2);font-size:13px;line-height:1.6}
+.merchant-shell .rr-sample-banner strong{color:var(--m-ink)}

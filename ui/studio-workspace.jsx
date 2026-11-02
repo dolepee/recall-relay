@@ -20,10 +20,10 @@ export const merchantStudioTheme=studioTheme.withParams({
 });
 const theme=merchantStudioTheme;
 
-export default function StudioWorkspace({data,initialState,onView,ClaimReview,OrderCell,guideOpen,onGuideClose,customize}){
+export default function StudioWorkspace({data,initialState,onView,ClaimReview,OrderCell,CoverageWidget,ExceptionsWidget,BriefWidget,guideOpen,onGuideClose,customize}){
   const [harness,setHarness]=useState(null);
   const ready=useCallback(({api})=>setHarness(caseAssistant(onView)({api})),[onView]);
   useEffect(()=>()=>harness?.dispose?.(),[harness]);
-  const widgets=useMemo(()=>createWidgets({additionalTypes:[{id:'connected-case',label:'Customer claim',defaultSize:{width:15,height:24},minSize:{width:10,height:20},form:p=>p.createDefaults({}),comp:ClaimReview}],overrides:[{id:'grid',options:{createCellRenderer:field=>field.fieldId==='claims.order'?OrderCell:undefined}}]}),[ClaimReview,OrderCell]);
+  const widgets=useMemo(()=>createWidgets({additionalTypes:[{id:'connected-case',label:'Customer claim',defaultSize:{width:9,height:24},minSize:{width:7,height:20},form:p=>p.createDefaults({}),comp:ClaimReview},{id:'connected-coverage',label:'Source coverage',defaultSize:{width:8,height:10},minSize:{width:6,height:7},form:p=>p.createDefaults({}),comp:CoverageWidget},{id:'connected-exceptions',label:'Exceptions and amounts',defaultSize:{width:8,height:7},minSize:{width:6,height:5},form:p=>p.createDefaults({}),comp:ExceptionsWidget},{id:'connected-brief',label:'Recorded review brief',defaultSize:{width:8,height:7},minSize:{width:6,height:5},form:p=>p.createDefaults({}),comp:BriefWidget}],overrides:[{id:'grid',options:{createCellRenderer:field=>field.fieldId==='claims.order'?OrderCell:undefined}}]}),[ClaimReview,OrderCell,CoverageWidget,ExceptionsWidget,BriefWidget]);
   return <div className="rr-workspace grid min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white" style={{gridTemplateColumns:guideOpen?'minmax(0,1fr) 18rem':'minmax(0,1fr)'}}><div className="min-h-0 min-w-0"><AgStudio style={{height:'100%',width:'100%'}} data={data} widgets={widgets} theme={theme} initialState={initialState} mode={customize?'edit':'view'} panels={{edit:{left:[],right:[]},view:{left:[],right:[]}}} onStudioReady={ready} onErrorRaised={event=>console.error('Studio:',event.errorDetails?.join('; ')||'Workspace error')}/></div><ClaimGuide harness={harness} open={guideOpen} onClose={onGuideClose}/></div>;
 }

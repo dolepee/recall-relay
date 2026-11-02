@@ -38,7 +38,7 @@ function Grant({grant,busy,confirming,onAsk,onCancel,onBind}){
         <p className="mt-1 min-w-0 break-words text-xs leading-5 text-slate-700">Item paid {amount(grant.itemPaidCents)} · capture {amount(grant.captureCents)}</p>
         <p className="mt-1 min-w-0 break-words text-[11px] leading-4 text-slate-500">{mappingLabel(grant.catalogMapping)} · provisioned by {grant.operator||'an operator not recorded'} · {stamp(grant.provisionedAt)}</p>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
         <span className="rr-status">Operator-recorded</span>
         {order?<span className="rr-status" data-code="COMPLETED">Bound to {order}</span>:confirming?null:<Action secondary disabled={busy} onClick={()=>onAsk(grant.grantId)}>Bind purchase</Action>}
       </div>

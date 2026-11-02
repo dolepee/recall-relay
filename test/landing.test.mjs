@@ -71,5 +71,12 @@ test('the landing example uses the active 27026 crystal-cup source and no dresse
   assert.match(html,/Consumer will be asked to fill out an online form and submit a photograph/);
   assert.match(html,/permanent black marker/);
   assert.match(html,/SCENARIO-ITEM · LOT-A/);
+  assert.match(html,/Linked-purchase confirmation/);
+  assert.match(html,/App check/);
+  assert.match(html,/Source guidance, not an app check/);
+  assert.match(html,/does not record manufacturer registration/);
+  assert.match(html,/Customer stated · not verified/);
+  assert.match(html,/Attested/);
+  assert.doesNotMatch(html,/Original-payment refund registration|On file/);
   assert.doesNotMatch(html,/Romorgniz|six-drawer|dresser|drawers|RECALLED|CPSC 27-020|RZ-6D/);
 });

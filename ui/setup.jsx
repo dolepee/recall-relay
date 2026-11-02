@@ -54,7 +54,11 @@ export function SourceSetup(){
   }
   const coverage=current?sourceCoverage(current.source,(current.suggestion?.requirements||[]).filter(f=>selected.includes(f.id)),Object.values(decisions)):[];
   const showDraft=!current?.review||editingFields;
-  const dirty=!!current?.review&&(selected.length!==current.review.fields.length||selected.some(id=>!current.review.fields.some(field=>field.id===id))||JSON.stringify(coverage)!==JSON.stringify(current.review.coverage||[]));
+  // Older saved setups can predate stored clause coverage. Derive their baseline from the
+  // saved fields so opening one does not look like an unsaved edit. An explicit empty
+  // coverage array stays authoritative.
+  const savedCoverage=current?.review?(current.review.coverage??sourceCoverage(current.source,current.review.fields,[])):[];
+  const dirty=!!current?.review&&(selected.length!==current.review.fields.length||selected.some(id=>!current.review.fields.some(field=>field.id===id))||JSON.stringify(coverage)!==JSON.stringify(savedCoverage));
   // The authoritative active campaign decides the presentation. A setup's own publishedCampaign
   // record is history: a previously published setup that is no longer active stays republishable.
   const active=state?.activeCampaign||null;

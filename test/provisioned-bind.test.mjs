@@ -56,7 +56,7 @@ const claimView=()=>({id:'claim-1',order:'RR-0001',amountCents:3375,currency:'US
 
 // Every request other than the bind is answered by the real desk, so the panel renders inside
 // the same workspace the merchant actually sees.
-async function mountDesk({purchases,bind,stateClaim,stateFailsAfterBind=false}={}){
+async function mountDesk({purchases,bind,stateClaim,stateFailsAfterBind=false,stateOverrides={}}={}){
   const desk=new ClaimDesk({path:':memory:',provider:noPayment});
   const posts=[];
   let bindRecorded=false;
@@ -64,7 +64,7 @@ async function mountDesk({purchases,bind,stateClaim,stateFailsAfterBind=false}={
     if(path==='/api/merchant/state'){
       // A failed follow-up refresh must not be mistaken for a failed bind.
       if(stateFailsAfterBind&&bindRecorded)return new Response(JSON.stringify({error:'The desk is temporarily unavailable.'}),{status:503});
-      const state={...desk.merchantState(),workspaceId:'ws-4f21c9'};
+      const state={...desk.merchantState(),workspaceId:'ws-4f21c9',...stateOverrides};
       if(purchases===undefined)delete state.provisionedPurchases;else state.provisionedPurchases=purchases;
       const claim=typeof stateClaim==='function'?stateClaim():stateClaim;
       if(claim)state.cases=[claim,...state.cases];
@@ -81,6 +81,18 @@ async function mountDesk({purchases,bind,stateClaim,stateFailsAfterBind=false}={
   const panel=()=>[...document.querySelectorAll('details')].find(node=>node.getAttribute('aria-label')==='Provisioned purchases');
   return {unmount,posts,panel};
 }
+
+test('with no provisioned grants, creating a new sandbox purchase is the primary action',async()=>{
+  const {panel}=await mountDesk({purchases:[],stateOverrides:{published:true}});
+  const node=panel();
+  const purchase=[...document.querySelectorAll('details')].find(item=>text(item.querySelector('summary')).includes('Create sandbox purchase'));
+  assert(purchase,'the ordinary purchase path names its next action');
+  const create=button('Create sandbox purchase');
+  assert(create,'the ordinary purchase action is present');
+  assert.equal(create.dataset.secondary,'false','with no grant, the ordinary purchase action is primary');
+  assert.match(text(node),/No operator-provisioned purchases/);
+  assert.match(text(node),/Workspace reference ws-4f21c9/,'the workspace reference remains available');
+});
 
 test('a desk without provisioned purchases is unchanged',async()=>{
   const {panel}=await mountDesk({});

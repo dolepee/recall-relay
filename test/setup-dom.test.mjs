@@ -123,3 +123,15 @@ test('setup reports assistant fields that the response-type check filtered',asyn
  assert.match(text,/Submit a photograph of the marked cup/);
  await act(async()=>root.unmount());
 });
+
+test('a saved setup without stored coverage is not shown as changed',async()=>{
+ const quote='Submit a photograph of the marked cup.';
+ const field={id:'field-1',kind:'PHOTO',quote,sourceUrl:'https://example.invalid/notice'};
+ const state={ai:{available:false},activeCampaign:null,setups:[{id:'legacy-setup',revision:1,source:{recallNumber:'27-026',title:'Fixture crystal cup',products:[{name:'Fixture cup'}],description:'Local DOM fixture',retrievedAt:'2026-11-02T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:'a'.repeat(64),remedies:[quote],requirements:[]},suggestion:{model:'fixture model',createdAt:'2026-11-02T00:00:00Z',requirements:[field]},review:{revision:1,digest:'b'.repeat(64),fields:[field]}}]};
+ globalThis.fetch=async()=>new Response(JSON.stringify(state));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ assert.match(document.body.textContent,/Reviewed instructions saved/);
+ assert.doesNotMatch(document.body.textContent,/changes not yet saved/);
+ await act(async()=>root.unmount());
+});

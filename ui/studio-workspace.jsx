@@ -21,6 +21,24 @@ export const merchantStudioTheme=studioTheme.withParams({
 });
 const theme=merchantStudioTheme;
 
+// The panels are height:100% scroll containers. Their scrollHeight is therefore
+// clamped to the current allocation once a panel has been made large enough, which
+// would make every later fit pass monotonic. Measure a temporary unconstrained box
+// instead so shorter claims and closed forms can give rows back.
+function intrinsicContentHeight(node){
+  const previous={height:node.style.height,minHeight:node.style.minHeight,overflow:node.style.overflow};
+  const scrollTop=node.scrollTop;
+  node.style.height='auto';
+  node.style.minHeight='0';
+  node.style.overflow='visible';
+  const height=Math.max(node.scrollHeight,Math.ceil(node.getBoundingClientRect().height));
+  node.style.height=previous.height;
+  node.style.minHeight=previous.minHeight;
+  node.style.overflow=previous.overflow;
+  node.scrollTop=scrollTop;
+  return height;
+}
+
 export default function StudioWorkspace({data,initialState,height,onView,getCase,ClaimReview,OrderCell,CoverageWidget,ExceptionsWidget,BriefWidget,AdvisoryWidget,guideOpen,onGuideClose}){
   const [harness,setHarness]=useState(null);
   const [workspaceHeight,setWorkspaceHeight]=useState(()=>height||STUDIO_WORKSPACE_HEIGHT);
@@ -38,7 +56,7 @@ export default function StudioWorkspace({data,initialState,height,onView,getCase
     const contentHeights={};
     for(const [id,selector] of Object.entries(selectors)){
       const node=root.querySelector(selector);
-      if(node)contentHeights[id]=node.scrollHeight;
+      if(node)contentHeights[id]=intrinsicContentHeight(node);
     }
     const state=api.getState();
     const page=state.pages?.[0];
@@ -64,7 +82,7 @@ export default function StudioWorkspace({data,initialState,height,onView,getCase
     observer?.observe(root);
     root.querySelectorAll('section').forEach(node=>observer?.observe(node));
     const mutation=typeof MutationObserver==='undefined'?null:new MutationObserver(schedule);
-    mutation?.observe(root,{childList:true,subtree:true,attributes:true,attributeFilter:['src','open','aria-busy']});
+    mutation?.observe(root,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['src','open','aria-busy']});
     root.addEventListener('load',schedule,true);
     window.addEventListener('resize',schedule);
     return()=>{clearTimeout(fitTimer.current);observer?.disconnect();mutation?.disconnect();root.removeEventListener('load',schedule,true);window.removeEventListener('resize',schedule);};

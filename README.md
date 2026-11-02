@@ -41,11 +41,14 @@ manual until reconciled. See the
 
 ## Provisioned purchases and AI advisory
 
-When a server-side operator grant exists for the authenticated workspace, the
-desk shows a compact **Provisioned purchases** action. The browser sends only
-the grant id to `POST /api/merchant/bind-purchase`; it cannot supply a capture
-id, amount or verification flag. The server checks the provider order and
-capture and creates the ordinary claim view. Capture ownership is durable and
+The desk always shows a compact **Provisioned purchases** section so the
+workspace reference and provisioning context remain available. When a
+server-side operator grant exists for the authenticated workspace, the section
+lists it and the browser sends only the grant id to
+`POST /api/merchant/bind-purchase`; it cannot supply a capture id, amount or
+verification flag. With no grant, **Create sandbox purchase** is the
+ordinary primary action. The server checks the provider order and capture and
+creates the ordinary claim view. Capture ownership is durable and
 capture-global; transfers and rebinding stay manual in this release.
 
 The connected desk keeps the deterministic **Recorded review brief** separate
@@ -113,7 +116,8 @@ resource names and `PUBLIC_ORIGINS` for your deployment before publishing.
 Associate your custom domain in Pages before adding its external DNS CNAME.
 `test:cloud` exercises real workerd and SQLite persistence with an intercepted
 fake PayPal transport; it does not contact PayPal or prove a hosted payment.
-The hosted model is Qwen3-30B through Cloudflare Workers AI. Only the public
+Hosted source drafting and view selection use Qwen3-30B through Cloudflare
+Workers AI; the read-only case advisory uses gpt-oss-120b. Only the public
 notice and the case-view question are sent to inference, not customer photos
 or payment credentials. Suggestions still require source and merchant review.
 
@@ -180,10 +184,13 @@ The local server does not fall back to hosted inference.
    Unresolved or manual coverage entries block publication of a connected
    form; only the supported original-payment remedy can use this settlement
    path.
-4. In the desk, create a Sandbox purchase: a $25.99 scenario item plus an
-   unaffected $34 item. Approve the $59.99 purchase as the Sandbox buyer, then
-   use **Verify approved purchase** for that same order. Do not create another
-   order merely because approval or capture is pending.
+4. In the desk, use **Create sandbox purchase** for a $25.99 scenario item
+   plus an unaffected $34 item. Approve the $59.99 purchase as the Sandbox
+   buyer, then use **Verify approved purchase** for that same order. Do not
+   create another order merely because approval or capture is pending. To
+   evaluate an existing captured purchase instead, ask the operator to attach a
+   **Provisioned purchases** grant to this workspace; without one, keep using
+   the ordinary new-purchase path.
 5. Open the private customer link. Submit a disposable image, the test lot,
    purchase confirmation and the required scenario responses. The image must
    be a valid decoded JPEG or non-interlaced 8-bit PNG, at most 2 MB, 4

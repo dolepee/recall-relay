@@ -123,3 +123,62 @@ test('setup reports assistant fields that the response-type check filtered',asyn
  assert.match(text,/Submit a photograph of the marked cup/);
  await act(async()=>root.unmount());
 });
+
+test('a saved setup without stored coverage is not shown as changed',async()=>{
+ const quote='Submit a photograph of the marked cup.';
+ const field={id:'field-1',kind:'PHOTO',quote,sourceUrl:'https://example.invalid/notice'};
+ const state={ai:{available:false},activeCampaign:null,setups:[{id:'legacy-setup',revision:1,source:{recallNumber:'27-026',title:'Fixture crystal cup',products:[{name:'Fixture cup'}],description:'Local DOM fixture',retrievedAt:'2026-11-02T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:'a'.repeat(64),remedies:[quote],requirements:[]},suggestion:{model:'fixture model',createdAt:'2026-11-02T00:00:00Z',requirements:[field]},review:{revision:1,digest:'b'.repeat(64),fields:[field]}}]};
+ globalThis.fetch=async()=>new Response(JSON.stringify(state));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ assert.match(document.body.textContent,/Reviewed instructions saved/);
+ assert.doesNotMatch(document.body.textContent,/changes not yet saved/);
+ await act(async()=>root.unmount());
+});
+
+const legacyState=({published=false,uncovered=false}={})=>{
+ const covered='Submit a photograph of the marked cup.';
+ const field={id:'field-1',kind:'PHOTO',quote:covered,sourceUrl:'https://example.invalid/notice'};
+ const remedies=uncovered?[covered,'Confirm the cup was purchased for personal use.']:[covered];
+ const setup={id:'legacy-setup',revision:1,source:{recallNumber:'27-026',title:'Fixture crystal cup',products:[{name:'Fixture cup'}],description:'Local DOM fixture',retrievedAt:'2026-11-02T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:'a'.repeat(64),remedies,requirements:[]},suggestion:{model:'fixture model',createdAt:'2026-11-02T00:00:00Z',requirements:[field]},review:{revision:1,digest:'b'.repeat(64),fields:[field]}};
+ if(published)setup.publishedCampaign={id:'old-campaign',sku:'OLD',lot:'LOT-OLD'};
+ return {ai:{available:false},activeCampaign:null,setups:[setup]};
+};
+
+test('legacy coverage without an uncovered sentence is clean on first open',async()=>{
+ for(const published of [false,true]){
+  globalThis.fetch=async()=>new Response(JSON.stringify(legacyState({published})));
+  const root=createRoot(document.getElementById('root'));
+  await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+  assert.match(document.body.textContent,/Reviewed instructions saved/,`published=${published}`);
+  assert.doesNotMatch(document.body.textContent,/changes not yet saved/,`published=${published}`);
+  await act(async()=>root.unmount());
+ }
+});
+
+test('legacy coverage with an uncovered sentence blocks unpublished and republish',async()=>{
+ for(const published of [false,true]){
+  globalThis.fetch=async()=>new Response(JSON.stringify(legacyState({published,uncovered:true})));
+  const root=createRoot(document.getElementById('root'));
+  await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+  assert.match(document.body.textContent,/Some source instructions still need attention/,`published=${published}`);
+  assert.doesNotMatch(document.body.textContent,/changes not yet saved/,`published=${published}`);
+  const publish=[...document.querySelectorAll('button')].find(node=>node.textContent==='Publish sandbox scenario');
+  const confirm=[...document.querySelectorAll('label')].find(node=>node.textContent.includes('Use the reviewed instructions and these explicit product identifiers'));
+  await act(async()=>{confirm.querySelector('input').click();await tick();});
+  assert.equal(publish.disabled,true,`published=${published}`);
+  await act(async()=>root.unmount());
+ }
+});
+
+test('a real field edit in a legacy setup is still marked unsaved',async()=>{
+ globalThis.fetch=async()=>new Response(JSON.stringify(legacyState()));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ assert.match(document.body.textContent,/Reviewed instructions saved/);
+ await act(async()=>{[...document.querySelectorAll('button')].find(node=>node.textContent==='Edit reviewed fields').click();await tick();});
+ const field=[...document.querySelectorAll('label')].find(node=>node.textContent.includes('Submit a photograph of the marked cup'));
+ await act(async()=>{field.querySelector('input').click();await tick();});
+ assert.match(document.body.textContent,/Last saved instructions · changes not yet saved/);
+ await act(async()=>root.unmount());
+});

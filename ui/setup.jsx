@@ -54,7 +54,11 @@ export function SourceSetup(){
   }
   const coverage=current?sourceCoverage(current.source,(current.suggestion?.requirements||[]).filter(f=>selected.includes(f.id)),Object.values(decisions)):[];
   const showDraft=!current?.review||editingFields;
-  const dirty=!!current?.review&&(selected.length!==current.review.fields.length||selected.some(id=>!current.review.fields.some(field=>field.id===id))||JSON.stringify(coverage)!==JSON.stringify(current.review.coverage||[]));
+  // Older saved setups can predate stored clause coverage. Derive their baseline from the
+  // saved fields so opening one does not look like an unsaved edit. An explicit empty
+  // coverage array stays authoritative.
+  const savedCoverage=current?.review?(current.review.coverage??sourceCoverage(current.source,current.review.fields,[])):[];
+  const dirty=!!current?.review&&(selected.length!==current.review.fields.length||selected.some(id=>!current.review.fields.some(field=>field.id===id))||JSON.stringify(coverage)!==JSON.stringify(savedCoverage));
   // The authoritative active campaign decides the presentation. A setup's own publishedCampaign
   // record is history: a previously published setup that is no longer active stays republishable.
   const active=state?.activeCampaign||null;
@@ -69,7 +73,7 @@ export function SourceSetup(){
   },[focusPending,current?.id,publishedCurrent]);
   const publicationStatus=!publishedCurrent&&current?.review?publicationNotice(publication,active):null;
   const fieldIssue=current?.review?.fields.map(sourceFieldIssue).find(Boolean);
-  const publicationReason=fieldIssue||(current?.review?.coverage?.some(c=>['UNRESOLVED','MANUAL'].includes(c.disposition))?'Some source instructions still need attention. Edit reviewed fields and account for every instruction before publishing.':dirty?'Your field selection has changed. Save the updated instructions before publishing.':current?.source.route!=='ORIGINAL_PAYMENT_CANDIDATE'?'This source needs a manual remedy route. It cannot publish an original-payment scenario.':current?.review?.fields.filter(field=>field.kind==='PHOTO').length!==1?'This version requires exactly one photograph field. Edit the saved fields before publishing.':'');
+  const publicationReason=fieldIssue||(savedCoverage.some(c=>['UNRESOLVED','MANUAL'].includes(c.disposition))?'Some source instructions still need attention. Edit reviewed fields and account for every instruction before publishing.':dirty?'Your field selection has changed. Save the updated instructions before publishing.':current?.source.route!=='ORIGINAL_PAYMENT_CANDIDATE'?'This source needs a manual remedy route. It cannot publish an original-payment scenario.':current?.review?.fields.filter(field=>field.kind==='PHOTO').length!==1?'This version requires exactly one photograph field. Edit the saved fields before publishing.':'');
   return <Frame sourceReview merchant><title>Prepare claim instructions · Recall Relay</title>
     <h1 className="text-2xl font-semibold text-balance">Claim instructions</h1><p className="mt-2 max-w-3xl text-pretty text-sm leading-6 text-slate-600">Prepare the customer form from the original notice. Review every requirement and its conditions before publishing.</p>
     <ol aria-label="Instruction preparation steps" className="rr-stages"><li aria-current={!current?'step':undefined} className={!current?'font-semibold text-teal-800':'text-slate-600'}>1. Import notice</li><li aria-current={current&&showDraft?'step':undefined} className={current&&showDraft?'font-semibold text-teal-800':'text-slate-600'}>2. Review fields</li><li aria-current={current&&!showDraft?'step':undefined} className={current&&!showDraft?'font-semibold text-teal-800':'text-slate-600'}>3. Publish instructions</li></ol>

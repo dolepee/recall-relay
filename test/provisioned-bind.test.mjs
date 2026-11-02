@@ -16,6 +16,7 @@ for(const name of ['window','document','HTMLElement','HTMLInputElement','HTMLSel
 Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
 globalThis.location=dom.window.location;globalThis.history=dom.window.history;
 globalThis.getComputedStyle=dom.window.getComputedStyle.bind(dom.window);globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+dom.window.Element.prototype.scrollIntoView=function(){};
 await mkdir('.cache',{recursive:true});
 const bundleDir=await mkdtemp(resolve('.cache/provisioned-dom-'));
 after(async()=>{dom.window.close();await rm(bundleDir,{recursive:true,force:true});});

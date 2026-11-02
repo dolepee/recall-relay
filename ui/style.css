@@ -31,6 +31,9 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .merchant-shell h3{font-size:1.02rem;letter-spacing:-.02em;font-weight:750}
 .merchant-shell .rr-skip:focus{position:fixed;left:16px;top:10px;z-index:60;display:inline-flex;min-height:44px;align-items:center;background:var(--m-ink);color:var(--m-paper);padding:10px 18px;font-weight:600}
 .merchant-shell :focus-visible{outline:2px solid var(--m-cobalt);outline-offset:3px}
+/* The sticky merchant header must not cover a focused heading or the #main
+   skip-link destination when a case or publication is brought into view. */
+.merchant-shell #main,.merchant-shell [tabindex="-1"]{scroll-margin-top:88px}
 
 /* header and lockup */
 .rr-mh{position:sticky;top:0;z-index:40;background:var(--m-paper);border-bottom:1px solid var(--m-rule-2)}
@@ -159,3 +162,4 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .rr-dialog .rr-action[data-secondary="true"]{background:transparent;border:1px solid var(--m-rule-2);color:var(--m-ink)}
 .rr-dialog .rr-action[data-secondary="true"]:hover{background:var(--m-paper);border-color:var(--m-ink)}
 .rr-dialog .rr-action:focus-visible{outline:2px solid var(--m-cobalt);outline-offset:2px}
+.merchant-shell .rr-skip:focus-visible{outline:2px solid var(--m-paper);outline-offset:2px}

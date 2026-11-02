@@ -17,6 +17,7 @@ const actorLabel={CUSTOMER:'Customer',MERCHANT:'Merchant',MANUFACTURER:'Manufact
 const timingLabel={BEFORE_ACTION:'Before the action',AFTER_ACTION:'After the action',AT_SUBMISSION:'At submission',CONDITIONAL:'Conditional',UNSPECIFIED:'Timing not stated'};
 const dispositionLabel={FIELD:'Field link',INFORMATION:'Information',MANUAL:'Manual',UNRESOLVED:'Unresolved'};
 const clean=value=>typeof value==='string'?value.trim():'';
+const readError=message=>/unknown action|not found|not available|unsupported/i.test(message||'')?'The advisory service is not available for this workspace yet. The recorded brief remains available.':message;
 
 function FactList({facts}){
   if(!facts||typeof facts!=='object')return null;
@@ -41,7 +42,7 @@ function ReadFacts({item}){
       if(current!==generation.current)return;
       if(!value||value.readOnly!==true||!Array.isArray(value.clauses)||!Array.isArray(value.gaps))throw new Error('The server returned an unexpected read-only response.');
       setResult(value);
-    }catch(e){if(current===generation.current)setError(e.message);}
+    }catch(e){if(current===generation.current)setError(readError(e.message));}
     finally{if(current===generation.current)setBusy('');}
   }
   return <details className="mt-3 border-t border-slate-200 pt-2">
@@ -85,7 +86,7 @@ export function AdvisoryPanel({item}){
       setResult(value);
     }catch(e){
       if(current!==generation.current)return;
-      setError(e.stale||/STALE_(REVISION|CONTEXT)/.test(e.message)?'This claim changed while the advisory was being prepared. Refresh the claim, then prepare it again.':e.message);
+      setError(e.stale||/STALE_(REVISION|CONTEXT)/.test(e.message)?'This claim changed while the advisory was being prepared. Refresh the claim, then prepare it again.':readError(e.message));
     }finally{if(current===generation.current)setBusy(false);}
   }
   if(!item)return <section aria-label="AI advisory" className="h-full overflow-auto p-4"><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-2 text-sm leading-6 text-slate-600">Select a claim to prepare a cited advisory.</p></section>;

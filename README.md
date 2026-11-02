@@ -22,6 +22,8 @@ labelled as an invented sample and no funds move.
 
 ![Sample receipt](docs/sample-receipt.png)
 
+![Read-only sample desk, mobile](docs/sample-mobile.png)
+
 ## Browser hosting
 
 The Cloudflare build runs AI on the server and works in a normal browser;
@@ -213,17 +215,6 @@ time-saving claim.
 `/training` retains a separate fictional non-settling workspace, and it is
 **local only**. The hosted build does not route to or link to it. Its invented
 payment IDs are simulation, not PayPal Sandbox evidence.
-
-## Current screenshots
-
-The sample desk is a read-only fixture; the real sandbox desk and customer claim
-are separate routes.
-
-![Read-only sample desk, desktop](docs/sample-desk.png)
-
-![Sample receipt state](docs/sample-receipt.png)
-
-![Read-only sample desk, mobile](docs/sample-mobile.png)
 
 ## Components and licenses
 

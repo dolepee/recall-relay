@@ -1,4 +1,4 @@
-import React,{lazy,Suspense,useEffect,useMemo,useState,useSyncExternalStore} from 'react';
+import React,{lazy,Suspense,useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {Frame} from './components.jsx';
 import {SampleContext,SampleStatus,SampleCasePanel,SourceRequirementsWidget,PaymentExceptionsWidget,AmountSummaryWidget} from './sample-widgets.jsx';
 import {SAMPLE_CASES,DEFAULT_SAMPLE_ORDER,caseForOrder} from './sample-data.mjs';
@@ -9,9 +9,21 @@ const subscribe=callback=>{if(!media)return()=>{};media.addEventListener('change
 function useWide(){return useSyncExternalStore(subscribe,()=>media?.matches===true,()=>false);}
 
 function SampleMobile({selected,selectCase,caseForOrder}){
+  const list=useRef(null),listHeading=useRef(null),review=useRef(null),reviewHeading=useRef(null);
+  const [focusRequest,setFocusRequest]=useState(0);
+  function choose(order){selectCase(order);setFocusRequest(n=>n+1);}
+  useEffect(()=>{
+    if(!focusRequest)return;
+    reviewHeading.current?.focus({preventScroll:true});
+    review.current?.scrollIntoView({block:'start',behavior:'smooth'});
+  },[focusRequest]);
+  function backToList(){
+    list.current?.scrollIntoView({block:'start',behavior:'smooth'});
+    listHeading.current?.focus({preventScroll:true});
+  }
   return <div className="grid gap-4">
-    <section aria-label="Sample claim list" className="rr-card p-4"><h2 className="text-base font-semibold">Six sample claims</h2><p className="mt-1 text-xs leading-5 text-slate-500">Choose a claim to inspect its source requirements and payment state.</p><div className="mt-3 space-y-2">{SAMPLE_CASES.map(item=><button key={item.order} type="button" aria-pressed={selected===item.order} aria-controls="sample-review" onClick={()=>selectCase(item.order)} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-teal-700"><span className="min-w-0"><span className="block truncate font-semibold">{item.source.product}</span><span className="mt-1 block text-xs text-slate-500">{item.order}</span></span><SampleStatus code={item.status.code}/></button>)}</div></section>
-    <div className="rr-card"><SampleCasePanel/></div>
+    <section ref={list} id="sample-list" aria-labelledby="sample-list-heading" className="rr-card scroll-mt-24 p-4"><h2 ref={listHeading} id="sample-list-heading" tabIndex={-1} className="text-base font-semibold focus-visible:outline-2 focus-visible:outline-teal-700">Six sample claims</h2><p className="mt-1 text-xs leading-5 text-slate-500">Choose a claim to inspect its source requirements and payment state.</p><div className="mt-3 space-y-2">{SAMPLE_CASES.map(item=><button key={item.order} type="button" aria-pressed={selected===item.order} aria-controls="sample-review" onClick={()=>choose(item.order)} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-teal-700"><span className="min-w-0"><span className="block truncate font-semibold">{item.source.product}</span><span className="mt-1 block text-xs text-slate-500">{item.order}</span></span><SampleStatus code={item.status.code}/></button>)}</div></section>
+    <div ref={review} className="rr-card scroll-mt-24"><button type="button" className="rr-action m-4 mb-0 inline-flex min-h-11 items-center justify-center px-4 py-2" data-secondary="true" aria-controls="sample-list" onClick={backToList}>Back to sample list</button><SampleCasePanel headingRef={reviewHeading}/></div>
     <div className="rr-card"><SourceRequirementsWidget/></div>
     <div className="rr-card"><PaymentExceptionsWidget/></div>
     <div className="rr-card"><AmountSummaryWidget/></div>

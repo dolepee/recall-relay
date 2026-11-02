@@ -11,10 +11,10 @@ function useSampleCase(){const value=useContext(SampleContext);if(!value)throw n
 
 export function SampleOrderCell({value}){const {selected,selectCase,caseForOrder}=useSampleCase();const item=caseForOrder(String(value));return <button type="button" aria-pressed={selected===String(value)} aria-controls="sample-review" title={item.source.product} className="flex min-h-11 w-full min-w-0 flex-col justify-center text-left focus-visible:outline-2 focus-visible:outline-teal-700" onClick={()=>selectCase(String(value))}><span className="max-w-full truncate text-sm font-semibold text-teal-900">{item.source.product}</span><span className="text-xs text-slate-500">{value}</span><span className="text-xs font-medium tabular-nums text-slate-700">{money(item.amountCents)}</span></button>;}
 
-export function SampleCasePanel(){
+export function SampleCasePanel({headingRef}){
   const {selected,caseForOrder}=useSampleCase(),item=caseForOrder(selected);
-  return <section id="sample-review" aria-label="Selected sample claim" className="h-full overflow-auto p-4 sm:p-5">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-[.12em] text-slate-500">Selected sample claim</p><h2 className="mt-2 text-xl font-semibold text-balance">{item.source.product}</h2><p className="mt-1 text-sm text-slate-500">{item.order} · revision {item.revision}</p></div><SampleStatus code={item.status.code}/></div>
+  return <section id="sample-review" aria-labelledby="sample-review-heading" className="h-full overflow-auto p-4 sm:p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-[.12em] text-slate-500">Selected sample claim</p><h2 ref={headingRef} id="sample-review-heading" tabIndex={-1} className="mt-2 scroll-mt-24 text-xl font-semibold text-balance focus-visible:outline-2 focus-visible:outline-teal-700">{item.source.product}</h2><p className="mt-1 text-sm text-slate-500">{item.order} · revision {item.revision}</p></div><SampleStatus code={item.status.code}/></div>
     <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-700">{item.status.reason}</p>
     <dl className="mt-5 grid grid-cols-2 gap-3 border-y border-slate-200 py-4 text-sm"><div><dt className="text-slate-500">Affected amount</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{money(item.amountCents)}</dd></div><div><dt className="text-slate-500">Original sample capture</dt><dd className="mt-1 font-semibold tabular-nums">{money(item.originalCents)}</dd></div></dl>
     <h3 className="mt-5 text-sm font-semibold">Recorded evidence</h3>

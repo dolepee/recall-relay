@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ClaimDesk} from '../src/claims.mjs';
-import {SourceWorkspace,validateSourceSuggestion,validateManualField} from '../src/source-workspace.mjs';
+import {SourceWorkspace,validateSourceSuggestion,validateManualField,sourceFieldIssue} from '../src/source-workspace.mjs';
+import {deflateSync,crc32} from 'node:zlib';
+import jpeg from 'jpeg-js';
 import {validateImageBytes} from '../src/image-validation.mjs';
 const source={title:'Test',recallNumber:'27026',products:[{name:'Fixture'}],sourceUrl:'https://www.cpsc.gov/Recalls/2026/Test',sourceDigest:'a'.repeat(64),route:'ORIGINAL_PAYMENT_CANDIDATE',remedies:['Upload a photograph of the label.','Confirm the disposal commitment.']};
 const publish=(ws,row,desk)=>ws.activate(row.id,{revision:row.revision,sku:'TEST',lot:'LOT-A',confirmed:true},desk);
@@ -55,4 +57,36 @@ test('bounded image decoding rejects signatures without pixels and excessive dim
  const huge=Buffer.from(valid);huge.writeUInt32BE(100000,16);assert.throws(()=>validateImageBytes(huge,'png'),/decoded safely/);
  const interlaced=Buffer.from(valid);interlaced[28]=1;assert.throws(()=>validateImageBytes(interlaced,'png'),/decoded safely/);
  assert.throws(()=>validateImageBytes(Buffer.from([255,216,0,0,255,217]),'jpeg'),/decoded safely/);
+});
+
+test('business notifications and later actions cannot become pre-refund customer evidence',()=>{
+ for(const quote of ['After receiving the refund, consumers must attest to disposal of the item.','The manufacturer will confirm the refund by email.','Consumers will receive a confirmation from the company.'])
+  assert(sourceFieldIssue({kind:'CONFIRMATION',quote}),quote);
+ assert.equal(sourceFieldIssue({kind:'PHOTO',quote:'The firm will ask consumers to submit a photograph of the label.'}),null);
+});
+test('PNG inflation is bounded independently of declared dimensions, and real JPEG pixels decode',()=>{
+ const valid=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWP4DwQACfsD/c8LaHIAAAAASUVORK5CYII=','base64');
+ const compressed=deflateSync(Buffer.alloc(1000000));
+ const chunk=Buffer.alloc(compressed.length+12);chunk.writeUInt32BE(compressed.length);chunk.write('IDAT',4);compressed.copy(chunk,8);
+ const bomb=Buffer.concat([valid.subarray(0,33),chunk,valid.subarray(-12)]);
+ assert.throws(()=>validateImageBytes(bomb,'png'),/decoded safely/);
+ const encoded=jpeg.encode({width:2,height:2,data:Buffer.alloc(16,255)},80).data;
+ assert.doesNotThrow(()=>validateImageBytes(encoded,'jpeg'));
+});
+
+function pngChunk(kind,data=Buffer.alloc(0)){
+ const chunk=Buffer.alloc(data.length+12);chunk.writeUInt32BE(data.length);chunk.write(kind,4);data.copy(chunk,8);chunk.writeUInt32BE(crc32(chunk.subarray(4,-4)),chunk.length-4);return chunk;
+}
+test('indexed PNG chunk allocation stays bounded before decoding',()=>{
+ const signature=Buffer.from('89504e470d0a1a0a','hex');
+ const header=Buffer.alloc(13);header.writeUInt32BE(1);header.writeUInt32BE(1,4);header[8]=8;header[9]=3;
+ const ihdr=pngChunk('IHDR',header),palette=pngChunk('PLTE',Buffer.alloc(768)),alpha=pngChunk('tRNS',Buffer.from([255])),data=pngChunk('IDAT',deflateSync(Buffer.from([0,0]))),end=pngChunk('IEND');
+ const image=(...chunks)=>Buffer.concat([signature,ihdr,...chunks]);
+ assert.doesNotThrow(()=>validateImageBytes(image(palette,alpha,data,end),'png'));
+ for(const chunks of [
+  [palette,alpha,alpha,data,end], [palette,...Array(60000).fill(pngChunk('tRNS')),data,end],
+  [alpha,palette,data,end], [palette,data,alpha,end], [palette,palette,data,end],
+  [pngChunk('PLTE',Buffer.alloc(771)),data,end], [palette,pngChunk('tRNS',Buffer.alloc(257)),data,end],
+  [palette,data,pngChunk('tEXt'),data,end], [palette,data,pngChunk('IEND',Buffer.from([0]))]
+ ])assert.throws(()=>validateImageBytes(image(...chunks),'png'),/decoded safely/);
 });

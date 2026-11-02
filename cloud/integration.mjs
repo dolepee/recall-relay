@@ -1,5 +1,6 @@
 // Actual workerd + SQLite storage; every external provider call is intercepted.
 import assert from 'node:assert/strict';
+import {crc32,deflateSync} from 'node:zlib';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
@@ -76,6 +77,12 @@ try{
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+token})).status,200);
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+'x'.repeat(43)})).status,401);
   const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWMAgv8AAQQBAP8H9UQAAAAASUVORK5CYII=';
+  // A small compressed indexed image must not expand palette allocations through repeated tRNS chunks.
+  const chunk=(kind,data=Buffer.alloc(0))=>{const out=Buffer.alloc(data.length+12);out.writeUInt32BE(data.length);out.write(kind,4);data.copy(out,8);out.writeUInt32BE(crc32(out.subarray(4,-4)),out.length-4);return out;};
+  const header=Buffer.from('00000001000000010803000000','hex');
+  const hostile=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',header),chunk('PLTE',Buffer.alloc(768)),...Array(60000).fill(chunk('tRNS')),chunk('IDAT',deflateSync(Buffer.from([0,0]))),chunk('IEND')]);
+  const rejected=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:0,lot:'LOT-A',photo:'data:image/png;base64,'+hostile.toString('base64'),acknowledged:true}});
+  assert.equal(rejected.status,400);assert.match(rejected.value.error,/decoded safely/);
   const submission=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:0,lot:'LOT-A',photo:image,acknowledged:true}});assert.equal(submission.status,200);
   const summaries=await call('/api/merchant/state',{cookie:alice});assert.equal(summaries.value.cases[0].photo,undefined);assert(!JSON.stringify(summaries.value).includes(image));
   const evidence=await action('photograph',{id:checkout.value.id,revision:1});assert.equal(evidence.status,200);assert.equal(evidence.value.photo,image);
@@ -132,5 +139,5 @@ try{
   assert.equal((await hinted.act('reconcile',{id:hinted.approval.id})).value.receipt.amountCents,2599);
   assert.equal(refundPosts,3);
   assert.equal(unexpected,0);
-  console.log(JSON.stringify({runtime:'Actual workerd + SQLite Durable Objects',provider:'Injected fake transport; no external requests',crossWorkspaceDenied:true,customerAuthorizationChecked:true,correctionSurvivesReopen:true,correctionRequiresFreshReview:true,resumedReservationPosts:1,beginWithoutDispatchBlocksResend:true,lostResponseBlocksResend:true,persistedHintReconcilesWithoutResend:true,totalFakeRefundPosts:refundPosts,reopenedReceiptVerified:true}));
+  console.log(JSON.stringify({runtime:'Actual workerd + SQLite Durable Objects',provider:'Injected fake transport; no external requests',crossWorkspaceDenied:true,customerAuthorizationChecked:true,correctionSurvivesReopen:true,correctionRequiresFreshReview:true,resumedReservationPosts:1,beginWithoutDispatchBlocksResend:true,lostResponseBlocksResend:true,persistedHintReconcilesWithoutResend:true,totalFakeRefundPosts:refundPosts,reopenedReceiptVerified:true,hostilePngRejected:true}));
 }finally{await mf.dispose();await rm(state,{recursive:true,force:true});}

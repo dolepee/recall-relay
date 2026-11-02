@@ -10,6 +10,8 @@ const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|includ
 // what the quoted instruction actually asks the customer to do.
 export function aiFieldProblem({kind,quote}){
   if(/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(quote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
+  if(/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm|we)\s+(?:will|shall|must|may|can)\s+(?:confirm|verify|provide|send|issue|take|supply)\b/i.test(quote))return 'This sentence describes an action by the business. Review the responsible actor before creating a customer field.';
+  if(kind==='CONFIRMATION'&&/\b(?:you|consumers?|customers?)\s+(?:will|may|should|can)\s+(?:be sent|receive)\b/i.test(quote))return 'Receiving a confirmation is not a customer attestation request.';
   if(kind==='PHOTO'&&!PHOTO_CUE.test(quote))return 'A photograph field needs a request for a photograph or image.';
   if(kind==='CONFIRMATION'&&!CONFIRM_CUE.test(quote))return 'A confirmation field needs an explicit confirm, attest, certify, verify or declare request, including its noun form.';
   if(kind==='TEXT'&&!TEXT_CUE.test(quote))return 'A written field needs an explicit request for a value, identifier or description, not a photograph.';
@@ -34,7 +36,7 @@ export function sourceClauses(source){
 export function sourceFieldIssue(field){
   const problem=aiFieldProblem(field);
   if(problem)return problem;
-  if(/\b(?:if|unless|only when|after (?:the |a |your )?refund|following (?:the |a |your )?refund|once .{0,50}refund)\b/i.test(field.quote))
+  if(/\b(?:if|unless|only when|(?:after|following|once)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment))\b/i.test(field.quote))
     return 'Conditional or post-refund instructions need a manual workflow; they cannot become an always-required field.';
   return null;
 }

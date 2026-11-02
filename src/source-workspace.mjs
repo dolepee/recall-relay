@@ -100,8 +100,9 @@ export function validateSourceSuggestion(raw,source){
     const quote=complete.quote;
     const problem=aiFieldProblem({kind:r.kind,quote});
     if(problem){filtered.push({kind:r.kind,quote:r.quote,reason:problem});continue;}
-    if(seen.has(quote)){filtered.push({kind:r.kind,quote:r.quote,reason:'Duplicate quotation; the first valid response was kept.'});continue;}
-    seen.add(quote);
+    const key=`${r.kind}\u0000${quote}`;
+    if(seen.has(key)){filtered.push({kind:r.kind,quote:r.quote,reason:'Duplicate response for this quotation; the first valid response was kept.'});continue;}
+    seen.add(key);
     requirements.push({id:`field-${requirements.length+1}`,kind:r.kind,quote,sourceUrl:source.sourceUrl});
   }
   return {requirements,filtered,sourceDigest:source.sourceDigest,paymentAuthorized:false,evidenceVerified:false};
@@ -133,7 +134,7 @@ export class SourceWorkspace {
     // even when it suggests a different kind for the same quotation.
     const requirements=previous.filter(f=>f.origin==='MERCHANT_SOURCE_SELECTION');
     for(const field of suggestion.requirements){
-      if(requirements.some(f=>f.quote===field.quote))continue;
+      if(requirements.some(f=>f.kind===field.kind&&f.quote===field.quote))continue;
       const unchanged=previous.find(f=>f.quote===field.quote&&f.kind===field.kind);
       requirements.push(unchanged||{...field,id:row.suggestion?randomUUID():field.id});
     }
@@ -146,7 +147,7 @@ export class SourceWorkspace {
     if(row.revision!==revision)throw new Error('This notice changed. Reload before adding a field.');
     const checked=validateManualField({kind,quote},row.source);
     const previous=row.suggestion?.requirements||[];
-    if(previous.length>=6||previous.some(f=>f.quote===quote))throw new Error('Choose a new requirement; at most six fields are supported in this preview.');
+    if(previous.length>=6||previous.some(f=>f.kind===kind&&f.quote===quote))throw new Error('Choose a new requirement; at most six fields are supported in this preview.');
     const suggestion={...(row.suggestion||{sourceDigest:row.source.sourceDigest,model:'Merchant-prepared fields',paymentAuthorized:false,evidenceVerified:false}),requirements:[...previous,{...checked,id:randomUUID(),origin:'MERCHANT_SOURCE_SELECTION'}]};
     return this.save({...row,revision:row.revision+1,suggestion,review:null});
   }

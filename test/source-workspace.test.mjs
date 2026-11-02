@@ -58,7 +58,9 @@ test('regenerating source suggestions preserves merchant fields and invalidates 
     const merchant=row.suggestion.requirements[0];
     row=ws.review(row.id,{revision:row.revision,fieldIds:[merchant.id],confirmed:true});
     row=await ws.suggest(row.id,row.revision);
-    assert.deepEqual(row.suggestion.requirements,[merchant]);
+    assert.deepEqual(row.suggestion.requirements[0],merchant);
+    assert.equal(row.suggestion.requirements.length,2);
+    assert.equal(row.suggestion.requirements[1].kind,'PHOTO');
     assert.equal(row.review,null);
   }finally{db.close();}
 });
@@ -319,7 +321,7 @@ test('duplicate model quotations are filtered after response typing instead of d
   ]),source);
   assert.equal(duplicate.requirements.length,1);
   assert.equal(duplicate.filtered.length,1);
-  assert.match(duplicate.filtered[0].reason,/Duplicate quotation/);
+  assert.match(duplicate.filtered[0].reason,/Duplicate response/);
 });
 
 test('held-out live fragments expand to their complete conditions and destinations',()=>{
@@ -349,4 +351,34 @@ test('an ambiguous fragment is filtered with guidance rather than guessed into o
   assert.equal(result.requirements.length,0);
   assert.equal(result.filtered.length,1);
   assert.match(result.filtered[0].reason,/one complete source sentence/);
+});
+
+test('a compound instruction can carry a photograph and an explicit attestation for the same quotation',async()=>{
+  const compound='Submit a photograph of the marked cup and attest that you disposed of it according to the posted instructions.';
+  const source=notice([compound],'27-093');
+  const result=validateSourceSuggestion(draft([
+    {kind:'PHOTO',quote:compound},
+    {kind:'CONFIRMATION',quote:compound},
+  ]),source);
+  assert.equal(result.filtered.length,0);
+  assert.deepEqual(result.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+
+  const duplicate=validateSourceSuggestion(draft([
+    {kind:'PHOTO',quote:compound},
+    {kind:'PHOTO',quote:compound},
+  ]),source);
+  assert.equal(duplicate.requirements.length,1);
+  assert.equal(duplicate.filtered.length,1);
+  assert.match(duplicate.filtered[0].reason,/Duplicate response/);
+
+  const db=new DatabaseSync(':memory:');
+  const ws=new SourceWorkspace(db,{loadSource:async()=>structuredClone(source),ai:{status:()=>({available:true,model:'test-double'}),generate:async()=>draft([{kind:'PHOTO',quote:compound}])}});
+  let row=await ws.import('27093');
+  row=ws.addField(row.id,{revision:row.revision,kind:'PHOTO',quote:compound});
+  row=ws.addField(row.id,{revision:row.revision,kind:'CONFIRMATION',quote:compound});
+  assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+  assert.throws(()=>ws.addField(row.id,{revision:row.revision,kind:'CONFIRMATION',quote:compound}),/Choose a new requirement/);
+  row=await ws.suggest(row.id,row.revision);
+  assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+  db.close();
 });

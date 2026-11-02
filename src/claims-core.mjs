@@ -4,6 +4,7 @@ import {Buffer} from 'node:buffer';
 import {syncTransaction} from './transaction.mjs';
 import { planClaim } from './plan.mjs';
 import { usdCents } from './money.mjs';
+import {previewLedger} from './ledger-preview.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const secret = () => randomBytes(32).toString('base64url');
@@ -46,6 +47,7 @@ export class ClaimDeskCore {
   setSetting(key,value) { this.db.prepare('INSERT INTO claim_settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,value); }
   activeCampaign(){const value=this.setting('active-campaign');return value?JSON.parse(value):campaign;}
   campaignFor(claim){return claim.campaign||campaign;}
+  previewLedger(input){return previewLedger(input,this.setting('published')==='yes'?this.activeCampaign():null);}
   merchantKey() { return this.setting('merchant-key'); }
   authenticateMerchant(value) { return typeof value === 'string' && hash(value) === hash(this.merchantKey()); }
   saveCheckout(value) { this.db.prepare('INSERT INTO checkouts VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,JSON.stringify(value)); }

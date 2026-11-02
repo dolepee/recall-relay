@@ -8,6 +8,9 @@ import {HostedAI} from '../src/cloud-ai.mjs';
 import {PayPalSandbox} from '../src/paypal-sandbox.mjs';
 import {routeWorkspace,boundedJSON} from '../src/cloud-routing.mjs';
 import {UsageBudgetCore,aiRefusal,resetLabel} from '../src/cloud-budget.mjs';
+import {practiceAction,practiceCookie,practiceObjectName,resolvePracticeSession,practiceCookieHeader,validatePracticeRequest,PRACTICE_MAX_BYTES,PRACTICE_TTL_MS} from '../src/cloud-practice-routing.mjs';
+import {PracticeCase} from './practice-case.mjs';
+export {PracticeCase};
 
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...headers}});
 
@@ -23,6 +26,8 @@ export class UsageBudget extends DurableObject {
   openWorkspace(id){return this.core.openWorkspace(id);}
   admitAI(workspaceId){return this.core.admitAI(workspaceId);}
   aiAllowance(workspaceId){return this.core.aiAllowance(workspaceId);}
+  hasPractice(id,ttl){return this.core.hasPractice(id,ttl);}
+  admitPractice(id,ttl){return this.core.admitPractice(id,ttl);}
 }
 
 class HostedDesk extends ClaimDeskCore {
@@ -58,11 +63,49 @@ export class RecallWorkspace extends DurableObject {
   }
 }
 
+
+// Practice has its own cookie, object name, quota scope and error surface. It is
+// validated before a Durable Object exists and never reaches the connected desk.
+async function practiceFetch(request,env,url){
+  const action=practiceAction(url.pathname);
+  const invalid=validatePracticeRequest({method:request.method,pathname:url.pathname,requestOrigin:request.headers.get('origin'),contentType:request.headers.get('content-type'),origin:url.origin});
+  if(invalid)return json({error:invalid.error},invalid.status);
+  let body;
+  try{body=request.method==='POST'?await boundedJSON(request,PRACTICE_MAX_BYTES):{};}
+  catch{return json({error:'Request is too large.'},413);}
+  const registry=env.BUDGET.getByName('daily'),ttl=Number(env.PRACTICE_TTL_MS)||PRACTICE_TTL_MS;
+  const presented=practiceCookie(request.headers.get('cookie'));
+  // Fresh start is for expired or absent sessions. An active case keeps its own
+  // object so its photo and journal are removed by restart, not abandoned.
+  if(action==='new'&&presented&&await registry.hasPractice(practiceObjectName(presented),ttl))
+    return json({error:'This practice case is still active. Use restart to start another.'},409,{'Set-Cookie':practiceCookieHeader(presented,url.origin)});
+  const resolved=resolvePracticeSession(action,presented);
+  if(resolved.expired)return json({error:'This practice session has expired. Start a fresh practice case.',expired:true},410,{'Set-Cookie':practiceCookieHeader('',url.origin,0)});
+  if(resolved.fresh){
+    const opening=await registry.admitPractice(resolved.id,ttl);
+    if(!opening?.opened){
+      const label=resetLabel(opening?.resetAt);
+      return json({error:`Practice is at capacity today.${label?` New practice cases open again at ${label}.`:''}`,resetAt:opening?.resetAt||null},429);
+    }
+  }else if(!await registry.hasPractice(resolved.id,ttl)){
+    return json({error:'This practice session has expired. Start a fresh practice case.',expired:true},410,{'Set-Cookie':practiceCookieHeader('',url.origin,0)});
+  }
+  const result=await env.PRACTICE.getByName(resolved.id).handle({
+    token:resolved.token,fresh:resolved.fresh,path:url.pathname,method:request.method,
+    origin:url.origin,contentType:request.headers.get('content-type')||'',body,
+  });
+  const headers={};
+  if(resolved.fresh)headers['Set-Cookie']=practiceCookieHeader(resolved.token,url.origin);
+  if(result.status===410)headers['Set-Cookie']=practiceCookieHeader('',url.origin,0);
+  return json(result.value,result.status,headers);
+}
+
 export default {
   async fetch(request,env){
     try{
       const url=new URL(request.url);
       if(!env.PUBLIC_ORIGINS.includes(url.origin))return json({error:'Unknown application origin.'},403);
+      if(url.pathname.startsWith('/api/practice/'))return practiceFetch(request,env,url);
       if(!url.pathname.startsWith('/api/merchant/')&&!url.pathname.startsWith('/api/claim/'))return json({error:'Unknown action.'},404);
       if(!['GET','POST'].includes(request.method))return json({error:'Unsupported method.'},405);
       if(request.method==='POST'&&(request.headers.get('origin')!==url.origin||request.headers.get('content-type')!=='application/json'))return json({error:'Same-origin JSON requests required.'},403);

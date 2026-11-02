@@ -12,6 +12,8 @@ import { PayPalSandbox } from './src/paypal-sandbox.mjs';
 import {LocalAI} from './src/local-ai.mjs';
 import {SourceWorkspace} from './src/source-workspace.mjs';
 import {builtAssets} from './src/static-assets.mjs';
+import {PracticeWorkspace} from './src/practice-workspace.mjs';
+import {practiceRoutes} from './src/practice-http.mjs';
 import {existsSync} from 'node:fs';
 
 try{process.loadEnvFile('.env');}catch(error){if(error.code!=='ENOENT')throw error;}
@@ -27,6 +29,8 @@ const sourceWorkspace=new SourceWorkspace(desk.db,{ai});
 chmodSync('.local/connected-claims.sqlite',0o600);
 writeFileSync('.local/merchant-url.txt',`${origin}/desk#merchant=${desk.merchantKey()}\n`,{mode:0o600});
 chmodSync('.local/merchant-url.txt',0o600);
+const practice=new PracticeWorkspace({path:'.local/practice-claims.sqlite',origin});
+chmodSync('.local/practice-claims.sqlite',0o600);
 const journal = new RefundJournal('.local/fixture-refunds.sqlite');
 journal.db.exec('CREATE TABLE IF NOT EXISTS workspace (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
 const read = (key, fallback) => {
@@ -58,6 +62,7 @@ async function body(req) {
   return JSON.parse(text||'{}');
 }
 const handleClaims=claimRoutes(desk,{json,body,origin,sourceWorkspace,ai});
+const handlePractice=practiceRoutes(practice,{json,body,origin});
 const server=createServer(async(req,res)=>{
   res.setHeader('Referrer-Policy','no-referrer');
   if(req.headers.host!==`127.0.0.1:${port}` && req.headers.host!==`localhost:${port}`) return json(res,403,{error:'Local host required.'});
@@ -68,6 +73,7 @@ const server=createServer(async(req,res)=>{
     return json(res,404,{error:'Not found.'});
   if(!path.startsWith('/api/')) return production?serveAssets(req,res,path):vite.middlewares(req,res);
   if(await handleClaims(req,res,path))return;
+  if(await handlePractice(req,res,path))return;
   try {
     if(req.method==='GET' && path==='/api/state')return json(res,200,state());
     if(req.method!=='POST')return json(res,405,{error:'Unsupported method.'});
@@ -98,4 +104,4 @@ const server=createServer(async(req,res)=>{
   } catch(error) {return json(res,400,{error:error.message});}
 });
 server.listen(port,'127.0.0.1',()=>console.log(`Recall Relay local prototype: ${origin}`));
-process.on('SIGINT',async()=>{server.close();ai.close();journal.close();desk.close();await vite?.close();process.exit(0);});
+process.on('SIGINT',async()=>{server.close();ai.close();journal.close();desk.close();practice.close();await vite?.close();process.exit(0);});

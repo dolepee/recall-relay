@@ -8,9 +8,10 @@
   "preview_urls": false,
   "durable_objects": {"bindings": [
     {"name":"WORKSPACES","class_name":"RecallWorkspace"},
-    {"name":"BUDGET","class_name":"UsageBudget"}
+    {"name":"BUDGET","class_name":"UsageBudget"},
+    {"name":"PRACTICE","class_name":"PracticeCase"}
   ]},
-  "migrations": [{"tag":"v1","new_sqlite_classes":["RecallWorkspace","UsageBudget"]}],
+  "migrations": [{"tag":"v1","new_sqlite_classes":["RecallWorkspace","UsageBudget"]},{"tag":"v2","new_sqlite_classes":["PracticeCase"]}],
   "ai": {"binding":"AI"},
   "vars": {
     "AI_ENABLED": true,

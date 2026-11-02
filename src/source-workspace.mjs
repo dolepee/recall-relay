@@ -29,84 +29,8 @@ Negative examples (never return these as fields):
 If the notice asks for no customer evidence, return {"requirements":[]}. Return no prose.`;
 const hash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}
-const KINDS=['PHOTO','CONFIRMATION','TEXT'];
-const PHOTO_CUE=/\b(photo|photograph|photographs|photos|picture|pictures|image|images)\b/i;
-const CONFIRM_CUE=/\b(confirm|confirms|confirmed|confirmation|confirmations|attest|attests|attested|attestation|attestations|certify|certifies|certification|certifications|verify|verifies|declare|declares|declaration|declarations)\b/i;
-const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|include|write|tell(?:\s+us)?)\b(?:(?!\b(?:photo|photos|photograph|photographs|picture|pictures|image|images)\b)[^.!?]){0,60}?\b(?:(?:serial|batch|lot|model|order|item|product)\s+)?(?:number|code|identifier|description|name|address|date|receipt|invoice|amount|price|quantity|size|color)\b/i;
-
-// Applies to assistant output only. The notice may legitimately contain disposal
-// attestations, URLs, e-mail destinations or contact text; those are not rejected
-// by keyword. A field fails only when its declared response type does not match
-// what the quoted instruction actually asks the customer to do.
-export function aiFieldProblem({kind,quote}){
-  if(kind==='PHOTO'&&!PHOTO_CUE.test(quote))return 'A photograph field needs a request for a photograph or image.';
-  if(kind==='CONFIRMATION'&&!CONFIRM_CUE.test(quote))return 'A confirmation field needs an explicit confirm, attest, certify, verify or declare request, including its noun form.';
-  if(kind==='TEXT'&&!TEXT_CUE.test(quote))return 'A written field needs an explicit request for a value, identifier or description, not a photograph.';
-  return null;
-}
-
-const sentenceBreak=/(?<=[.!?])\s+(?=[A-Z])/g;
-const normalize=s=>s.replace(/\s+/g,' ').trim();
-function sentenceSpans(text){
-  const spans=[];let start=0;let match;sentenceBreak.lastIndex=0;
-  while((match=sentenceBreak.exec(text))){
-    if(text.slice(start,match.index).trim())spans.push({start,end:match.index});
-    start=match.index+match[0].length;
-  }
-  if(text.slice(start).trim())spans.push({start,end:text.length});
-  return spans;
-}
-// Assistant quotations must cover a complete source sentence, or a contiguous run
-// of complete sentences. A shorter fragment is expanded to the one complete
-// sentence that contains it, so conditions and destinations survive; an ambiguous
-// or cross-sentence fragment is returned with a manual-guidance problem.
-export function completeSourceQuote(quote,source){
-  const target=normalize(quote);
-  for(const remedy of source.remedies){
-    const spans=sentenceSpans(remedy);
-    for(let first=0;first<spans.length;first++)for(let last=first;last<spans.length;last++){
-      if(normalize(remedy.slice(spans[first].start,spans[last].end))===target)return {quote:quote.trim()};
-    }
-  }
-  const candidates=[];
-  for(const remedy of source.remedies){
-    for(const span of sentenceSpans(remedy)){
-      const text=remedy.slice(span.start,span.end).trim();
-      if(normalize(text).includes(target))candidates.push(text);
-    }
-  }
-  const unique=[...new Set(candidates.map(normalize))];
-  if(unique.length===1)return {quote:candidates.find(text=>normalize(text)===unique[0])};
-  return {problem:'The quotation does not belong to one complete source sentence. Select the complete sentence with its conditions, or add it manually.'};
-}
-// Structural checks only, for a merchant's own exact-source selection. Manual
-// choices are not restricted by the assistant's response-type rules.
-export function validateManualField({kind,quote},source){
-  if(!KINDS.includes(kind)||typeof quote!=='string'||quote.trim().length<12||quote.length>1600||!source.remedies.some(x=>x.includes(quote)))
-    throw new Error('A proposed field lacks an exact source quotation. No field was saved.');
-  return {kind,quote,sourceUrl:source.sourceUrl};
-}
-
-export function validateSourceSuggestion(raw,source){
-  if(typeof raw!=='string'||raw.length>18000)throw new Error('The assistant did not return a usable draft. Review the source manually.');
-  const value=parseJSON(raw);
-  if(!value||Array.isArray(value)||Object.keys(value).join()!=='requirements'||!Array.isArray(value.requirements)||value.requirements.length>6)throw new Error('Unexpected draft fields. No suggestion was saved.');
-  const seen=new Set(),requirements=[],filtered=[];
-  for(const r of value.requirements){
-    if(!r||Object.keys(r).sort().join()!=='kind,quote'||!KINDS.includes(r.kind)||typeof r.quote!=='string'||r.quote.trim().length<12||r.quote.length>1600||!source.remedies.some(x=>x.includes(r.quote)))
-      throw new Error('A proposed field lacks an exact source quotation. No suggestion was saved.');
-    const complete=completeSourceQuote(r.quote,source);
-    if(complete.problem||complete.quote.length>1600){filtered.push({kind:r.kind,quote:r.quote,reason:complete.problem||'The complete source instruction is too long for one field.'});continue;}
-    const quote=complete.quote;
-    const problem=aiFieldProblem({kind:r.kind,quote});
-    if(problem){filtered.push({kind:r.kind,quote:r.quote,reason:problem});continue;}
-    const key=`${r.kind}\u0000${quote}`;
-    if(seen.has(key)){filtered.push({kind:r.kind,quote:r.quote,reason:'Duplicate response for this quotation; the first valid response was kept.'});continue;}
-    seen.add(key);
-    requirements.push({id:`field-${requirements.length+1}`,kind:r.kind,quote,sourceUrl:source.sourceUrl});
-  }
-  return {requirements,filtered,sourceDigest:source.sourceDigest,paymentAuthorized:false,evidenceVerified:false};
-}
+export {aiFieldProblem,completeSourceQuote,validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue} from './source-policy.mjs';
+import {validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue} from './source-policy.mjs';
 export class SourceWorkspace {
   constructor(db,{loadSource=fetchRecallDraft,ai}={}){this.db=db;this.loadSource=loadSource;this.ai=ai;db.exec('CREATE TABLE IF NOT EXISTS source_setups (id TEXT PRIMARY KEY, data TEXT NOT NULL)');}
   save(row){this.db.prepare('INSERT INTO source_setups VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(row.id,JSON.stringify(row));return row;}
@@ -147,23 +71,30 @@ export class SourceWorkspace {
     if(row.revision!==revision)throw new Error('This notice changed. Reload before adding a field.');
     const checked=validateManualField({kind,quote},row.source);
     const previous=row.suggestion?.requirements||[];
-    if(previous.length>=6||previous.some(f=>f.kind===kind&&f.quote===quote))throw new Error('Choose a new requirement; at most six fields are supported in this preview.');
+    if(previous.length>=6||previous.some(f=>f.kind===kind&&f.quote===checked.quote))throw new Error('Choose a new requirement; at most six fields are supported in this preview.');
     const suggestion={...(row.suggestion||{sourceDigest:row.source.sourceDigest,model:'Merchant-prepared fields',paymentAuthorized:false,evidenceVerified:false}),requirements:[...previous,{...checked,id:randomUUID(),origin:'MERCHANT_SOURCE_SELECTION'}]};
     return this.save({...row,revision:row.revision+1,suggestion,review:null});
   }
-  review(id,{revision,fieldIds,confirmed}){
+  review(id,{revision,fieldIds,confirmed,clauseDecisions=[]}){
     const row=this.get(id);
     if(confirmed!==true||row.revision!==revision||!row.suggestion||!Array.isArray(fieldIds)||new Set(fieldIds).size!==fieldIds.length||fieldIds.some(id=>!row.suggestion.requirements.some(r=>r.id===id)))throw new Error('Review the current source and proposed fields before saving.');
     const fields=row.suggestion.requirements.filter(r=>fieldIds.includes(r.id));
-    return this.save({...row,revision:row.revision+1,review:{sourceDigest:row.source.sourceDigest,fields,digest:hash({source:row.source.sourceDigest,fields}),reviewedAt:new Date().toISOString(),status:'REVIEWED_SETUP',paymentAuthorized:false}});
+    const clauses=sourceClauses(row.source);
+    if(!Array.isArray(clauseDecisions)||clauseDecisions.length>clauses.length||new Set(clauseDecisions.map(d=>d?.id)).size!==clauseDecisions.length||clauseDecisions.some(d=>!d||!clauses.some(c=>c.id===d.id)||!['INFORMATION','MANUAL'].includes(d.disposition)||typeof d.reason!=='string'||d.reason.trim().length<10||d.reason.length>600))throw new Error('Record a reason for every source instruction not represented by a field.');
+    const coverage=sourceCoverage(row.source,fields,clauseDecisions);
+    return this.save({...row,revision:row.revision+1,review:{sourceDigest:row.source.sourceDigest,fields,coverage,digest:hash({source:row.source.sourceDigest,fields,coverage}),reviewedAt:new Date().toISOString(),status:'REVIEWED_SETUP',paymentAuthorized:false}});
   }
   activate(id,{revision,sku,lot,confirmed},desk){
     const row=this.get(id);
     if(confirmed!==true||row.revision!==revision||!row.review||row.review.sourceDigest!==row.source.sourceDigest)throw new Error('Review the current source fields before publishing a sandbox scenario.');
+    const coverage=sourceCoverage(row.source,row.review.fields,row.review.coverage||[]);
+    if(coverage.some(c=>['UNRESOLVED','MANUAL'].includes(c.disposition)))throw new Error('Review every source instruction before publishing. Unresolved or manual steps cannot publish a connected form.');
+    const issue=row.review.fields.map(sourceFieldIssue).find(Boolean);
+    if(issue)throw new Error(issue);
     if(row.source.route!=='ORIGINAL_PAYMENT_CANDIDATE')throw new Error('This notice needs a manual remedy route. It cannot publish an original-payment sandbox scenario.');
     if(row.review.fields.filter(f=>f.kind==='PHOTO').length!==1)throw new Error('This version supports exactly one required photograph and additional confirmations or text fields. Keep other evidence workflows manual.');
     if(![sku,lot].every(x=>typeof x==='string'&&/^[A-Z0-9][A-Z0-9 -]{0,39}$/.test(x))||lot==='ALL')throw new Error('Provide explicit uppercase test SKU and lot identifiers, up to 40 characters.');
-    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,fields:row.review.fields,requirements:row.review.fields.map(f=>f.quote),scenario:true};
+    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};
     desk.setSetting('active-campaign',JSON.stringify(campaign));desk.setSetting('published','yes');
     return this.save({...row,revision:row.revision+1,publishedCampaign:{id:campaign.id,sku,lot,publishedAt:new Date().toISOString()}});
   }

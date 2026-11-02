@@ -26,7 +26,7 @@ const A=new Proxy(assert,{get(target,key){
 const origin='https://recall-relay.test',state=await mkdtemp(join(tmpdir(),'recall-ai-test-'));
 const DAY1=Date.UTC(2026,9,24,12,0,0),DAY1_KEY='2026-10-24',DAY2_KEY='2026-10-25',DAY2=Date.UTC(2026,9,25,0,0,30);
 const recallFixture=JSON.parse(await readFile(new URL('../test/fixtures/cpsc-20261021.json',import.meta.url),'utf8'));
-const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp0kAAAAASUVORK5CYII=';
+const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWMAgv8AAQQBAP8H9UQAAAAASUVORK5CYII=';
 const photoQuote='submit a photograph with the word "RECALL" written on the front of the crystal cup in permanent black marker';
 const amount={value:'59.99',currency_code:'USD'};
 const capture={id:'FAKE-CAPTURE',status:'COMPLETED',amount,create_time:new Date().toISOString()};

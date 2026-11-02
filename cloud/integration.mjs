@@ -75,7 +75,7 @@ try{
   const url=new URL(bound.value.claimUrl,origin),token=url.hash.slice(1),query=url.search;
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+token})).status,200);
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+'x'.repeat(43)})).status,401);
-  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp0kAAAAASUVORK5CYII=';
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWMAgv8AAQQBAP8H9UQAAAAASUVORK5CYII=';
   const submission=await call('/api/claim/submit'+query,{authorization:'Bearer '+token,body:{revision:0,lot:'LOT-A',photo:image,acknowledged:true}});assert.equal(submission.status,200);
   const summaries=await call('/api/merchant/state',{cookie:alice});assert.equal(summaries.value.cases[0].photo,undefined);assert(!JSON.stringify(summaries.value).includes(image));
   const evidence=await action('photograph',{id:checkout.value.id,revision:1});assert.equal(evidence.status,200);assert.equal(evidence.value.photo,image);

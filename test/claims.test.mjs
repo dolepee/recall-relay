@@ -7,7 +7,7 @@ import {ClaimDesk} from '../src/claims.mjs';
 import {claimRoutes} from '../src/claims-http.mjs';
 import {SourceWorkspace,assistCases} from '../src/source-workspace.mjs';
 
-const photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD7kAAAAASUVORK5CYII=';
+const photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWP4DwQACfsD/c8LaHIAAAAASUVORK5CYII=';
 function setup(path=':memory:') {
   const counters={capture:0,refund:0,read:0};let reference,readFails=false,refundFails=false,complete=false;
   const capture={id:'TEST-CAPTURE',status:'COMPLETED',amount:{currency_code:'USD',value:'59.99'},create_time:new Date().toISOString()};
@@ -165,7 +165,7 @@ test('merchant correction invalidates approval, persists, and requires a new pho
     assert.equal(s.desk.claim(item.id).correction.state,'REQUESTED');
     s.desk.close();reopened=new ClaimDesk({path,provider:async()=>s.provider});
     const customer=reopened.customerState(a);assert.equal(customer.correction.message,request.correction.message);assert.equal(customer.correction.photoHash,undefined);
-    const nextPhoto='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp0kAAAAASUVORK5CYII=';
+    const nextPhoto='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWMAgv8AAQQBAP8H9UQAAAAASUVORK5CYII=';
     const response=reopened.submit(a,{revision:2,lot:'LOT-A',acknowledged:true,photo:nextPhoto,correctionResponse:'I uploaded a closer photograph with a readable lot.'});
     assert.equal(response.correction.state,'RESPONDED');assert.equal(response.status.code,'SUBMITTED');assert.equal(response.revision,3);
     const queueAI={generate:async()=>JSON.stringify({view:'REVIEW'}),status:()=>({model:'test-double'})};

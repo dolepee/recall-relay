@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import {validateImageBytes} from './image-validation.mjs';
 import {Buffer} from 'node:buffer';
 import {syncTransaction} from './transaction.mjs';
 import { planClaim } from './plan.mjs';
@@ -24,6 +25,7 @@ function photoValue(photo) {
   if (bytes.length > 2 * 1024 * 1024 || bytes.length < 20 || bytes.toString('base64') !== match[2]) throw new Error('Invalid image file.');
   const valid = match[1] === 'png' ? bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')) : bytes[0] === 255 && bytes[1] === 216 && bytes.at(-2) === 255 && bytes.at(-1) === 217;
   if (!valid) throw new Error('The file content does not match its image type.');
+  validateImageBytes(bytes,match[1]);
   // File validation is not evidence of ownership, authenticity or eligibility.
   return photo;
 }
@@ -58,19 +60,42 @@ export class ClaimDeskCore {
   publish(confirmed) { if(confirmed!==true)throw new Error('Review the fictional campaign before publishing.');this.setSetting('published','yes');return this.merchantState(); }
   async createCheckout() {
     if(this.setting('published')!=='yes')throw new Error('Review and publish the sandbox campaign first.');
-    const value={id:randomUUID(),createRequest:randomUUID(),captureRequest:randomUUID(),state:'CREATING',createdAt:this.now(),campaign:this.activeCampaign()};
+    const unfinished=this.db.prepare('SELECT data FROM checkouts ORDER BY rowid').all().map(r=>JSON.parse(r.data)).find(c=>!c.orderId&&!c.claimId);
+    if(unfinished)return this.resumeCheckout(unfinished.id);
+    if(this.maxCheckouts&&this.db.prepare('SELECT count(*) AS n FROM checkouts').get().n>=this.maxCheckouts)
+      throw new Error('This sandbox workspace has reached its test-purchase limit. Existing claims and receipts remain available.');
+    const value={id:randomUUID(),createRequest:randomUUID(),captureRequest:randomUUID(),state:'CREATE_FAILED',createdAt:this.now(),campaign:this.activeCampaign(),origin:this.origin};
     this.saveCheckout(value);
-    const provider=await this.provider();
-    const order=await provider.createOrder({cents:TOTAL,requestId:value.createRequest,referenceId:value.id,returnUrl:`${this.origin}/desk?purchase=${value.id}`,cancelUrl:`${this.origin}/desk?cancelled=${value.id}`});
-    const href=order.links?.find(l=>['approve','payer-action'].includes(l.rel))?.href;
-    if(typeof order.id!=='string' || !href || new URL(href).origin!=='https://www.sandbox.paypal.com')throw new Error('PayPal did not return a sandbox approval link.');
-    Object.assign(value,{orderId:order.id,approvalUrl:href,state:'AWAITING_APPROVAL'});this.saveCheckout(value);
-    return value;
+    return this.resumeCheckout(value.id);
+  }
+  async resumeCheckout(id) {
+    const value=this.checkout(id);
+    if(value.orderId)return value;
+    if(value.state==='CREATING'&&!value.origin)throw new Error('This older purchase setup needs manual reconciliation; its original request context was not saved. No new order was sent.');
+    const now=Date.parse(this.now());
+    if(value.createAttemptAt&&now-Date.parse(value.createAttemptAt)<60000)
+      throw new Error('Purchase setup is still in progress. Wait one minute before checking it again.');
+    // Never replay an ambiguous create outside the provider retention window.
+    // Five hours leaves margin inside PayPal Orders' documented six-hour default.
+    if(value.state!=='CREATE_FAILED'&&(!Number.isFinite(Date.parse(value.firstDispatchAt||value.createdAt))||now-Date.parse(value.firstDispatchAt||value.createdAt)>5*3600000))
+      throw new Error('This purchase setup needs manual reconciliation. Its safe retry window has ended; no new order was sent.');
+    value.origin=value.origin||this.origin;
+    value.createAttemptAt=this.now();value.state='CREATE_IN_PROGRESS';this.saveCheckout(value);
+    let provider;
+    try{provider=await this.provider();}catch(error){value.state=value.firstDispatchAt?'CREATE_UNKNOWN':'CREATE_FAILED';delete value.createAttemptAt;this.saveCheckout(value);throw error;}
+    value.firstDispatchAt=value.firstDispatchAt||this.now();value.state='CREATE_UNKNOWN';this.saveCheckout(value);
+    try{
+      const order=await provider.createOrder({cents:TOTAL,requestId:value.createRequest,referenceId:value.id,returnUrl:`${value.origin}/desk?purchase=${value.id}`,cancelUrl:`${value.origin}/desk?cancelled=${value.id}`});
+      const href=order.links?.find(l=>['approve','payer-action'].includes(l.rel))?.href;
+      if(typeof order.id!=='string'||!href||new URL(href).origin!=='https://www.sandbox.paypal.com')throw new Error('PayPal did not return a sandbox approval link.');
+      Object.assign(value,{orderId:order.id,approvalUrl:href,state:'AWAITING_APPROVAL'});delete value.createAttemptAt;this.saveCheckout(value);
+      return value;
+    }catch(error){delete value.createAttemptAt;this.saveCheckout(value);throw new Error('Purchase setup is unresolved. Resume this setup with the same request; do not approve another purchase. '+error.message);}
   }
   async captureCheckout(id) {
     let value=this.checkout(id);
     if(value.claimId)return this.merchantView(this.claim(value.claimId));
-    if(!value.orderId)throw new Error('The purchase setup is incomplete. Start another sandbox purchase.');
+    if(!value.orderId)throw new Error('The purchase setup is incomplete. Resume this setup before approving it.');
     const provider=await this.provider();
     let order=await provider.orderDetails(value.orderId);
     if(order.id!==value.orderId)throw new Error('PayPal returned a different order.');
@@ -117,7 +142,7 @@ export class ClaimDeskCore {
   }
   status(claim) {
     const row=this.reservation(claim);
-    if(row)return {code:row.state,reason:row.state==='COMPLETED'?'PayPal confirmed your refund.':row.state==='PENDING'?'PayPal is processing your refund.':row.state==='RESERVED'?'The refund is reserved but has not been sent. The merchant can resume it after checking the original payment.':'The merchant is checking the payment result. No additional refund has been sent.'};
+    if(row)return {code:row.state,reason:row.state==='COMPLETED'?'PayPal confirmed your refund.':row.state==='PENDING'?'PayPal is processing your refund.':row.state==='FAILED'?'PayPal reported that this refund failed. The merchant must reconcile the original payment before choosing another remedy. No replacement refund has been sent.':row.state==='CANCELLED'?'PayPal reported that this refund was cancelled. The merchant must reconcile the original payment before choosing another remedy. No replacement refund has been sent.':row.state==='RESERVED'?'The refund is reserved but has not been sent. The merchant can resume it after checking the original payment.':'The merchant is checking the payment result. No additional refund has been sent.'};
     if(!claim.submission)return {code:'AWAITING_CUSTOMER',reason:'Complete your claim below.'};
     if(claim.correction?.state==='REQUESTED')return {code:'NEEDS_INFORMATION',reason:'The merchant requested a change. Read the message and update your claim below.'};
     if(this.missing(claim).length)return {code:'NEEDS_INFORMATION',reason:'Your claim is saved. Add the missing information below.'};
@@ -155,7 +180,7 @@ export class ClaimDeskCore {
     claim.submission={lot,photo,extra,acknowledged:input.acknowledged===true,submittedAt:this.now()};
     this.saveClaim(claim);return this.customerView(claim);
   }
-  merchantView(claim) {return {...this.customerView(claim),plan:this.plan(claim),review:claim.review,photo:claim.submission?.photo||null,claimUrl:`/claim#${claim.access}`,payment:this.reservation(claim)};}
+  merchantView(claim) {return {...this.customerView(claim),plan:this.plan(claim),review:claim.review,photo:claim.submission?.photo||null,claimUrl:`/claim?claim=${claim.id}#${claim.access}`,payment:this.reservation(claim)};}
   merchantState() {
     return {mode:'real-sandbox',campaign:this.activeCampaign(),published:this.setting('published')==='yes',cases:this.db.prepare('SELECT data FROM claims ORDER BY rowid DESC').all().map(row=>{const {photo,...summary}=this.merchantView(JSON.parse(row.data));return summary;}),checkouts:this.db.prepare('SELECT data FROM checkouts ORDER BY rowid DESC').all().map(row=>JSON.parse(row.data))};
   }
@@ -180,6 +205,7 @@ export class ClaimDeskCore {
     const claim=this.claim(id);
     if(this.reservation(claim))throw new Error('The approved payment has already been recorded.');
     if(claim.correction?.state==='REQUESTED'||confirmed!==true || revision!==claim.revision || this.missing(claim).length || claim.submission?.lot!==this.campaignFor(claim).lot)throw new Error('Review the current label photo and matching lot before confirming this case.');
+    photoValue(claim.submission.photo);
     claim.review={revision,submissionHash:hash(JSON.stringify(claim.submission)),reviewedAt:this.now()};
     this.saveClaim(claim);return this.merchantView(claim);
   }

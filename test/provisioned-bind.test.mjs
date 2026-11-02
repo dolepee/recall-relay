@@ -181,17 +181,17 @@ test('a recorded bind survives a failed follow-up refresh',async()=>{
   assert.match(text(recorded),/With the merchant/);
   assert.match(text(recorded),/Status recorded at binding/,'the unmatched status is labelled as binding-time rather than current');
   assert.doesNotMatch(text(node),/outcome could not be confirmed/,'a successful bind is not reported as unconfirmed');
-  assert.match(text(node),/binding was recorded, but the desk could not refresh/);
+  assert.match(text(document.body),/binding was recorded, but the desk could not refresh/,'the desk says the bind succeeded and only the refresh failed');
   assert.equal(button('Bind purchase'),undefined,'a recorded bind does not invite a duplicate attempt');
 });
 
 test('the recorded heading follows the refreshed claim status after a later decision',async()=>{
-  let status='SUBMITTED';
-  const deskClaim=()=>({id:'claim-1',order:'RR-0001',campaign:{title:'Fictional cup',notice:'Local fixture',sourceUrl:'https://example.invalid',product:'Fictional cup',sku:'CUP-01',lot:'LOT-A',coverage:[],fields:[]},amountCents:3375,currency:'USD',status:{code:status,reason:'Current desk status.'},missing:[],revision:2,correction:null,submittedAt:'2026-11-02T00:00:00Z',submission:{lot:'LOT-A',acknowledged:true,hasPhoto:false,extra:{}},locked:false,receipt:null,plan:{status:'REVIEW',reason:'Evidence review required.'},review:null,payment:null,claimUrl:'/claim?claim=claim-1#fixture',purchaseProvenance:{...claimView().purchaseProvenance,grantId:'GRANT-0000000001'}});
+  let status='SUBMITTED',allocated=false;
+  const deskClaim=()=>({id:'claim-1',order:'RR-0001',campaign:{title:'Fictional cup',notice:'Local fixture',sourceUrl:'https://example.invalid',product:'Fictional cup',sku:'CUP-01',lot:'LOT-A',coverage:[],fields:[]},amountCents:3375,currency:'USD',status:{code:status,reason:'Current desk status.'},missing:[],revision:2,correction:null,submittedAt:'2026-11-02T00:00:00Z',submission:{lot:'LOT-A',acknowledged:true,hasPhoto:false,extra:{}},locked:false,receipt:null,plan:{status:'REVIEW',reason:'Evidence review required.'},review:null,payment:null,claimUrl:'/claim?claim=claim-1#fixture',purchaseProvenance:allocated?{...claimView().purchaseProvenance,grantId:'GRANT-0000000001'}:undefined});
   const {panel}=await mountDesk({
     purchases:[grant()],
     stateClaim:deskClaim,
-    bind:()=>{status='COMPLETED';return new Response(JSON.stringify(claimView()));}
+    bind:()=>{status='COMPLETED';allocated=true;return new Response(JSON.stringify(claimView()));}
   });
   const node=panel();
   await act(async()=>{button('Bind purchase').click();await tick();});

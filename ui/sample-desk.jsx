@@ -15,10 +15,10 @@ function SampleMobile({selected,selectCase,caseForOrder}){
   useEffect(()=>{
     if(!focusRequest)return;
     reviewHeading.current?.focus({preventScroll:true});
-    review.current?.scrollIntoView({block:'start',behavior:'smooth'});
+    review.current?.scrollIntoView({block:'start'});
   },[focusRequest]);
   function backToList(){
-    list.current?.scrollIntoView({block:'start',behavior:'smooth'});
+    list.current?.scrollIntoView({block:'start'});
     listHeading.current?.focus({preventScroll:true});
   }
   return <div className="grid gap-4">

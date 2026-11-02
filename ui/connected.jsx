@@ -152,7 +152,14 @@ export function MerchantDesk(){
     const reference=caseAction?state?.cases.find(item=>item.id===data?.id)?.order:null;
     setBusy(true);setError(null);setNotice(null);
     try{
-      const result=await api(`merchant/${action}`,data);await refresh();
+      const result=await api(`merchant/${action}`,data);
+      try{await refresh();}
+      catch(refreshError){
+        // A durable bind is already recorded server-side. Losing the follow-up refresh must not
+        // discard the confirmed answer and invite the merchant to bind the same capture again.
+        if(action!=='bind-purchase')throw refreshError;
+        setError({scope:'workspace',message:'The binding was recorded, but the desk could not refresh. Use Refresh claims to load the recorded claim.'});
+      }
       if(caseAction&&!casesForView([result],view).length){
         const nextView=result.status.code==='READY_FOR_APPROVAL'?'READY':result.status.code==='COMPLETED'?'COMPLETED':['AWAITING_CUSTOMER','NEEDS_INFORMATION'].includes(result.status.code)?'WAITING':['SUBMITTED','REVIEW'].includes(result.status.code)?'REVIEW':['UNKNOWN','PENDING','RESERVED','FAILED','CANCELLED'].includes(result.status.code)?'PAYMENT':'MANUAL';
         const outcome=action==='request-changes'?'Update requested. This claim is now waiting for the customer.':action==='review'?'Evidence review saved. This claim is ready for merchant approval.':merchantReason(result.status.reason);

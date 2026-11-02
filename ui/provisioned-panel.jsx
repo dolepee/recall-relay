@@ -63,6 +63,10 @@ export function ProvisionedPurchases({state,run,busy=false}){
     const order=claimBindings.get(grant.grantId)||boundGrants[grant.grantId];
     return order?{...grant,boundOrder:order}:grant;
   });
+  // The bind response is a snapshot. Once the claim appears in the refreshed desk state, its
+  // current status wins, so a later approval or refund does not leave a stale heading behind.
+  const recordedClaim=bound?claims.find(claim=>claim&&claim.order===bound.order)||null:null;
+  const recordedStatus=recordedClaim?.status?.code||bound?.status?.code;
   async function bind(grantId){
     setError('');
     const result=await run('bind-purchase',{grantId});
@@ -77,7 +81,8 @@ export function ProvisionedPurchases({state,run,busy=false}){
       {grants.length?<ul className="mt-4 min-w-0 space-y-3">{rows.map(grant=><Grant key={grant.grantId} grant={grant} busy={busy} confirming={confirming===grant.grantId} onAsk={id=>{setError('');setConfirming(id);}} onCancel={()=>setConfirming(null)} onBind={bind}/>)}</ul>:<p className="mt-4 text-sm leading-6 text-slate-600">Nothing is provisioned here yet. An operator has to attach a captured payment to this workspace before it can appear.</p>}
       {bound&&<section className="mt-4 min-w-0 rounded-md border border-teal-200 bg-teal-50 p-4" aria-label="Recorded binding">
         <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-teal-900">Recorded</p>
-        <h4 className="mt-1 break-words text-base font-semibold text-teal-950">{bound.order} · {statusLabel(bound.status?.code)}</h4>
+        <h4 className="mt-1 break-words text-base font-semibold text-teal-950">{bound.order} · {statusLabel(recordedStatus)}</h4>
+        {!recordedClaim&&<p className="mt-1 text-[11px] leading-4 text-teal-900">Status recorded at binding. Refresh claims to see the claim’s current state.</p>}
         <p className="mt-1 text-sm leading-6 text-teal-950">Affected item amount {amount(bound.amountCents)}. The amount follows the capture the server read, so it is not a fixed item price or a refund approval.</p>
         <p className="mt-2 break-words text-xs leading-5 text-teal-900">Binding is recorded evidence for this claim. It is not a refund or an approval: refunding still needs the usual evidence review.</p>
         <Provenance value={bound.purchaseProvenance}/>

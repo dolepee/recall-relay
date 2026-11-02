@@ -55,18 +55,26 @@ const claimView=()=>({id:'claim-1',order:'RR-0001',amountCents:3375,currency:'US
 
 // Every request other than the bind is answered by the real desk, so the panel renders inside
 // the same workspace the merchant actually sees.
-async function mountDesk({purchases,bind,stateClaim}={}){
+async function mountDesk({purchases,bind,stateClaim,stateFailsAfterBind=false}={}){
   const desk=new ClaimDesk({path:':memory:',provider:noPayment});
   const posts=[];
+  let bindRecorded=false;
   globalThis.fetch=async(path,options={})=>{
     if(path==='/api/merchant/state'){
-      const state=desk.merchantState();
-      return new Response(JSON.stringify({...state,workspaceId:'ws-4f21c9',...(purchases===undefined?{}:{provisionedPurchases:purchases}),...(stateClaim?{cases:[stateClaim,...state.cases]}:{})}));
+      // A failed follow-up refresh must not be mistaken for a failed bind.
+      if(stateFailsAfterBind&&bindRecorded)return new Response(JSON.stringify({error:'The desk is temporarily unavailable.'}),{status:503});
+      const state={...desk.merchantState(),workspaceId:'ws-4f21c9'};
+      if(purchases===undefined)delete state.provisionedPurchases;else state.provisionedPurchases=purchases;
+      const claim=typeof stateClaim==='function'?stateClaim():stateClaim;
+      if(claim)state.cases=[claim,...state.cases];
+      return new Response(JSON.stringify(state));
     }
     assert.equal(path,'/api/merchant/bind-purchase');
     assert.equal(options.method,'POST');
     posts.push(JSON.parse(options.body));
-    return bind?bind(JSON.parse(options.body)):new Response(JSON.stringify(claimView()));
+    const response=bind?bind(JSON.parse(options.body)):new Response(JSON.stringify(claimView()));
+    if(response.ok)bindRecorded=true;
+    return response;
   };
   const unmount=await render(React.createElement(MerchantDesk),()=>button('Refresh claims'));
   const panel=()=>[...document.querySelectorAll('details')].find(node=>node.getAttribute('aria-label')==='Provisioned purchases');
@@ -158,4 +166,38 @@ test('a refresh derives an already-bound grant from the claim provenance, not co
   const node=panel();
   assert.match(text(node),/Bound to RR-0001/,'the server claim marks the grant as allocated');
   assert.equal(button('Bind purchase'),undefined,'a server-bound grant offers no second binding');
+});
+
+test('a recorded bind survives a failed follow-up refresh',async()=>{
+  const {panel,posts}=await mountDesk({purchases:[grant()],stateFailsAfterBind:true});
+  const node=panel();
+  await act(async()=>{button('Bind purchase').click();await tick();});
+  await act(async()=>{button('Bind and record').click();await tick();});
+  await settle(()=>node.querySelector('[aria-label="Recorded binding"]'));
+  assert.equal(posts.length,1,'the bind was sent once');
+  const recorded=node.querySelector('[aria-label="Recorded binding"]');
+  assert(recorded,'the confirmed server answer is kept even when the desk cannot refresh');
+  assert.match(text(recorded),/RR-0001/);
+  assert.match(text(recorded),/With the merchant/);
+  assert.match(text(recorded),/Status recorded at binding/,'the unmatched status is labelled as binding-time rather than current');
+  assert.doesNotMatch(text(node),/outcome could not be confirmed/,'a successful bind is not reported as unconfirmed');
+  assert.match(text(node),/binding was recorded, but the desk could not refresh/);
+  assert.equal(button('Bind purchase'),undefined,'a recorded bind does not invite a duplicate attempt');
+});
+
+test('the recorded heading follows the refreshed claim status after a later decision',async()=>{
+  let status='SUBMITTED';
+  const deskClaim=()=>({id:'claim-1',order:'RR-0001',campaign:{title:'Fictional cup',notice:'Local fixture',sourceUrl:'https://example.invalid',product:'Fictional cup',sku:'CUP-01',lot:'LOT-A',coverage:[],fields:[]},amountCents:3375,currency:'USD',status:{code:status,reason:'Current desk status.'},missing:[],revision:2,correction:null,submittedAt:'2026-11-02T00:00:00Z',submission:{lot:'LOT-A',acknowledged:true,hasPhoto:false,extra:{}},locked:false,receipt:null,plan:{status:'REVIEW',reason:'Evidence review required.'},review:null,payment:null,claimUrl:'/claim?claim=claim-1#fixture',purchaseProvenance:{...claimView().purchaseProvenance,grantId:'GRANT-0000000001'}});
+  const {panel}=await mountDesk({
+    purchases:[grant()],
+    stateClaim:deskClaim,
+    bind:()=>{status='COMPLETED';return new Response(JSON.stringify(claimView()));}
+  });
+  const node=panel();
+  await act(async()=>{button('Bind purchase').click();await tick();});
+  await act(async()=>{button('Bind and record').click();await tick();});
+  await settle(()=>node.querySelector('[aria-label="Recorded binding"]'));
+  const recorded=node.querySelector('[aria-label="Recorded binding"]');
+  assert.match(text(recorded),/RR-0001 · Refund confirmed/,'the refreshed claim status wins over the bind-time status');
+  assert.doesNotMatch(text(recorded),/With the merchant/);
 });

@@ -51,7 +51,7 @@ afterEach(async()=>{for(const unmount of mounted.splice(0))await unmount();docum
 
 const noPayment=async()=>{throw new Error('No payment calls permitted');};
 const grant=(overrides={})=>({grantId:'GRANT-0000000001',sku:'CUP-01',lot:'LOT-A',itemPaidCents:3875,captureCents:3875,operator:'operator@fixture.invalid',provisionedAt:'2026-11-01T09:15:00Z',catalogMapping:'OPERATOR_REVIEWED',...overrides});
-const claimView=()=>({id:'claim-1',order:'RR-0001',amountCents:3375,currency:'USD',status:{code:'SUBMITTED',reason:'Your claim is with the merchant for review.'},campaign:{product:'Fictional cup',sku:'CUP-01',lot:'LOT-A'}});
+const claimView=()=>({id:'claim-1',order:'RR-0001',amountCents:3375,currency:'USD',status:{code:'SUBMITTED',reason:'Your claim is with the merchant for review.'},campaign:{product:'Fictional cup',sku:'CUP-01',lot:'LOT-A'},purchaseProvenance:{kind:'OPERATOR_PROVISIONED',operator:'operator@fixture.invalid',provisionedAt:'2026-11-01T09:15:00Z',catalogMapping:'OPERATOR_REVIEWED',providerVerifiedAt:'2026-11-02T17:40:00Z',orderId:'ORDER-SHOULD-NOT-RENDER',grantDigest:'DIGEST-SHOULD-NOT-RENDER',itemOrdinal:7}});
 
 // Every request other than the bind is answered by the real desk, so the panel renders inside
 // the same workspace the merchant actually sees.
@@ -116,6 +116,14 @@ test('a recorded binding reports the claim and refuses to read as a refund',asyn
   assert.match(text(recorded),/RR-0001/);
   assert.match(text(recorded),/\$33\.75/,'the recorded amount is the capture amount the server returned, not the item price');
   assert.match(text(recorded),/not a refund or an approval/);
+  const provenance=recorded.querySelector('[aria-label="Purchase provenance"]');
+  assert(provenance,'the returned purchase provenance is rendered');
+  assert.match(text(provenance),/Operator-provisioned/);
+  assert.match(text(provenance),/operator@fixture\.invalid/);
+  assert.match(text(provenance),/Operator-reviewed mapping/);
+  assert.match(text(provenance),/Provider readback at binding/);
+  assert.match(text(provenance),/does not verify the lot/);
+  assert.doesNotMatch(text(provenance),/ORDER-SHOULD-NOT-RENDER|DIGEST-SHOULD-NOT-RENDER|item ordinal/i);
   assert.match(text(node),/Bound to RR-0001/,'the grant is marked as allocated');
   assert.equal(button('Bind purchase'),undefined,'an allocated grant offers no second binding');
 });

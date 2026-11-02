@@ -12,6 +12,21 @@ const mappingLabel=value=>value==='OPERATOR_REVIEWED'?'Operator-reviewed mapping
 const stamp=value=>{if(!value)return 'time not recorded';const date=new Date(value);return Number.isNaN(date.getTime())?'time not recorded':`${date.toISOString().slice(0,16).replace('T',' ')} UTC`;};
 const boundOrder=grant=>typeof grant?.boundOrder==='string'?grant.boundOrder:typeof grant?.claimOrder==='string'?grant.claimOrder:null;
 const statusLabel=code=>titles[code]||(code?String(code).replaceAll('_',' ').toLowerCase():'Recorded');
+const kindLabel=value=>value==='OPERATOR_PROVISIONED'?'Operator-provisioned':(value?String(value).replaceAll('_',' ').toLowerCase():'Kind not recorded');
+function Provenance({value}){
+  if(!value||typeof value!=='object')return null;
+  return <div className="mt-3 min-w-0 border-t border-teal-200 pt-3" aria-label="Purchase provenance">
+    <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-teal-900">Purchase provenance</p>
+    <dl className="mt-2 grid gap-1 text-[11px] leading-4 text-teal-950 sm:grid-cols-2">
+      <div><dt className="inline text-teal-800">Kind: </dt><dd className="inline font-medium">{kindLabel(value.kind)}</dd></div>
+      <div><dt className="inline text-teal-800">Operator: </dt><dd className="inline break-words font-medium">{value.operator||'Operator not recorded'}</dd></div>
+      <div><dt className="inline text-teal-800">Provisioned: </dt><dd className="inline font-medium">{stamp(value.provisionedAt)}</dd></div>
+      <div><dt className="inline text-teal-800">Catalog mapping: </dt><dd className="inline font-medium">{mappingLabel(value.catalogMapping)}</dd></div>
+      <div className="sm:col-span-2"><dt className="inline text-teal-800">Provider readback at binding: </dt><dd className="inline font-medium">{stamp(value.providerVerifiedAt)}</dd></div>
+    </dl>
+    <p className="mt-2 break-words text-[11px] leading-4 text-teal-900">Provider readback confirms the binding at that time. It does not verify the lot, item contents or source instructions.</p>
+  </div>;
+}
 
 function Grant({grant,busy,confirming,onAsk,onCancel,onBind}){
   const order=boundOrder(grant);
@@ -58,6 +73,7 @@ export function ProvisionedPurchases({state,run,busy=false}){
         <h4 className="mt-1 break-words text-base font-semibold text-teal-950">{bound.order} · {statusLabel(bound.status?.code)}</h4>
         <p className="mt-1 text-sm leading-6 text-teal-950">Refundable amount {amount(bound.amountCents)}. The amount follows the capture the server read, so it is not a fixed item price.</p>
         <p className="mt-2 break-words text-xs leading-5 text-teal-900">Binding is recorded evidence for this claim. It is not a refund or an approval: refunding still needs the usual evidence review.</p>
+        <Provenance value={bound.purchaseProvenance}/>
       </section>}
       <ErrorText error={error}/>
       <dl className="mt-4 grid gap-2 border-t border-slate-200 pt-3 text-[11px] leading-4 text-slate-500 sm:grid-cols-3" aria-label="Recorded and advisory values">

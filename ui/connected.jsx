@@ -7,6 +7,7 @@ import {Action,ErrorText,Status,Frame,Receipt,CorrectionNote,inputClass,money,ti
 import {beginActionFocus} from '../src/focus-guard.mjs';
 import {projectClaimState} from './connected-state.mjs';
 import {ImportPanel} from './import-panel.jsx';
+import {ProvisionedPurchases} from './provisioned-panel.jsx';
 // The recorded workflow states are authored for the customer's private claim page, and the
 // merchant desk reuses them. Only the customer-directed wording is re-expressed here for the
 // merchant: audience-neutral text, and any dynamic reason such as a manual policy outcome,
@@ -151,7 +152,14 @@ export function MerchantDesk(){
     const reference=caseAction?state?.cases.find(item=>item.id===data?.id)?.order:null;
     setBusy(true);setError(null);setNotice(null);
     try{
-      const result=await api(`merchant/${action}`,data);await refresh();
+      const result=await api(`merchant/${action}`,data);
+      try{await refresh();}
+      catch(refreshError){
+        // A durable bind is already recorded server-side. Losing the follow-up refresh must not
+        // discard the confirmed answer and invite the merchant to bind the same capture again.
+        if(action!=='bind-purchase')throw refreshError;
+        setError({scope:'workspace',message:'The binding was recorded, but the desk could not refresh. Use Refresh claims to load the recorded claim.'});
+      }
       if(caseAction&&!casesForView([result],view).length){
         const nextView=result.status.code==='READY_FOR_APPROVAL'?'READY':result.status.code==='COMPLETED'?'COMPLETED':['AWAITING_CUSTOMER','NEEDS_INFORMATION'].includes(result.status.code)?'WAITING':['SUBMITTED','REVIEW'].includes(result.status.code)?'REVIEW':['UNKNOWN','PENDING','RESERVED','FAILED','CANCELLED'].includes(result.status.code)?'PAYMENT':'MANUAL';
         const outcome=action==='request-changes'?'Update requested. This claim is now waiting for the customer.':action==='review'?'Evidence review saved. This claim is ready for merchant approval.':merchantReason(result.status.reason);
@@ -191,6 +199,7 @@ export function MerchantDesk(){
       {state.cases.length===0&&!state.campaign.scenario&&<section aria-label="Start your first claim form" className="rr-card mb-6 p-6 sm:p-8"><h2 className="text-xl font-semibold text-balance">From a notice to a resolved claim.</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Prepare the requirements once, then keep each customer’s evidence and refund together.</p><ol className="my-6 grid gap-4 text-sm sm:grid-cols-3"><li><strong className="block">Prepare instructions</strong><span className="mt-1 block leading-6 text-slate-600">Import a notice and review its source-linked fields.</span></li><li><strong className="block">Collect evidence</strong><span className="mt-1 block leading-6 text-slate-600">Connect a verified test purchase and share its private claim page.</span></li><li><strong className="block">Review and resolve</strong><span className="mt-1 block leading-6 text-slate-600">Request corrections or approve the exact item refund.</span></li></ol><a href="/setup" className="rr-action rr-action--primary inline-flex min-h-11 items-center justify-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">Prepare claim instructions</a></section>}
       <div className={`mb-4 grid items-start gap-3 ${state.published?'md:grid-cols-2':''}`}><details className="rr-card px-5" open={!state.published&&!!state.campaign.scenario}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-2 py-3 text-sm focus-visible:outline-2 focus-visible:outline-teal-700"><span className="font-semibold">{state.campaign.scenario?state.campaign.title:'Fictional practice campaign'}</span><span className="text-xs text-slate-600">{state.published?'Published instructions':'Not published'}</span></summary><div className="border-t border-slate-100 py-4"><p className="max-w-3xl text-sm leading-6 text-slate-600">{state.campaign.notice}</p><a href={state.campaign.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-teal-800 underline">Read the source instructions</a>{!state.published&&<><label className="mt-3 flex min-h-11 items-start gap-3 py-3 text-sm leading-6"><input type="checkbox" checked={reviewed} onChange={e=>setReviewed(e.target.checked)} className="mt-1 size-5 shrink-0 accent-teal-700 focus-visible:outline-2 focus-visible:outline-teal-700"/>I reviewed this fictional product, lot and refund remedy. Customer evidence requires a separate review.</label><Action disabled={busy||!reviewed} onClick={()=>run('publish',{confirmed:true})}>Publish sandbox claim campaign</Action></>}</div></details>
       {state.published&&<PurchasePanel state={state} run={run} busy={busy}/>}</div>
+      <ProvisionedPurchases state={state} run={run} busy={busy}/>
       <ImportPanel/>
       {state.cases.length?<>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><label className="text-sm font-medium">Case view<select ref={viewSelect} className="ml-3 min-h-11 rounded-md border border-slate-300 bg-white px-3" value={view} onChange={e=>setView(e.target.value)}>{Object.entries(views).map(([value,label])=><option key={value} value={value}>{label} ({casesForView(state.cases,value).length})</option>)}</select></label><div className="flex flex-wrap items-center gap-3">{wide&&<><Action secondary ref={guideToggle} aria-expanded={guideOpen} onClick={()=>setGuideOpen(open=>!open)}>Claim guide</Action><Action secondary aria-pressed={customize} onClick={()=>setCustomize(value=>!value)}>{customize?'Finish arranging':'Arrange workspace'}</Action></>}<span className="text-xs tabular-nums text-slate-500">{state.cases.length} {state.cases.length===1?'claim':'claims'}</span></div></div>

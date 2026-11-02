@@ -50,3 +50,15 @@ test('the receipt promises only what the product receipt exposes',async()=>{
   // Footer sits on light paper, so it must keep the default focus outline.
   assert.doesNotMatch(html,/\.foot :focus-visible/);
 });
+
+test('the landing page offers the simulated practice claim beside, not instead of, the sandbox desk',async()=>{
+  const html=await readFile(landing,'utf8');
+  assert.match(html,/href="\/practice"/);
+  assert.match(html,/Try a practice claim/);
+  assert.match(html,/practice simulated, no PayPal account needed/);
+  assert.match(html,/simulated practice claim — no PayPal account needed/);
+  // The connected sandbox desk keeps its existing entry points.
+  assert.match(html,/href="\/desk"/);
+  assert.match(html,/Open the sandbox desk/);
+  assert.doesNotMatch(html,/Practice claim only/i);
+});

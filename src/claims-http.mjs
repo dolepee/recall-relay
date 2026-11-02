@@ -1,3 +1,4 @@
+import {caseContext,caseAdvisory} from './case-advisory.mjs';
 import {assistCases} from './source-workspace.mjs';
 
 export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
@@ -24,6 +25,8 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
         if(req.method!=='POST'){json(res,405,{error:'Use the action button to continue.'});return true;}
         const input=await body(req);
         const actions={
+          '/api/merchant/case-context':()=>caseContext(desk,input),
+          '/api/merchant/case-advisory':()=>caseAdvisory(ai,desk,input),
           '/api/merchant/import-preview':()=>desk.previewLedger(input),
           '/api/merchant/bind-purchase':()=>desk.bindPurchase(input),
           '/api/merchant/publish':()=>desk.publish(input.confirmed),

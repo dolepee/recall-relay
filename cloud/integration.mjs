@@ -75,6 +75,16 @@ try{
   const checkout=await action('checkout',{});assert.equal(checkout.status,200,JSON.stringify(checkout));
   const bound=await action('capture',{id:checkout.value.id});assert.equal(bound.status,200,JSON.stringify(bound));
   const url=new URL(bound.value.claimUrl,origin),token=url.hash.slice(1),query=url.search;
+  const caseInput={caseId:bound.value.id,revision:0};
+  const context=await action('case-context',{...caseInput,section:'brief'});
+  assert.equal(context.status,200);assert.equal(context.value.readOnly,true);
+  assert.equal(JSON.stringify(context.value).includes(token),false);
+  assert.equal((await call('/api/merchant/case-context',{cookie:bob,body:{...caseInput,section:'source'}})).status,400);
+  assert.equal((await call('/api/merchant/case-context',{authorization:'Bearer '+token,body:{...caseInput,section:'gaps'}})).status,400);
+  assert.equal((await action('case-context',{...caseInput,revision:99,section:'gaps'})).value.reason,'STALE_REVISION');
+  assert.equal((await action('case-advisory',caseInput)).value.status,'INSUFFICIENT');
+  assert.equal(refundPosts,0);
+
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+token})).status,200);
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+'x'.repeat(43)})).status,401);
   const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWMAgv8AAQQBAP8H9UQAAAAASUVORK5CYII=';

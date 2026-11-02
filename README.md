@@ -139,16 +139,22 @@ The local server does not fall back to hosted inference.
    number such as `27-026`, inspect the complete notice, and review its remedy.
 2. Draft source-linked fields with AI or add an exact source
    sentence manually. Correct omissions and conditions before saving the
-   reviewed instructions. AI suggestions are not authoritative.
+   reviewed instructions. Every remedy sentence gets a disposition: a field
+   link, an information/manual note with a reason, or an unresolved marker.
+   AI suggestions are not authoritative.
 3. Preview and publish a **sandbox scenario** with an explicit test SKU and lot.
-   Only the supported original-payment remedy can use this settlement path.
+   Unresolved or manual coverage entries block publication of a connected
+   form; only the supported original-payment remedy can use this settlement
+   path.
 4. In the desk, create a Sandbox purchase: a $25.99 scenario item plus an
    unaffected $34 item. Approve the $59.99 purchase as the Sandbox buyer, then
    use **Verify approved purchase** for that same order. Do not create another
    order merely because approval or capture is pending.
-5. Open the private customer link. Submit a disposable PNG/JPEG image under
-   2 MB, the test lot, purchase confirmation and the required scenario responses.
-   Missing information can be saved and completed later.
+5. Open the private customer link. Submit a disposable image, the test lot,
+   purchase confirmation and the required scenario responses. The image must
+   be a valid decoded JPEG or non-interlaced 8-bit PNG, at most 2 MB, 4
+   megapixels and 4,096 pixels per side. Missing information can be saved and
+   completed later.
 6. Return to the merchant desk, refresh and inspect the submitted evidence.
    If it needs correction, ask for an update with a specific message and,
    optionally, a required replacement photo. The customer responds on the same
@@ -184,11 +190,16 @@ authorized endpoint. Evidence confirmation stays disabled until it displays.
   dispatch for that claim. Ambiguous provider responses stay unresolved.
 - If a refund reference survives, **Check PayPal status** reconciles it without
   sending another refund. A lost response without a reference requires manual
-  reconciliation. Do not retry through a new case. This does not claim
-  provider-wide exactly-once delivery.
+  reconciliation. A refund reported as failed or cancelled stays in manual
+  reconciliation; there is no automatic resend or replacement refund. Do not
+  retry through a new case. This does not claim provider-wide exactly-once
+  delivery.
+- Images are decoded under fixed bounds before they count as evidence: JPEG or
+  non-interlaced 8-bit PNG only, up to 2 MB, 4,000,000 pixels and 4,096 pixels
+  per side. Decoding does not prove authenticity, ownership, safety or disposal;
+  human evidence review remains.
 - The adapter has a fixed Sandbox origin. Unsupported, changed or conservatively
-  older-than-180-day purchases remain manual. Image validation does not prove
-  authenticity, ownership, safety or disposal. Human evidence review remains.
+  older-than-180-day purchases remain manual.
 - Local merchant launch links and hosted browser sessions use different
   authentication boundaries. Neither is production multi-merchant onboarding.
 

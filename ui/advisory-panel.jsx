@@ -18,7 +18,7 @@ const actorLabel={CUSTOMER:'Customer',MERCHANT:'Merchant',MANUFACTURER:'Manufact
 const timingLabel={BEFORE_ACTION:'Before the action',AFTER_ACTION:'After the action',AT_SUBMISSION:'At submission',CONDITIONAL:'Conditional',UNSPECIFIED:'See source for timing'};
 const dispositionLabel={FIELD:'Field link',INFORMATION:'Information',MANUAL:'Manual',UNRESOLVED:'Unresolved'};
 const clean=value=>typeof value==='string'?value.trim():'';
-const readError=message=>/unknown action|not found|not available|unsupported/i.test(message||'')?'The advisory service is not available for this workspace yet. The recorded brief remains available.':message;
+const readError=message=>/failed to fetch|load failed|networkerror|network request failed/i.test(message||'')?'The advisory could not be loaded. Check your connection and try again, or continue with the quoted source and recorded case facts. This request cannot approve evidence or send a refund.':/unknown action|not found|not available|unsupported/i.test(message||'')?'The advisory service is not available for this workspace yet. The recorded brief remains available.':message;
 const stableValue=value=>{
   if(Array.isArray(value))return value.map(stableValue);
   if(value&&typeof value==='object'){

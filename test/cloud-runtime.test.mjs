@@ -214,3 +214,26 @@ test('a dispatched generation is never refunded: failed and unusable output stay
   assert.equal((await open.availability()).available,true);
   sqlite.close();
 });
+
+
+test('hosted AI deadline returns manual recovery, consumes admission and ignores late output',async()=>{
+  let finish,calls=0,reservations=0;
+  const pending=new Promise(resolve=>{finish=resolve;});
+  const ai=new HostedAI({run(){calls++;return pending;}},async()=>{reservations++;},true,{timeoutMs:10});
+  const request=ai.generate('System',{clauses:[]},{advisory:true});
+  await assert.rejects(request,/took too long.*No suggestion was applied.*quoted source manually/);
+  assert.equal(calls,1);assert.equal(reservations,1);
+  finish({response:'late output'});
+  await assert.rejects(request,/took too long/);
+  assert.equal(calls,1);assert.equal(reservations,1);
+});
+
+test('hosted AI clears deadline on success and handles a late provider rejection',async()=>{
+  const fast=new HostedAI({async run(){return {response:'on time'};}},async()=>{},true,{timeoutMs:20});
+  assert.equal(await fast.generate('System',{}),'on time');
+  let rejectProvider;
+  const late=new HostedAI({run(){return new Promise((_,reject)=>{rejectProvider=reject;});}},async()=>{},true,{timeoutMs:10});
+  await assert.rejects(late.generate('System',{}),/took too long/);
+  rejectProvider(new Error('late failure'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+});

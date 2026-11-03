@@ -16,9 +16,9 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 
 /* Merchant shell: the landing palette, scoped so /claim and /practice stay unchanged. */
 .merchant-shell{
-  --m-paper:#F4F0E6;--m-paper-2:#EAE4D6;--m-card:#FFFCF5;--m-ink:#0B1114;--m-ink-2:#384246;--m-ink-3:#5E686B;
-  --m-rule:rgba(11,17,20,.17);--m-rule-2:rgba(11,17,20,.34);--m-cobalt:#1B3FD8;--m-cobalt-d:#152FA6;
-  --m-ok:#0B6A3C;--m-ok-bg:#E9F4ED;--m-ok-line:#A8D5BB;--m-warn:#7A4A00;--m-warn-bg:#FBF0D9;--m-warn-line:#D9BC85;
+  --m-paper:#FFFFFF;--m-paper-2:#F3F6F9;--m-card:#FFFFFF;--m-ink:#0B1B2B;--m-ink-2:#33475B;--m-ink-3:#5B6B7A;
+  --m-rule:rgba(11,27,43,.17);--m-rule-2:rgba(11,27,43,.34);--m-cobalt:#1F5EFF;--m-cobalt-d:#1745C9;
+  --m-ok:#0B6A3C;--m-ok-bg:#E9F6EF;--m-ok-line:#A8D5BB;--m-warn:#7A4B00;--m-warn-bg:#FFF4D6;--m-warn-line:#E3C27A;
   --m-danger:#A3231A;--m-danger-bg:#FBEAE7;--m-danger-line:#D9A39B;
   --m-display:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif;
   --m-text:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -63,7 +63,7 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 /* merchant colour mapping; scoped to the merchant shell only */
 .merchant-shell .bg-white{background-color:var(--m-card)}
 .merchant-shell .bg-slate-50{background-color:var(--m-paper-2)}
-.merchant-shell .bg-slate-100{background-color:#E8E0D0}
+.merchant-shell .bg-slate-100{background-color:#E9EEF2}
 .merchant-shell .border-slate-100,.merchant-shell .border-slate-200{border-color:var(--m-rule)}
 .merchant-shell .border-slate-300{border-color:var(--m-rule-2)}
 .merchant-shell .text-slate-900,.merchant-shell .text-slate-800{color:var(--m-ink)}
@@ -71,10 +71,10 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .merchant-shell .text-slate-600,.merchant-shell .text-slate-500{color:var(--m-ink-3)}
 .merchant-shell .bg-teal-700{background-color:var(--m-cobalt)}
 .merchant-shell .bg-teal-800{background-color:var(--m-cobalt-d)}
-.merchant-shell .bg-teal-50{background-color:#EEF1FC}
+.merchant-shell .bg-teal-50{background-color:#EEF4FF}
 .merchant-shell .text-teal-950,.merchant-shell .text-teal-900{color:var(--m-ink)}
 .merchant-shell .text-teal-800,.merchant-shell .text-teal-700{color:var(--m-cobalt)}
-.merchant-shell .border-teal-200{border-color:#C9D2F7}
+.merchant-shell .border-teal-200{border-color:#C9D9FF}
 .merchant-shell .border-teal-600{border-color:var(--m-cobalt)}
 .merchant-shell .accent-teal-700{accent-color:var(--m-cobalt)}
 .merchant-shell .rounded-lg,.merchant-shell .rounded-md,.merchant-shell .rounded{border-radius:2px}
@@ -102,7 +102,8 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 .merchant-shell .rr-receipt .text-teal-800,.merchant-shell .rr-receipt .text-teal-900,.merchant-shell .rr-receipt .text-teal-950{color:var(--m-ok)}
 .merchant-shell .rr-status{border:1px solid var(--m-rule);background:transparent;color:var(--m-ink-2);border-radius:2px;font:600 10px/1.3 var(--m-mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px}
 .merchant-shell .rr-status[data-code="COMPLETED"]{border-color:var(--m-ok-line);background:var(--m-ok-bg);color:var(--m-ok)}
-.merchant-shell .rr-status[data-code="READY_FOR_APPROVAL"],.merchant-shell .rr-status[data-code="CANDIDATE"]{border-color:#C9D2F7;background:#EEF1FC;color:var(--m-cobalt)}
+.merchant-shell .rr-status[data-simulated="true"][data-code="COMPLETED"]{border-color:#C9D9FF;background:#EEF4FF;color:var(--m-cobalt)}
+.merchant-shell .rr-status[data-code="READY_FOR_APPROVAL"],.merchant-shell .rr-status[data-code="CANDIDATE"]{border-color:#C9D9FF;background:#EEF4FF;color:var(--m-cobalt)}
 .merchant-shell .rr-status[data-code="AWAITING_CUSTOMER"],.merchant-shell .rr-status[data-code="NEEDS_INFORMATION"],.merchant-shell .rr-status[data-code="MANUAL"],.merchant-shell .rr-status[data-code="PAYMENT"]{border-color:var(--m-warn-line);background:var(--m-warn-bg);color:var(--m-warn)}
 .merchant-shell .rr-status[data-code="FAILED"],.merchant-shell .rr-status[data-code="CANCELLED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}
 .merchant-shell .rr-status[data-code="UNRESOLVED"]{border-color:var(--m-danger-line);background:var(--m-danger-bg);color:var(--m-danger)}
@@ -147,14 +148,14 @@ header nav a[aria-current="page"] { color: #0f766e; text-decoration: underline; 
 
 /* AlertDialog portals outside .merchant-shell. Theme only this portal popup,
    leaving customer and practice dialogs untouched. */
-.rr-dialog-backdrop{background:rgba(11,17,20,.48)}
+.rr-dialog-backdrop{background:rgba(11,27,43,.48)}
 .rr-dialog{
-  --m-paper:#F4F0E6;--m-card:#FFFCF5;--m-ink:#0B1114;--m-ink-2:#384246;--m-ink-3:#5E686B;
-  --m-rule:rgba(11,17,20,.17);--m-rule-2:rgba(11,17,20,.34);--m-cobalt:#1B3FD8;--m-cobalt-d:#152FA6;
+  --m-paper:#FFFFFF;--m-card:#FFFFFF;--m-ink:#0B1B2B;--m-ink-2:#33475B;--m-ink-3:#5B6B7A;
+  --m-rule:rgba(11,27,43,.17);--m-rule-2:rgba(11,27,43,.34);--m-cobalt:#1F5EFF;--m-cobalt-d:#1745C9;
   --m-display:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif;
   --m-text:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
   background:var(--m-card);color:var(--m-ink);border:1px solid var(--m-rule-2);border-radius:2px;
-  font-family:var(--m-text);box-shadow:0 20px 60px rgba(11,17,20,.18)
+  font-family:var(--m-text);box-shadow:0 20px 60px rgba(11,27,43,.18)
 }
 .rr-dialog h2{font-family:var(--m-display);font-weight:800;letter-spacing:-.03em;color:var(--m-ink)}
 .rr-dialog p{color:var(--m-ink-3)}

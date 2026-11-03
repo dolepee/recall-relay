@@ -4,7 +4,7 @@ import {Action,ErrorText,Frame,CorrectionNote,money,inputClass,api,cn} from './c
 
 const kindLabel={PHOTO:'Photograph',CONFIRMATION:'Confirmation',TEXT:'Written information'};
 const practiceTitles={AWAITING_CUSTOMER:'Waiting for the claim',NEEDS_INFORMATION:'More information needed',SUBMITTED:'With the merchant',MANUAL:'Manual review needed',REVIEW:'Needs review',READY_FOR_APPROVAL:'Ready for simulated refund',RESERVED:'Simulated refund prepared',UNKNOWN:'Simulated refund needs attention',PENDING:'Simulated refund processing',COMPLETED:'Simulated refund recorded',FAILED:'Simulated refund needs attention',CANCELLED:'Simulated refund needs attention'};
-function PracticeStatus({code}){return <span className={cn('inline-flex rounded px-2 py-1 text-xs font-semibold',code==='COMPLETED'||code==='READY_FOR_APPROVAL'?'bg-teal-50 text-teal-800':'bg-slate-100 text-slate-700')}>{practiceTitles[code]||code}</span>;}
+function PracticeStatus({code}){return <span data-code={code} data-simulated="true" className="rr-status">{practiceTitles[code]||code}</span>;}
 
 function StageBar({value}){
   const c=value?.case||{};

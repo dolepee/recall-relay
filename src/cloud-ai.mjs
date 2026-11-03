@@ -1,7 +1,8 @@
 export const advisoryModel='@cf/openai/gpt-oss-120b';
 export const hostedModel='@cf/qwen/qwen3-30b-a3b-fp8';
+export const inferenceTimeoutMs=45000;
 export class HostedAI {
-  constructor(binding,reserve,enabled,{allowance}={}){this.binding=binding;this.reserve=reserve;this.enabled=enabled;this.allowance=allowance;}
+  constructor(binding,reserve,enabled,{allowance,timeoutMs=inferenceTimeoutMs}={}){this.binding=binding;this.reserve=reserve;this.enabled=enabled;this.allowance=allowance;this.timeoutMs=Number.isFinite(timeoutMs)&&timeoutMs>0?Math.min(timeoutMs,inferenceTimeoutMs):inferenceTimeoutMs;}
   advisoryStatus(){return {...this.status(),model:'gpt-oss-120b · Cloudflare Workers AI'};}
   status(){return {available:!!this.binding&&this.enabled,model:'Qwen3-30B · Cloudflare Workers AI',scope:'Server inference; suggestions require merchant review.'};}
   // Availability is reported from the counters, not from configuration alone, so the interface cannot
@@ -22,9 +23,13 @@ export class HostedAI {
     const data=JSON.stringify(input);
     if(system.length+data.length>12000)throw new Error('This source is too long for the current AI draft. Review its requirements manually.');
     const admission=await this.reserve();
-    let result;
-    try{result=await this.binding.run(advisory?advisoryModel:hostedModel,{messages:[{role:'system',content:system},{role:'user',content:advisory?data:data+'\n/no_think'}],max_tokens:Math.min(advisory?3500:900,Math.max(1,maxTokens)),temperature:0,stream:false,response_format:{type:'json_object'}});}
-    catch{throw new Error('The AI service could not complete this request. No suggestion or payment was applied.');}
+    let result,timer;
+    const timeoutError=new Error('The AI request took too long. No suggestion was applied. Review the quoted source manually, or try again later.');
+    // The deadline bounds our response, not provider execution or billing. Keep the
+    // admission consumed and never apply a late result or retry automatically.
+    try{result=await Promise.race([this.binding.run(advisory?advisoryModel:hostedModel,{messages:[{role:'system',content:system},{role:'user',content:advisory?data:data+'\n/no_think'}],max_tokens:Math.min(advisory?3500:900,Math.max(1,maxTokens)),temperature:0,stream:false,response_format:{type:'json_object'}}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(timeoutError),this.timeoutMs);})]);}
+    catch(error){if(error===timeoutError)throw error;throw new Error('The AI service could not complete this request. No suggestion or payment was applied. Review the quoted source manually, or try again later.');}
+    finally{clearTimeout(timer);}
     let text=[result?.choices?.[0]?.message?.content,result?.response,Array.isArray(result?.output)?result.output.flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):undefined].find(value=>typeof value==='string');
     if(typeof text!=='string'||text.length>18000){
       const finish=result?.choices?.[0]?.finish_reason;

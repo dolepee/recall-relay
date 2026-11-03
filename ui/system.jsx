@@ -80,7 +80,7 @@ export function AppShell({children, strip, note, current = '/practice'}) {
           <a className="rr-lockup" href="/" aria-label="Recall Relay, home">
             <RelayMark />
             <span>
-              <span className="rr-lockup__name">Recall<i>Relay</i></span>
+              <span className="rr-lockup__name">Recall <i>Relay</i></span>
               <span className="rr-lockup__sub">Recall resolution</span>
             </span>
           </a>

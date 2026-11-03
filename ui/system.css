@@ -69,6 +69,7 @@
 .rr-stage[aria-current="step"] .rr-stage__mark{border-color:var(--rr-action);background:var(--rr-action);color:#fff}
 .rr-stage[data-done="true"]{color:var(--rr-success)}
 .rr-stage[data-done="true"] .rr-stage__mark{border-color:var(--rr-success);background:var(--rr-success);color:#fff}
+.rr-stage[data-done="true"] .rr-stage__line{background:var(--rr-success)}
 @media (max-width:560px){
   .rr-stages{gap:6px}
   .rr-stage{font-size:12px;gap:6px}
@@ -187,9 +188,11 @@
 .rr-app #claim-heading:focus{outline:none;box-shadow:inset 3px 0 0 var(--rr-action);padding-left:10px;margin-left:-13px}
 
 /* Practice surface composition */
-.rr-page-head{max-width:760px}
+.rr-page-head{max-width:820px}
+.rr-page-head h1{font-size:clamp(2rem,3.2vw,2.6rem)}
 .rr-handoff-head{align-items:flex-start}
-.rr-handoff-head h2{font-size:2rem;line-height:1.1}
+.rr-handoff-head>div{flex:1 1 260px;min-width:0}
+.rr-handoff-head h2{font-size:2.15rem;line-height:1.08}
 .rr-card__head h2{font-size:1.55rem;line-height:1.18}
 .rr-handoff-head .rr-btn{flex:none}
 .rr-divider{height:1px;background:var(--rr-border);margin:18px 0}
@@ -200,7 +203,7 @@
 .rr-review-row__body{display:grid;gap:2px;min-width:0;flex:1}
 .rr-review-row__body strong{font-size:15px;font-weight:600}
 .rr-review-row__body span{color:var(--rr-ink-2);font-size:14px}
-.rr-review-thumb{width:96px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--rr-border);flex:none}
+.rr-review-thumb{width:132px;height:88px;object-fit:cover;border-radius:6px;border:1px solid var(--rr-border);flex:none}
 .rr-product{display:block;width:100%;aspect-ratio:2.1/1;object-fit:cover;border-radius:8px;border:1px solid var(--rr-border);margin-top:12px}
 .rr-amounts--tight>div{padding:9px 0;font-size:14px}
 .rr-note-box{margin-top:12px;border-radius:8px;background:#EDF1FE;color:#22399E;padding:10px 12px;font-size:13px;line-height:1.5}

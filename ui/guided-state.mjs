@@ -61,6 +61,16 @@ export function stage(value) {
   return value.role === 'merchant' ? 2 : 1;
 }
 
+// The progress track follows the claim, not the current viewer. Once the
+// customer submits complete evidence, Prepare claim is done and Review evidence
+// is the next stage even while the customer still sees the handoff card.
+export function progressStage(value) {
+  const c = value.case;
+  if (c.review || c.locked) return 3;
+  if (reviewable(value) || value.role === 'merchant') return 2;
+  return 1;
+}
+
 // The contextual handoff replaces a role toggle. Exactly one side is being
 // asked for something at a time; the label says what happens next.
 export function handoff(value) {

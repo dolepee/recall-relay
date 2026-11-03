@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
-import {approveLabel, canApprove, canConfirmReview, customerTask, evidenceState, evidenceTitle, handoff, merchantNextStep, refundFacts, reviewable, reviewedCurrent, stage, STAGES} from '../ui/guided-state.mjs';
+import {approveLabel, canApprove, canConfirmReview, customerTask, evidenceState, evidenceTitle, handoff, merchantNextStep, progressStage, refundFacts, reviewable, reviewedCurrent, stage, STAGES} from '../ui/guided-state.mjs';
 
 const scenario = {title: 'Practice notice · Relay Home cup', product: 'Relay Home cup (fictional)', sku: 'CUP-01', lot: 'LOT-A', notice: 'Practice exercise.', sourceLabel: 'Fictional practice notice', sourceNote: 'Written for this exercise.', requirements: [], totalCents: 5999, affectedCents: 2599, unaffectedCents: 3400};
 
@@ -31,6 +31,13 @@ test('the journey opens with the customer preparing the claim and advances by re
   assert.equal(stage({...submitted(), role: 'merchant'}), 2);
   assert.equal(stage(reviewed()), 3, 'a recorded review moves the flow to the refund decision');
   assert.equal(stage(view({case: {locked: true}})), 3);
+});
+
+test('the progress track advances on submitted evidence while the customer still sees the handoff', () => {
+  assert.equal(progressStage(view()), 1);
+  assert.equal(progressStage(submitted()), 2, 'submitted evidence makes Review evidence the next stage');
+  assert.equal(progressStage({...submitted(), role: 'merchant'}), 2);
+  assert.equal(progressStage(reviewed()), 3);
 });
 
 test('the handoff is contextual and only appears for the side that owes the next action', () => {

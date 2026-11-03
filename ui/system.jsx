@@ -56,13 +56,13 @@ export function ErrorText({error}) {
 export function StageTrack({current}) {
   return (
     <ol className="rr-stages" aria-label="Claim stages">
-      {STAGES.map(s => {
+      {STAGES.map((s, index) => {
         const done = s.id < current;
         return (
           <li key={s.id} className="rr-stage" aria-current={s.id === current ? 'step' : undefined} data-done={done ? 'true' : 'false'}>
-            <span className="rr-stage__n">{done ? 'Done' : `Stage ${s.id} of 3`}</span>
+            <span className="rr-stage__mark" aria-hidden="true">{done ? '✓' : s.id}</span>
             <span className="rr-stage__label">{s.label}</span>
-            <span className="rr-stage__detail">{s.detail}</span>
+            {index < STAGES.length - 1 && <span className="rr-stage__line" aria-hidden="true" />}
           </li>
         );
       })}
@@ -70,8 +70,8 @@ export function StageTrack({current}) {
   );
 }
 
-export function AppShell({children, strip, current = '/practice'}) {
-  const nav = [['Practice claim', '/practice'], ['How it works', '/#workflow'], ['Sandbox workspace', '/desk']];
+export function AppShell({children, strip, note, current = '/practice'}) {
+  const nav = [['Guided practice', '/practice'], ['How it works', '/#workflow']];
   return (
     <>
       <a className="rr-skip" href="#main">Skip to main content</a>
@@ -84,13 +84,21 @@ export function AppShell({children, strip, current = '/practice'}) {
               <span className="rr-lockup__sub">Recall resolution</span>
             </span>
           </a>
+          <span className="rr-header__badge">Practice</span>
           <nav className="rr-nav" aria-label="Product navigation">
             {nav.map(([label, href]) => (
               <a key={href} href={href} aria-current={href === current ? 'page' : undefined}>{label}</a>
             ))}
           </nav>
+          {(note || strip) && <p className="rr-header__note">{note || strip}</p>}
+          <details className="rr-mobile-menu">
+            <summary>Menu</summary>
+            <nav aria-label="Product navigation">
+              {nav.map(([label, href]) => <a key={href} href={href} aria-current={href === current ? 'page' : undefined}>{label}</a>)}
+              <a href="/desk">Sandbox workspace</a>
+            </nav>
+          </details>
         </div>
-        {strip && <div className="rr-header__inner" style={{minHeight: 0, paddingTop: 0, paddingBottom: 10}}><p className="rr-strip"><span className="rr-strip__dot" aria-hidden="true" />{strip}</p></div>}
       </header>
       <main className="rr-main" id="main">{children}</main>
     </>

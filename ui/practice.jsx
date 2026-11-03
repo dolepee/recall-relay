@@ -2,10 +2,9 @@ import React,{useEffect,useRef,useState} from 'react';
 import {AlertDialog} from '@base-ui/react/alert-dialog';
 import {api,money} from './components.jsx';
 import {AppShell,Badge,Button,Card,Callout,ErrorText,Field,StageTrack} from './system.jsx';
-import {approveLabel,canApprove,canConfirmReview,customerTask,evidenceState,evidenceTitle,handoff,merchantNextStep,refundFacts,reviewedCurrent,stage} from './guided-state.mjs';
+import {approveLabel,canApprove,canConfirmReview,customerTask,evidenceState,evidenceTitle,handoff,merchantNextStep,progressStage,refundFacts,reviewedCurrent,stage} from './guided-state.mjs';
 
 const kindLabel={PHOTO:'Photograph',CONFIRMATION:'Confirmation',TEXT:'Written information'};
-const stripText='Simulated practice case · fictional merchandise · no payment provider';
 
 function StatusBadge({value}){
   const code=value.case.status.code;
@@ -47,6 +46,51 @@ function Amounts({value,emphasis=true}){
   </dl>;
 }
 
+function ReviewIcon({kind}){
+  const paths={
+    photo:<><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="2"/><path d="m21 15-4.5-4.5L7 20"/></>,
+    lot:<><path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3"/><path d="M8 8v8m3-8v8m3-8v8m3-8v8"/></>,
+    note:<><path d="M4 4h16v12H8l-4 4z"/><path d="M8 8h8M8 12h6"/></>
+  };
+  return <svg className="rr-review-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true" focusable="false">{paths[kind]}</svg>;
+}
+
+function SubmittedReview({value}){
+  const c=value.case;
+  const defect=c.submission?.extra?.['practice-defect']||'Recorded defect response';
+  return <div className="rr-review-list">
+    <div className="rr-review-row">
+      <ReviewIcon kind="photo"/>
+      <div className="rr-review-row__body"><strong>Product label photo</strong><span>Submitted</span></div>
+      {c.photo?<img className="rr-review-thumb" src={c.photo} alt="Submitted product label photograph"/>:null}
+    </div>
+    <div className="rr-review-row">
+      <ReviewIcon kind="lot"/>
+      <div className="rr-review-row__body"><strong>Lot code</strong><span>{c.submission?.lot||'Not recorded'}</span></div>
+    </div>
+    <div className="rr-review-row">
+      <ReviewIcon kind="note"/>
+      <div className="rr-review-row__body"><strong>Defect description</strong><span>{defect}</span></div>
+    </div>
+  </div>;
+}
+
+function PracticeClaimCard({value}){
+  const facts=refundFacts(value);
+  return <Card>
+    <p className="rr-kicker">Your practice claim</p>
+    <img className="rr-product" src="/assets/practice-cup.png" alt="Fictional Relay Home cup"/>
+    <h2 style={{marginTop:12}}>Relay Home cup</h2>
+    <p className="rr-muted">CUP-01 · LOT-A</p>
+    <dl className="rr-amounts rr-amounts--tight">
+      <div><dt>Affected cup</dt><dd>{facts.affected}</dd></div>
+      <div><dt>Excluded tray</dt><dd>{facts.excluded}</dd></div>
+      <div><dt>Original purchase</dt><dd>{facts.total}</dd></div>
+    </dl>
+    <p className="rr-note-box">You will approve only the affected item.</p>
+  </Card>;
+}
+
 function SourceSummary({value}){return <div className="rr-source">
   <p className="rr-source__cite">{value.scenario.sourceLabel}</p>
   <h3>{value.scenario.title}</h3>
@@ -79,8 +123,11 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
   const [reading,setReading]=useState(false);
   const [response,setResponse]=useState('');
   const [localError,setLocalError]=useState('');
-  useEffect(()=>{setLot(c.submission?.lot||'');setAck(c.submission?.acknowledged||false);setExtra(c.submission?.extra||{});setPhoto(undefined);setFileName('');setResponse('');setLocalError('');},[c.id,c.revision]);
+  const [editing,setEditing]=useState(false);
+  useEffect(()=>{setLot(c.submission?.lot||'');setAck(c.submission?.acknowledged||false);setExtra(c.submission?.extra||{});setPhoto(undefined);setFileName('');setResponse('');setLocalError('');setEditing(false);},[c.id,c.revision]);
   const next=handoff(value);
+  const submitted=Boolean(c.submission)&&c.missing.length===0&&c.correction?.state!=='REQUESTED'&&!c.locked;
+  const showForm=!c.locked&&!c.refund&&(!submitted||editing||task==='correction');
   async function pickFile(event){
     const file=event.target.files?.[0];if(!file)return;
     setLocalError('');setPhoto(undefined);setFileName('');
@@ -104,16 +151,34 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
     await run('submit',{caseId:c.id,attempt:value.attempt,revision:c.revision,lot,acknowledged:ack,extra,correctionResponse:response,...(photo===undefined?{}:{photo})});
   }
   const fields=(value.scenario.requirements||[]).filter(f=>f.kind!=='PHOTO');
-  const editable=!c.locked&&!c.refund;
-  const submitLabel=busy?'Saving evidence…':task==='correction'?'Send updated evidence':c.submission?'Save a new revision':'Submit evidence';
+  const confirmations=fields.filter(f=>f.kind==='CONFIRMATION');
+  const descriptions=fields.filter(f=>f.kind!=='CONFIRMATION');
+  const submitLabel=busy?'Saving evidence…':task==='correction'?'Send updated evidence':c.submission?'Save a new revision':'Submit for review';
 
   return <div className="rr-grid rr-grid--customer">
     <div className="rr-stack">
-      <Card>
+      {submitted&&!showForm?<Card>
+        <div className="rr-card__head rr-handoff-head">
+          <div>
+            <div className="rr-row" style={{gap:8}}><p className="rr-kicker">Customer step complete</p><Badge tone="info">Revision {c.revision} saved</Badge></div>
+            <h2 id="claim-heading" tabIndex={-1} style={{marginTop:6}}>{c.revision>1?'Updated evidence submitted.':'Evidence submitted.'}</h2>
+            <p className="rr-lede" style={{marginTop:8}}>{c.revision>1?'Next, review the new version as the merchant.':'Next, review it as the merchant.'}</p>
+            {next&&<p className="rr-muted" style={{marginTop:6}}>{next.body}</p>}
+            {!next&&<p className="rr-muted" style={{marginTop:6}}>{c.status.reason}</p>}
+          </div>
+          {next&&<Button onClick={()=>run('role',{role:next.to})} disabled={busy}>{next.label}</Button>}
+        </div>
+        <div className="rr-divider"/>
+        <h3>What you will review</h3>
+        <SubmittedReview value={value}/>
+        <div className="rr-actions" style={{marginTop:16}}>
+          <Button variant="quiet" type="button" onClick={()=>setEditing(true)} disabled={busy}>Edit evidence</Button>
+        </div>
+      </Card>:<Card>
         <div className="rr-card__head">
           <div>
             <p className="rr-kicker">Customer · prepare claim</p>
-            <h1 id="claim-heading" tabIndex={-1}>Your practice claim</h1>
+            <h2 id="claim-heading" tabIndex={-1} style={{marginTop:6}}>{c.submission?'Edit your practice claim':'Submit your practice claim'}</h2>
           </div>
           <StatusBadge value={value}/>
         </div>
@@ -123,16 +188,13 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
           <CorrectionRequest value={value} role="customer"/>
           {c.submission&&c.missing.length>0&&!c.locked&&<Callout tone="attention" title="Still needed"><ul style={{margin:0,paddingLeft:18}}>{c.missing.map(x=><li key={x}>{x}</li>)}</ul></Callout>}
         </div>
-      </Card>
+      </Card>}
 
-      {editable&&<Card>
-        <div className="rr-card__head"><div><p className="rr-kicker">Evidence and responses</p><h2>What this claim needs</h2></div>{c.submission?<Badge tone="info">Revision {c.revision} saved</Badge>:<Badge tone="info">First revision</Badge>}</div>
+      {showForm&&<Card>
         <form onSubmit={submit} className="rr-stack">
-          <div className="rr-stack">
-            <div>
-              <h3>Label photograph</h3>
-              <p className="rr-muted">The practice notice requires a photograph of the product label showing the lot code. Two fictional labels are provided so the case can be completed without a real photo.</p>
-            </div>
+          <div className="rr-form-step">
+            <h3><span className="rr-step-number">1</span> Add a label photo</h3>
+            <p className="rr-muted">The practice notice requires a photograph of the product label showing the lot code. Two fictional labels are provided so the case can be completed without a real photo.</p>
             <div className="rr-actions">
               <Button variant="secondary" type="button" disabled={busy||reading} onClick={()=>useSample('a')}>Use fictional label A</Button>
               <Button variant="secondary" type="button" disabled={busy||reading} onClick={()=>useSample('b')}>Use fictional label B</Button>
@@ -148,24 +210,28 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
             </Field>
           </div>
 
-          <Field label="Lot printed on the cup" hint="The notice requires LOT-A for this practice case." htmlFor="practice-lot">
-            <input id="practice-lot" className="rr-input" value={lot} maxLength={40} disabled={busy} onChange={e=>setLot(e.target.value)} placeholder="For example, LOT-A"/>
-          </Field>
-
-          {fields.map(field=>field.kind==='CONFIRMATION'
-            ?<label key={field.id} className="rr-check">
+          <div className="rr-form-step">
+            <h3><span className="rr-step-number">2</span> Confirm your item</h3>
+            <Field label="Lot code" hint="The notice requires LOT-A for this practice case." htmlFor="practice-lot">
+              <input id="practice-lot" className="rr-input" value={lot} maxLength={40} disabled={busy} onChange={e=>setLot(e.target.value)} placeholder="For example, LOT-A"/>
+            </Field>
+            {confirmations.map(field=><label key={field.id} className="rr-check">
               <input type="checkbox" checked={extra[field.id]===true} disabled={busy} onChange={e=>setExtra(old=>({...old,[field.id]:e.target.checked}))}/>
               <span>{field.quote}<span className="rr-muted" style={{display:'block',marginTop:4}}>Answering records your statement; the merchant reviews it rather than verifying it for you.</span></span>
-            </label>
-            :<Field key={field.id} label={field.quote} htmlFor={`field-${field.id}`}>
+            </label>)}
+            <label className="rr-check"><input type="checkbox" checked={ack} onChange={e=>setAck(e.target.checked)} disabled={busy}/>This item is from my fictional practice purchase and the lot code is the one printed on it.</label>
+          </div>
+
+          <div className="rr-form-step">
+            <h3><span className="rr-step-number">3</span> Describe the defect</h3>
+            {descriptions.map(field=><Field key={field.id} label={field.quote} htmlFor={`field-${field.id}`}>
               <textarea id={`field-${field.id}`} className="rr-textarea" rows={3} value={extra[field.id]||''} maxLength={500} disabled={busy} onChange={e=>setExtra(old=>({...old,[field.id]:e.target.value}))}/>
             </Field>)}
+          </div>
 
           {c.correction?.state==='REQUESTED'&&<Field label="Your response to the merchant" hint="Describe what you changed or clarify the requested information." htmlFor="practice-response">
             <textarea id="practice-response" className="rr-textarea" rows={3} value={response} required minLength={3} maxLength={1000} disabled={busy} onChange={e=>setResponse(e.target.value)}/>
           </Field>}
-
-          <label className="rr-check"><input type="checkbox" checked={ack} onChange={e=>setAck(e.target.checked)} disabled={busy}/>I confirm this is the item from my fictional practice purchase and that the lot code is the one printed on it.</label>
 
           <ErrorText error={localError||error}/>
           {stale&&<Button variant="secondary" type="button" onClick={onRefresh}>Refresh practice case</Button>}
@@ -176,7 +242,7 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
         </form>
       </Card>}
 
-      {next&&<Callout tone="success" title={next.title} actions={<Button onClick={()=>run('role',{role:next.to})} disabled={busy}>{next.label}</Button>}>
+      {next&&showForm&&<Callout tone={task==='correction'?'attention':'success'} title={next.title} actions={<Button onClick={()=>run('role',{role:next.to})} disabled={busy}>{next.label}</Button>}>
         <p>{next.body}</p>
       </Callout>}
 
@@ -188,21 +254,11 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
     </div>
 
     <aside className="rr-stack" aria-label="Claim context">
-      <Card quiet>
-        <p className="rr-kicker">Claim and amounts</p>
-        <h2 style={{marginTop:6}}>{c.id}</h2>
-        <p className="rr-muted" style={{marginBottom:10}}>Practice order · attempt {value.attempt}{c.revision>0?` · revision ${c.revision}`:''}</p>
-        <Amounts value={value}/>
-        <p className="rr-muted" style={{marginTop:12}}>The $34.00 tray in the same fictional purchase is outside this notice. Practising here never moves money.</p>
-      </Card>
-      <Card quiet>
-        <p className="rr-kicker">What happens next</p>
-        <p className="rr-muted" style={{marginTop:8}}>{next?next.title:merchantNextStep(value)}</p>
-      </Card>
+      <PracticeClaimCard value={value}/>
+      <p className="rr-muted" style={{marginTop:2}}>Case {c.id} · attempt {value.attempt} · revision {c.revision}</p>
     </aside>
   </div>;
 }
-
 function ReviewStage({value,run,busy,error,stale,onRefresh}){
   const c=value.case;
   const [acknowledged,setAcknowledged]=useState(false);
@@ -216,7 +272,7 @@ function ReviewStage({value,run,busy,error,stale,onRefresh}){
   if(!c.submission&&!c.correction) return <div className="rr-grid rr-grid--review">
     <Card>
       <p className="rr-kicker">Merchant · review evidence</p>
-      <h1 id="claim-heading" tabIndex={-1}>Nothing to review yet</h1>
+      <h2 id="claim-heading" tabIndex={-1}>Nothing to review yet</h2>
       <p className="rr-lede" style={{marginTop:10}}>This claim is waiting for the customer’s evidence. The customer’s page is the next step, not a role you switch into.</p>
       <div className="rr-actions" style={{marginTop:16}}><Button onClick={()=>run('role',{role:'customer'})} disabled={busy}>Continue as customer</Button></div>
       <ErrorText error={error}/>
@@ -227,7 +283,7 @@ function ReviewStage({value,run,busy,error,stale,onRefresh}){
     <div className="rr-stack">
       <Card>
         <div className="rr-card__head">
-          <div><p className="rr-kicker">Merchant · review evidence</p><h1 id="claim-heading" tabIndex={-1}>Review this claim</h1></div>
+          <div><p className="rr-kicker">Merchant · review evidence</p><h2 id="claim-heading" tabIndex={-1}>Review this claim</h2></div>
           <StatusBadge value={value}/>
         </div>
         <p className="rr-lede">{c.status.reason}</p>
@@ -325,7 +381,7 @@ function ApproveStage({value,run,busy,error,stale,onRefresh}){
     <div className="rr-stack">
       <Card>
         <p className="rr-kicker">Merchant · approve refund</p>
-        <h1 id="claim-heading" tabIndex={-1}>Refund recorded</h1>
+        <h2 id="claim-heading" tabIndex={-1}>Refund recorded</h2>
         <p className="rr-lede" style={{marginTop:10}}>The claim reached the end of the practice journey. This record is simulated; no payment provider was contacted and no funds moved.</p>
       </Card>
       <Receipt value={value} run={run} busy={busy}/>
@@ -343,7 +399,7 @@ function ApproveStage({value,run,busy,error,stale,onRefresh}){
       <Card>
         <p className="rr-kicker">Merchant · approve refund</p>
         <div className="rr-card__head" style={{marginTop:6}}>
-          <div><h1 id="claim-heading" tabIndex={-1}>Approve the refund</h1><p className="rr-lede" style={{marginTop:8}}>Evidence review is recorded for revision {c.review?.revision??c.revision}. The remaining decision is the refund, with its amount and exclusions in view.</p></div>
+          <div><h2 id="claim-heading" tabIndex={-1}>Approve the refund</h2><p className="rr-lede" style={{marginTop:8}}>Evidence review is recorded for revision {c.review?.revision??c.revision}. The remaining decision is the refund, with its amount and exclusions in view.</p></div>
           <Badge tone="success">Evidence reviewed</Badge>
         </div>
         <div className="rr-stack" style={{marginTop:8}}>
@@ -423,19 +479,16 @@ export default function Practice(){
   async function run(action,data){setBusy(true);setError('');setStale(false);setExpired(false);try{setState(await api(`practice/${action}`,data));}catch(e){setError(e.message);setStale(Boolean(e.stale));setExpired(Boolean(e.expired));}finally{setBusy(false);}}
   // A handoff changes who is acting, so the heading is the new reading position.
   const current=state?stage(state):1;
+  const progress=state?progressStage(state):1;
   useEffect(()=>{if(!state)return;const target=document.getElementById('claim-heading')||heading.current;target?.focus?.();},[state?.role,current]);
   return <div className="rr-app">
-    <AppShell strip={stripText}>
+    <AppShell note="Simulated. No funds move.">
       <div ref={heading} tabIndex={-1} style={{outline:'none'}}>
-        <div className="rr-card__head" style={{alignItems:'flex-end'}}>
-          <div>
-            <p className="rr-kicker">Guided practice claim</p>
-            <h1 style={{marginTop:6}}>One claim, from evidence to refund.</h1>
-            <p className="rr-lede" style={{marginTop:8}}>A reviewed practice notice, one fictional affected cup and the excluded tray in the same purchase. Customer evidence, a merchant review, and a simulated refund — with a separate, explicit approval for the money.</p>
-          </div>
-          <Badge tone="attention">Simulated mode</Badge>
+        <StageTrack current={progress}/>
+        <div className="rr-page-head">
+          <h1 style={{marginTop:18}}>See a recall claim through.</h1>
+          <p className="rr-lede" style={{marginTop:8}}>One fictional claim, from customer evidence to merchant approval.</p>
         </div>
-        <StageTrack current={current}/>
       </div>
 
       {!state?<Card style={{marginTop:20}} aria-busy={!error}>

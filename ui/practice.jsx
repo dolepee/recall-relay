@@ -10,15 +10,32 @@ function StageBar({value}){
   const c=value?.case||{};
   const active=c.refund||c.review||c.plan?.status==='READY_FOR_APPROVAL'?2:c.submission||c.correction?1:0;
   const stages=[['Prepare claim','Notice, affected item, instructions'],['Review evidence','Evidence and one correction if needed'],['Approve refund','Affected item only; simulated record']];
-  return <ol className="rr-stages" aria-label="Practice stages">{stages.map(([title,detail],i)=><li key={title} aria-current={i===active?'step':undefined}><b>{String(i+1).padStart(2,'0')} · {title}</b><span className="block font-sans text-[11px] font-normal normal-case tracking-normal text-slate-500">{detail}</span></li>)}</ol>;
+  return <ol className="rr-stages practice-stagebar" aria-label="Practice stages">{stages.map(([title,detail],i)=><li key={title} aria-current={i===active?'step':undefined}><b>{String(i+1).padStart(2,'0')} · {title}</b><span className="block font-sans text-[11px] font-normal normal-case tracking-normal text-slate-500">{detail}</span></li>)}</ol>;
 }
 
-function SettlementStrip({value}){
-  return <section aria-label="Practice settlement summary" className="mt-4 grid gap-px border border-slate-300 bg-slate-300 sm:grid-cols-3">
-    <div className="bg-white px-4 py-3"><span className="text-xs font-medium text-slate-500">Affected item</span><strong className="mt-1 block font-mono text-lg tabular-nums">{money(value.scenario.affectedCents)}</strong><span className="text-xs text-slate-500">Refund target</span></div>
-    <div className="bg-white px-4 py-3"><span className="text-xs font-medium text-slate-500">Unaffected tray</span><strong className="mt-1 block font-mono text-lg tabular-nums">{money(value.scenario.unaffectedCents)}</strong><span className="text-xs text-slate-500">Excluded</span></div>
-    <div className="bg-white px-4 py-3"><span className="text-xs font-medium text-slate-500">Mode</span><strong className="mt-1 block text-sm font-semibold">Simulated</strong><span className="text-xs text-slate-500">No funds move</span></div>
-  </section>;
+function stageState(value){
+  const c=value?.case||{};
+  return c.refund||c.review||c.plan?.status==='READY_FOR_APPROVAL'?2:c.submission||c.correction?1:0;
+}
+
+function StageProgress({value}){
+  const active=stageState(value);
+  const labels=['Prepare claim','Review evidence','Approve refund'];
+  return <div className="practice-progress">
+    <span>Stage {active+1} of 3</span>
+    <b>{labels[active]}</b>
+    <div aria-hidden="true"><i style={{width:`${((active+1)/3)*100}%`}}/></div>
+  </div>;
+}
+
+function MoneyLine({value}){
+  return <p className="practice-money" aria-label="Practice amounts">
+    <span><b>{money(value.scenario.affectedCents)}</b> affected</span>
+    <span aria-hidden="true">·</span>
+    <span><b>{money(value.scenario.unaffectedCents)}</b> excluded</span>
+    <span aria-hidden="true">·</span>
+    <span>Simulated, no funds move</span>
+  </p>;
 }
 
 function Scenario({value}){
@@ -152,7 +169,7 @@ function MerchantPanel({value,run,busy,error,onRefresh,stale}){
     {!c.locked&&c.missing.length>0&&<div className="mt-4 rounded-md bg-slate-50 p-4"><h3 className="text-sm font-semibold">Waiting for the customer</h3><ul className="mt-2 list-disc space-y-2 pl-5 text-sm">{c.missing.map(x=><li key={x}>{x}</li>)}</ul></div>}
     {canReview&&<div className="mt-4 border-t border-slate-200 pt-3"><label className="flex min-h-11 items-start gap-3 py-3 text-sm leading-6"><input type="checkbox" checked={reviewed} onChange={e=>setReviewed(e.target.checked)} className="mt-1 size-5 shrink-0 accent-teal-700"/>I inspected this version’s photograph and confirmed the lot, purchase confirmation and required responses match the reviewed practice notice.</label><Action secondary disabled={!reviewed||busy} onClick={()=>run('review',{...binding,confirmed:true})}>Confirm evidence review</Action></div>}
     {!c.locked&&c.submission&&c.correction?.state!=='REQUESTED'&&<details key={`${c.id}-${c.revision}`} className="mt-5 border-t border-slate-200 pt-2"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-teal-800">Request a correction</summary><form onSubmit={e=>{e.preventDefault();run('request-changes',{...binding,message,replacePhoto});}}><p className="text-sm leading-6 text-slate-600">This clears the current evidence review and shows your message on the customer view. A new review is required before any simulated refund.</p><label className="mt-4 block text-sm font-medium">What should the customer change?<textarea className={inputClass} rows={3} value={message} required minLength={10} maxLength={600} disabled={busy} onChange={e=>setMessage(e.target.value)} placeholder="For example, the lot code is too blurred to read. Please upload a clearer photograph."/></label><label className="flex min-h-11 items-start gap-3 py-3 text-sm leading-6"><input type="checkbox" checked={replacePhoto} onChange={e=>setReplacePhoto(e.target.checked)} disabled={busy} className="mt-1 size-5 shrink-0 accent-teal-700"/>Require a replacement photograph</label><Action type="submit" secondary disabled={busy||message.trim().length<10}>{busy?'Saving request…':'Request customer update'}</Action></form></details>}
-    {ready&&<div className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4"><p className="mb-3 text-sm text-teal-950">This version is reviewed. Record a <strong>simulated</strong> refund of <strong>{money(value.scenario.affectedCents)}</strong> for the affected cup only.</p><AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}><AlertDialog.Trigger render={<Action disabled={busy}/>}>Record simulated refund</AlertDialog.Trigger><AlertDialog.Portal><AlertDialog.Backdrop className="fixed inset-0 z-40 bg-slate-950/40"/><AlertDialog.Popup className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white p-6 shadow-xl"><AlertDialog.Title className="text-xl font-semibold text-balance">Confirm simulated refund</AlertDialog.Title><AlertDialog.Description className="mt-3 text-sm leading-6 text-pretty text-slate-600">This records {money(value.scenario.affectedCents)} against {c.id} in this practice session. No payment provider is contacted, no credentials are used and no funds move. The {money(value.scenario.unaffectedCents)} tray stays outside the refund.</AlertDialog.Description><div className="mt-6 flex flex-wrap justify-end gap-3"><AlertDialog.Close render={<Action secondary/>}>Go back</AlertDialog.Close><Action disabled={busy} onClick={async()=>{setConfirmOpen(false);await run('approve',{...binding,confirmed:true,digest:c.plan.digest});}}>Confirm simulated refund</Action></div></AlertDialog.Popup></AlertDialog.Portal></AlertDialog.Root></div>}
+    {ready&&<div className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4"><p className="mb-3 text-sm text-teal-950">This version is reviewed. Record the <strong>simulated</strong> refund for the affected cup only.</p><AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}><AlertDialog.Trigger render={<Action disabled={busy}/>}>Record simulated refund</AlertDialog.Trigger><AlertDialog.Portal><AlertDialog.Backdrop className="rr-dialog-backdrop fixed inset-0 z-40"/><AlertDialog.Popup className="rr-dialog fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 p-6"><AlertDialog.Title className="text-xl font-semibold text-balance">Confirm simulated refund</AlertDialog.Title><AlertDialog.Description className="mt-3 text-sm leading-6 text-pretty text-slate-600">This records {money(value.scenario.affectedCents)} against {c.id} in this practice session. No payment provider is contacted, no credentials are used and no funds move. The {money(value.scenario.unaffectedCents)} tray stays outside the refund.</AlertDialog.Description><div className="mt-6 flex flex-wrap justify-end gap-3"><AlertDialog.Close render={<Action secondary/>}>Go back</AlertDialog.Close><Action disabled={busy} onClick={async()=>{setConfirmOpen(false);await run('approve',{...binding,confirmed:true,digest:c.plan.digest});}}>Confirm simulated refund</Action></div></AlertDialog.Popup></AlertDialog.Portal></AlertDialog.Root></div>}
     {c.unresolved&&<section aria-label="Unresolved simulated refund" className="mt-5 rounded-lg border border-slate-300 bg-slate-50 p-5"><p className="text-sm font-semibold text-slate-900">Simulated refund not recorded</p><p className="mt-2 text-sm leading-6 text-slate-700">A {money(c.unresolved.cents)} attempt is {c.unresolved.state.toLowerCase()} on this practice case. No funds moved. {c.unresolved.state==='RESERVED'?'Resume the prepared attempt, or start a new practice case.':'This attempt cannot be resumed safely; start a new practice case.'}</p>{c.unresolved.state==='RESERVED'&&<Action className="mt-4" disabled={busy} onClick={()=>run('resume',{...binding,digest:c.plan.digest})}>Resume simulated refund</Action>}</section>}
     {c.refund&&<section aria-label="Simulated refund receipt" className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-5"><p className="text-sm font-medium text-teal-800">Simulated refund receipt · no funds moved</p><h3 className="mt-2 text-3xl font-semibold tabular-nums text-teal-950">{money(c.refund.cents)}</h3><p className="mt-2 text-sm leading-6 text-teal-950">Recorded on this practice case only. No payment provider was contacted.</p><dl className="mt-4 space-y-2 text-sm"><div className="flex flex-wrap justify-between gap-2"><dt className="text-teal-900">Status</dt><dd className="font-semibold">Simulated · completed</dd></div>{c.refund.reference&&<div className="flex flex-wrap justify-between gap-2"><dt className="text-teal-900">Practice reference</dt><dd className="break-all font-mono text-xs">{c.refund.reference}</dd></div>}<div className="flex flex-wrap justify-between gap-2"><dt className="text-teal-900">Unaffected tray</dt><dd>{money(value.scenario.unaffectedCents)} · not refunded</dd></div></dl></section>}
     <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-slate-200 pt-4"><Action secondary disabled={busy} onClick={()=>run('restart',{})}>Start a new practice case</Action><p className="text-xs leading-5 text-slate-500">Attempt {value.attempt}. Reloading keeps this attempt; restart begins a fresh case in the same session.</p></div>
@@ -168,18 +185,17 @@ export default function Practice(){
   async function run(action,data){setBusy(true);setError('');setStale(false);setExpired(false);try{setState(await api(`practice/${action}`,data));}catch(e){setError(e.message);setStale(Boolean(e.stale));setExpired(Boolean(e.expired));}finally{setBusy(false);}}
   const customer=state?.role==='customer';
   return <Frame practice customer={customer} note={`Practice · simulated · ${customer?'customer view':'merchant view'} · no payment provider`}>
-    <p className="text-sm font-medium text-teal-800">Practice claim · simulated</p>
-    <h1 className="mt-2 text-3xl font-semibold text-balance">One claim. Three decisions.</h1>
-    <p className="mt-3 max-w-3xl text-pretty leading-7 text-slate-600">Prepare the fictional claim, review the customer’s evidence, then approve the affected item only. Correction is part of review, not a separate stage.</p>
+    <div className="practice-head">
+      <div><p className="text-sm font-medium text-teal-800">Practice claim · simulated</p><h1 className="mt-1">Practice claim.</h1></div>
+      {state&&<div role="group" aria-label="Practice role" className="practice-role">
+        <button type="button" aria-pressed={!customer} disabled={busy} onClick={()=>run('role',{role:'merchant'})} className={customer?'':'is-active'}>Merchant view</button>
+        <button type="button" aria-pressed={customer} disabled={busy} onClick={()=>run('role',{role:'customer'})} className={customer?'is-active':''}>Customer view</button>
+      </div>}
+    </div>
+    <StageProgress value={state||{}}/>
     <StageBar value={state||{}}/>
+    {state&&stageState(state)<2&&<MoneyLine value={state}/>}
     {!state?<section className="mt-6 rounded-lg border border-slate-200 bg-white p-6" aria-busy={!error}><p role="status">{error?'This practice case could not be opened.':'Opening your practice case…'}</p><ErrorText error={error}/>{expired&&<Action className="mt-4" disabled={busy} onClick={()=>run('new',{})}>Start a fresh practice case</Action>}<Action secondary className="mt-4" disabled={busy} onClick={refresh}>Retry</Action></section>:<>
-      <SettlementStrip value={state}/>
-      <div className="mt-5 flex flex-wrap items-center gap-4">
-        <div role="group" aria-label="Practice role" className="inline-flex rounded-md border border-slate-300 bg-white p-1">
-          <button type="button" aria-pressed={!customer} disabled={busy} onClick={()=>run('role',{role:'merchant'})} className={'min-h-11 rounded px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal-700 '+(customer?'text-slate-700 hover:bg-slate-50':'bg-teal-700 text-white')}>Merchant view</button>
-          <button type="button" aria-pressed={customer} disabled={busy} onClick={()=>run('role',{role:'customer'})} className={'min-h-11 rounded px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal-700 '+(customer?'bg-teal-700 text-white':'text-slate-700 hover:bg-slate-50')}>Customer view</button>
-        </div>
-      </div>
       {expired&&<div className="mt-4"><ErrorText error={error}/><Action className="mt-3" disabled={busy} onClick={()=>run('new',{})}>Start a fresh practice case</Action></div>}
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <div>{customer?<CustomerPanel value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh}/>:<MerchantPanel value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh}/>}</div>

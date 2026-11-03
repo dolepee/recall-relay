@@ -26,6 +26,6 @@ export default function SampleStudio(){
     source:{xTrack:15,yTrack:0,xSpan:9,ySpan:12},
     payment:{xTrack:15,yTrack:12,xSpan:9,ySpan:6},
     amount:{xTrack:15,yTrack:18,xSpan:9,ySpan:6},
-  },layout:{minWidth:280,columns:24,rowHeight:24,pagePadding:0,widgetPadding:0,widgetBorderEnabled:true,widgetBorderColor:'rgba(14,20,23,.17)',widgetBorderRadius:2}}],selectedPageId:'sample'}),[]);
+  },layout:{minWidth:280,columns:24,rowHeight:24,pagePadding:0,widgetPadding:0,widgetBorderEnabled:true,widgetBorderColor:'rgba(11,17,20,.17)',widgetBorderRadius:2}}],selectedPageId:'sample'}),[]);
   return <div className="rr-workspace rr-sample-studio grid min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white" style={{gridTemplateColumns:'minmax(0,1fr)'}}><div className="min-h-0 min-w-0"><AgStudio style={{height:'100%',width:'100%'}} data={data} widgets={widgets} theme={merchantStudioTheme} initialState={initialState} mode="view" panels={{edit:{left:[],right:[]},view:{left:[],right:[]}}} onErrorRaised={event=>console.error('Sample Studio:',event.errorDetails?.join('; ')||'Workspace error')}/></div></div>;
 }

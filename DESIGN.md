@@ -14,7 +14,38 @@ There are two surfaces in one deployment. The public landing document at `/` int
 
 The merchant pages `/desk` and `/setup` now use the landing document's recorded palette. Warm paper `#F3EEE2` and card `#FBF8F0` carry body text in `#0E1417` with secondary text `#3B4448` and `#5C6669`; hairlines are `rgba(14,20,23,.17)` and `rgba(14,20,23,.34)`. One cobalt `#1B3FD8` is the only accent, and it appears on the primary button, the active navigation rule, focus rings and the lockup mark, never as decoration. The merchant shell uses the same Helvetica-first display face, system sans for text, and monospace for figures, references and timestamps as the landing page. The AG Studio grid, custom claim widget and Claim guide use the same paper, card, ink, hairline and cobalt values through Studio theme parameters; they are not left on Studio defaults. The refund confirmation dialog is portaled outside the merchant shell, so its own popup and backdrop carry the same card, ink, hairline and cobalt controls. On the merchant pages, green `#0B6A3C` on `#E9F4ED` is reserved for provider-confirmed completion and must not label anything else. Error red and warning amber remain semantic and accessible, not decorative. Do not add animation, decorative charts, gradients, or a marketing hero inside the merchant task pages.
 
-The customer claim at `/claim` and the practice journey keep their existing white, slate and teal direction. Merchant styling is scoped to the merchant shell so shared components do not change those surfaces.
+The customer claim at `/claim` keeps its existing white, slate and teal direction until it is migrated. The guided practice journey now uses the governed surface system below; merchant styling stays scoped to the merchant shell so shared components do not change an unmigrated surface.
+
+## Guided claim surface (governing system)
+
+This system governs every new or migrated product surface. It replaces the warm paper palette for those surfaces; legacy surfaces hold their current styling until they are migrated deliberately. Do not mix the two palettes inside one screen. No brown or cream values, including portal dialogs.
+
+- Surfaces: white `#FFFFFF` cards on a cool-grey `#F5F7FA` canvas.
+- Text: deep ink `#142337`, secondary `#596779`.
+- Action: cobalt `#315CF5` for the one primary action, selected stage and focus ring. Hover `#2549C9`.
+- Borders: `#DEE5EE`, with `#C3CEDC` for field outlines.
+- Semantic colour is never the only signal: green means a confirmed success, amber an attention state, red a refusal. Each state also carries words.
+- Type: Inter with the system-sans fallback; 16px body, 15px supporting text, 13px notes. Figures and references are tabular monospace.
+- Controls: standard buttons are 48px high with an 8px radius; fields are 48px high with an 8px radius; surfaces are 12px. Minimum touch target is 44px.
+- No animation, decorative charts, gradients or marketing hero inside a task surface.
+
+The token and component layer lives in `ui/system.css` (`--rr-*` values, `.rr-card`, `.rr-btn`, `.rr-field`, `.rr-badge`, `.rr-callout`, `.rr-stage`) and `ui/system.jsx`. It is scoped to `.rr-app`; the confirmation dialog is portaled, so it carries its own copy of the same values and must be checked in rendered evidence, not assumed.
+
+### Guided claim stages
+
+One claim runs as three conceptual stages: Prepare claim / Review evidence / Approve refund. Three stages are not three clicks and not a tab control; the track reports where the recorded state is. The customer prepares evidence, then hands off with an explicit next action ("Evidence submitted. Next, review it as the merchant."). The merchant reviews, and either confirms the evidence or requests a correction. A correction returns the claim to the customer; the response creates a new revision and clears the prior review. Only a review recorded for the current revision exposes the refund stage. Practice looks and navigates like the same product, with a persistent simulated-mode label and a contextual role handoff instead of a role toggle.
+
+The merchant review screen is the central reference. The selected claim is the main object, the evidence gets the largest area, the exact source requirement sits above the evidence, and the refund consequences stay visible beside it.
+
+### State and copy contract
+
+- Evidence review acknowledgement starts unchecked. Confirm evidence review enables only after that acknowledgement, the required responses and the existing readiness checks.
+- A refund is available only after a review is recorded for the current revision. The final action names the exact amount: Approve [amount] refund.
+- Keep each campaign's actual required fields and confirmations, including the linked-purchase confirmation and any lot or source requirement. An illustrative field in a mockup is not a universal requirement.
+- Affected amount, excluded items and the original payment destination stay visible at approval, inside the confirmation dialog as well as beside it.
+- Distinguish evidence submitted, provider pending, provider-confirmed test refund and simulated completion. The simulated receipt says "Simulated refund. No funds moved." and never claims money moved or a provider was contacted.
+- A correction response creates a new revision and clears prior review. Do not promise retained previous submissions or evidence history: the core replaces the submission. Revision tracking and a fresh review are what the product actually records.
+- No new approval authority, authentication identity, payment tool or automatic buyer discovery comes from a visual change.
 
 ## Layout
 
@@ -42,7 +73,7 @@ Use accessible Base UI primitives for interactive controls and native form seman
 
 The existing plan and journal modules distinguish reviewed scope, approval, reserved refunds, unresolved attempts, and provider-confirmed completion. Preserve those states in the interface. Purchase fixture records are invented; imported CPSC notices are public source material and cannot silently become approved policies for those purchases. The hosted sandbox keeps each browser's merchant workspace separate; local launch links remain a separate access method. The sponsor has explicitly allowed AG Studio's evaluation watermark during hackathon judging; retain it.
 
-Keep customer claims separate from merchant controls. The customer page starts with the item and required next action, collects evidence inline, and retains a case status and receipt after submission. Merchant controls require the private local merchant session. Mark sandbox money and invented merchandise beside the transaction. The merchant reviews the exact evidence revision before the payment confirmation dialog. Never render a payment as completed before authenticated provider readback. The customer claim and practice surfaces keep the existing white, slate and teal direction; the merchant `/desk` and `/setup` surfaces use the landing palette described above.
+Keep customer claims separate from merchant controls. The customer page starts with the item and required next action, collects evidence inline, and retains a case status and receipt after submission. Merchant controls require the private local merchant session. Mark sandbox money and invented merchandise beside the transaction. The merchant reviews the exact evidence revision before the payment confirmation dialog. Never render a payment as completed before authenticated provider readback. The customer claim at `/claim` keeps its existing white, slate and teal direction until migrated. The guided claim surface uses the governed system below. The merchant `/desk` and `/setup` surfaces still use the landing palette described above until they are migrated.
 
 Keep notice preparation and case resolution as distinct merchant steps. Show proposed claim fields beside the exact source excerpt that supports them. The merchant reviews the current source version before saving instructions; a prepared setup is not a published campaign or payment authorization. The Studio assistant may change the case view and explain recorded blockers. It has no tool to approve evidence or send a refund.
 
@@ -62,4 +93,6 @@ Source setup exposes the current stage: import, review fields, or publish. After
 
 ## Practice case
 
-`/practice` is a separate local evaluation surface: one fictional $25.99 item inside a $59.99 practice purchase, with the unaffected $34.00 line excluded. It reuses the claim state machine and these design tokens, but keeps its own store, session cookie and claim identifiers, so it cannot read or change a connected sandbox workspace. Reviewed requirements stay linked to the invented practice notice; the recorded assistant draft is labelled as recorded, not live. Evidence review, a requested correction, a fresh review and a clearly simulated refund are the whole journey. No payment provider, credentials, live model call or paid service is involved, and the receipt never claims that money moved.
+`/practice` is a separate local evaluation surface: one fictional $25.99 item inside a $59.99 practice purchase, with the unaffected $34.00 line excluded. It reuses the claim state machine and the governed surface system, but keeps its own store, session cookie and claim identifiers, so it cannot read or change a connected sandbox workspace. A new practice case opens in the customer role, because the journey begins with customer evidence; the merchant side is reached through the contextual handoff, not a toggle.
+
+Reviewed requirements stay linked to the invented practice notice; the recorded assistant draft is labelled as recorded, not live. The journey is evidence, a merchant review, a correction only when needed, a fresh review for the new revision, an explicit refund confirmation that names the amount, and a clearly simulated receipt. The excluded tray and the simulated destination remain visible at the decision. No payment provider, credentials, live model call or paid service is involved, and the receipt never claims that money moved.

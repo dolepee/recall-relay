@@ -112,7 +112,7 @@ export class PracticeWorkspace {
       this.removeSession(hash(token), session);
     } catch {}
     const claim = newClaim(this.now());
-    const session = {claimId: claim.id, role: 'merchant', attempt: 1, createdAt: this.now(), token};
+    const session = {claimId: claim.id, role: 'customer', attempt: 1, createdAt: this.now(), token};
     this.desk.saveClaim(claim);
     this.save(session);
     return {session, fresh: true, token};
@@ -134,7 +134,7 @@ export class PracticeWorkspace {
     }
     const freshToken = secret();
     const claim = newClaim(this.now());
-    const session = {claimId: claim.id, role: 'merchant', attempt: 1, createdAt: this.now()};
+    const session = {claimId: claim.id, role: 'customer', attempt: 1, createdAt: this.now()};
     this.desk.saveClaim(claim);
     session.token = freshToken;
     this.save(session);

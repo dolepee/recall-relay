@@ -40,6 +40,19 @@ test('landing copy describes what approval and the sandbox desk actually record'
   assert.match(html,/resumes that one request and re-checks the capture first/);
 });
 
+test('the landing page does not promise retained previous evidence',async()=>{
+  const html=await readFile(landing,'utf8');
+  // ClaimDeskCore.submit() replaces claim.submission and clears claim.review; only a
+  // photograph hash survives for the replacement-photo check. Never promise a saved
+  // previous submission or an evidence history the desk does not store.
+  assert.doesNotMatch(html,/previous submission stays attached/i);
+  assert.doesNotMatch(html,/keeps the previous evidence/i);
+  assert.doesNotMatch(html,/previous submission is kept/i);
+  assert.match(html,/Answering a correction creates a new revision and clears the prior review/);
+  assert.match(html,/An update creates a new version and reopens the review/);
+  assert.match(html,/The replaced submission is not kept/);
+});
+
 test('the receipt promises only what the product receipt exposes',async()=>{
   const html=await readFile(landing,'utf8');
   // The product receipt shows a status, an amount and a refund reference; it exposes no timestamp.

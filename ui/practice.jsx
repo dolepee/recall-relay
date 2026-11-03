@@ -70,7 +70,7 @@ function Purchase({value}){
   </section>;
 }
 
-function CustomerPanel({value,run,busy,error,onRefresh,stale}){
+export function CustomerPanel({value,run,busy,error,onRefresh,stale}){
   const c=value.case;
   const [lot,setLot]=useState(c.submission?.lot||'');
   const [ack,setAck]=useState(false);
@@ -108,10 +108,10 @@ function CustomerPanel({value,run,busy,error,onRefresh,stale}){
     <p role="status" className="mt-3 text-sm leading-6 text-slate-700">{c.status.reason}</p>
     <CorrectionNote value={c.correction} customer completed={c.status.code==='COMPLETED'||!!c.receipt} reviewed={!!c.review}/>
     {c.submission&&c.missing.length>0&&!c.locked&&<div className="mt-4 rounded-md bg-slate-50 p-4"><p className="text-sm font-semibold">Still needed</p><ul className="mt-2 list-disc space-y-2 pl-5 text-sm">{c.missing.map(x=><li key={x}>{x}</li>)}</ul></div>}
-    {c.submission&&c.missing.length===0&&!c.locked&&c.correction?.state!=='REQUESTED'&&!c.refund&&<section aria-label="Evidence received" className="mt-4 border border-slate-300 bg-white p-4">
-      <p className="text-xs font-semibold text-slate-500">Evidence received</p>
-      <p className="mt-1 text-lg font-semibold">This version is with the merchant.</p>
-      <p className="mt-1 text-sm leading-6 text-slate-600">No review or simulated refund has been recorded. You can edit the submission, but saving a new version clears any prior review.</p>
+    {c.submission&&c.missing.length===0&&!c.locked&&c.correction?.state!=='REQUESTED'&&!c.refund&&<section aria-label={c.review?'Evidence reviewed':'Evidence received'} className="mt-4 border border-slate-300 bg-white p-4">
+      <p className="text-xs font-semibold text-slate-500">{c.review?'Evidence reviewed':'Evidence received'}</p>
+      <p className="mt-1 text-lg font-semibold">{c.review?'This version has been reviewed.':'This version is with the merchant.'}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{c.review?'No simulated refund has been recorded yet. You can edit the submission, but saving a new version clears this review.':'No review or simulated refund has been recorded. You can edit the submission, but saving a new version clears any prior review.'}</p>
       <Action className="mt-4" disabled={busy} onClick={()=>run('role',{role:'merchant'})}>Continue as merchant</Action>
     </section>}
     {!c.locked&&<details open={!c.submission||c.correction?.state==='REQUESTED'||c.missing.length>0} className="mt-5 border-t border-slate-200 pt-2"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-teal-800">{c.submission?'Edit submitted evidence':'Add customer evidence'}</summary><form onSubmit={submit} className="pt-2">

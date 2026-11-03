@@ -120,6 +120,7 @@ test('DESIGN.md records the governing system and the state and copy contract', a
   assert.match(doc, /starts unchecked/i);
   assert.match(doc, /Approve \[amount\] refund/);
   assert.match(doc, /Do not promise retained previous submissions/i);
+  assert.doesNotMatch(doc, /with the previous submission retained/i);
   assert.match(doc, /48px/);
   assert.match(doc, /12px/);
 });

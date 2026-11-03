@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<meta name="description" content="Review what a recall notice requires, collect the evidence it asks for, and refund the affected item to the original PayPal payment. Sandbox evaluation service with test funds and fictional merchandise.">
-<title>Recall Relay — from recall notice to resolved customer claim</title>
+<meta name="description" content="Manage recall claims: prepare customer instructions, review evidence against the notice, and approve a refund for the affected item only. Sandbox evaluation with test funds and fictional merchandise.">
+<title>Recall Relay — manage recall claims and refund the affected item</title>
 <style>
 /* ==========================================================================
    Recall Relay — marketing surface, direction B v3.
@@ -119,10 +119,10 @@ a{color:var(--cobalt);text-underline-offset:3px}
 }
 .nav a:hover{color:var(--ink);border-bottom-color:var(--cobalt)}
 .nav .nav__act{
-  margin-left:8px;padding:0 18px;min-height:var(--tap);border:1px solid var(--ink);
-  background:var(--ink);color:var(--paper);font-weight:600
+  margin-left:8px;padding:0 18px;min-height:var(--tap);border:1px solid var(--rule-2);
+  background:transparent;color:var(--ink);font-weight:600
 }
-.nav .nav__act:hover{background:var(--cobalt);border-color:var(--cobalt);color:#fff;border-bottom-color:var(--cobalt)}
+.nav .nav__act:hover{background:var(--card);border-color:var(--ink);color:var(--ink);border-bottom-color:var(--rule-2)}
 
 /* compact menu for narrow widths — a native details element, so it works
    with scripts off; the script only adds close-on-select */
@@ -187,6 +187,8 @@ section{position:relative}
 .hero h1{margin-top:20px;max-width:15ch}
 .hero__lede{margin-top:20px;max-width:34rem;font-size:clamp(1.02rem,1.25vw,1.16rem);line-height:1.58}
 .hero__acts{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-top:28px}
+.hero__link{display:inline-flex;min-height:44px;align-items:center;color:var(--ink-2);font:600 13px/1.2 var(--text);text-decoration:underline;text-underline-offset:4px}
+.hero__link:hover{color:var(--ink)}
 .hero__scope{margin-top:20px;font:600 10.5px/1.5 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
 .hero__scope em{font-style:normal;color:var(--ink-2)}
 
@@ -216,7 +218,7 @@ section{position:relative}
 .relay .rail span:first-child{color:var(--deep-txt)}
 .relay h2{color:var(--deep-txt)}
 .relay .lede{color:var(--deep-mut)}
-.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .steps li{position:relative;padding:20px 24px 0 0;border-top:1px solid rgba(239,233,220,.24);min-width:0}
 .steps li:last-child{padding-right:0}
 .steps li::before{content:"";position:absolute;top:-1px;left:0;width:30px;height:2px;background:var(--cobalt)}
@@ -392,9 +394,9 @@ section{position:relative}
   .hero h1{max-width:18ch}
   .hero__lede{max-width:38rem}
   .claim{max-width:520px}
-  .steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .steps{grid-template-columns:1fr}
   .steps li{padding:18px 24px 22px 0}
-  .steps li:nth-child(2n){padding-left:24px}
+  .steps li:nth-child(2n){padding-left:0}
   .steps li::before{width:26px}
   .closeup,.closeup--flip{grid-template-columns:minmax(0,1fr);gap:26px;padding:44px 0}
   .closeup--flip .closeup__txt{order:0}
@@ -473,7 +475,7 @@ section{position:relative}
 }
 /* ==========================================================================
    Mobile restructure (<=640px)
-   The claim and the decision come first; the five-stage story is collapsed.
+   The claim and the decision come first; the three-stage story is collapsed.
    Desktop is untouched by this block.
    ========================================================================== */
 @media (max-width:640px){
@@ -511,12 +513,12 @@ section{position:relative}
   .closeup:not(#review){padding:30px 0 36px}
   .closeup:not(#review) .evidence__frame{max-height:250px;width:auto;max-width:100%}
 
-  /* the five-stage story, collapsed to a two-column index */
+  /* the three-stage story, collapsed to a two-column index */
   .relay{padding:34px 0 38px}
   .relay .head{margin-bottom:14px;gap:6px}
   .relay .head__body h2{font-size:1.5rem}
   .relay .head__body .lede{font-size:13px;line-height:1.5}
-  .steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .steps{grid-template-columns:1fr}
   .steps li{padding:11px 12px 13px 0;border-top:1px solid rgba(239,233,220,.18)}
   .steps li:nth-child(2n){padding-left:0}
   .steps li:nth-child(-n+2){border-top:2px solid var(--cobalt)}
@@ -561,9 +563,9 @@ section{position:relative}
     <nav class="nav" aria-label="Sections">
       <a href="#product">Product</a>
       <a href="#relay">How it works</a>
-      <a href="#trust">Trust</a>
-      <a href="/practice">Practice claim</a>
-      <a class="nav__act" href="/desk">Open the desk</a>
+      <a href="/practice">Practice</a>
+      <a href="/desk">Sandbox</a>
+      <a class="nav__act" href="/practice">Try a practice claim</a>
     </nav>
 
     <details class="menu">
@@ -571,9 +573,9 @@ section{position:relative}
       <nav class="menu__panel" aria-label="Sections">
         <a href="#product">Product</a>
         <a href="#relay">How it works</a>
-        <a href="#trust">Trust</a>
-        <a href="/practice">Practice claim · simulated</a>
-        <a class="menu__act" href="/desk">Open the sandbox desk</a>
+        <a href="/practice">Practice · simulated</a>
+        <a href="/desk">Sandbox workspace</a>
+        <a class="menu__act" href="/practice">Try a practice claim</a>
       </nav>
     </details>
   </div>
@@ -586,17 +588,16 @@ section{position:relative}
   <div class="shell">
     <div class="hero__grid">
       <div>
-        <p class="hero__eyebrow">For merchants selling on PayPal</p>
-        <h1>From recall notice to resolved customer claim.</h1>
+        <p class="hero__eyebrow">Recall refunds for merchants</p>
+        <h1>Manage recall claims. Refund the affected item.</h1>
         <p class="lede hero__lede">
-          You review what the notice requires, collect the evidence it asks for, and refund the affected
-          item to the original PayPal payment — once, with the approval recorded against the claim it was made on.
+          Issue clear customer instructions, review the evidence against the notice, and approve a refund
+          for the affected item only.
         </p>
         <div class="hero__acts">
-          <a class="btn btn--primary" href="#relay">Explore the workflow <span class="arrow" aria-hidden="true">↓</span></a>
-          <a class="btn btn--quiet" href="/desk">Open the sandbox desk <span class="arrow" aria-hidden="true">↗</span></a>
-          <a class="btn btn--quiet" href="/practice">Try a practice claim <span class="arrow" aria-hidden="true">↗</span></a>
-          <a class="btn btn--quiet" href="/sample">Preview the sample desk <span class="arrow" aria-hidden="true">↗</span></a>
+          <a class="btn btn--primary" href="/practice">Try a practice claim <span class="arrow" aria-hidden="true">↗</span></a>
+          <a class="btn btn--quiet" href="/desk">Open Sandbox workspace <span class="arrow" aria-hidden="true">↗</span></a>
+          <a class="hero__link" href="/sample">Preview a sample claim</a>
         </div>
         <p class="hero__scope">Sandbox workspace · <em>test funds</em><span class="sep-d"> ·</span><br class="sm-br"> fictional merchandise · practice simulated, no PayPal account needed</p>
       </div>
@@ -619,6 +620,7 @@ section{position:relative}
           <p><b>Next:</b> compare the submitted photograph with the requirement quoted from the notice.</p>
         </div>
         <p class="claim__meta">Revision 3 · 4 requirements · 1 photograph</p>
+        <p class="claim__meta">This is an example, not a record waiting in your desk.</p>
       </aside>
     </div>
   </div>
@@ -785,36 +787,26 @@ section{position:relative}
     <div class="head">
       <div class="rail"><span><b>02</b></span><span>How it works</span></div>
       <div class="head__body">
-        <h2>Five handoffs. One claim.</h2>
-        <p class="lede">The notice is public. The evidence is the customer's. The approval is yours. Each step leaves a record the next person can read.</p>
+        <h2>Three stages. One claim.</h2>
+        <p class="lede">The notice sets the requirement. The customer supplies evidence. You make the approval.</p>
       </div>
     </div>
 
     <ol class="steps">
       <li>
-        <span class="n">01 / Source</span>
-        <h3>The notice comes in read-only</h3>
-        <p>A public CPSC notice is imported with its remedy, product and source reference. The words stay quoted, not rewritten.</p>
+        <span class="n">01 / Prepare claim</span>
+        <h3>Set the notice and instructions</h3>
+        <p>Confirm the affected item and tell the customer exactly what to send.</p>
       </li>
       <li>
-        <span class="n">02 / Requirement</span>
-        <h3>The remedy becomes checks</h3>
-        <p>Each requirement cites the sentence it came from. You can add one by hand, and the revision goes back for review.</p>
+        <span class="n">02 / Review evidence</span>
+        <h3>Compare evidence with the notice</h3>
+        <p>Approve what matches. Request a correction only when something is missing.</p>
       </li>
       <li>
-        <span class="n">03 / Customer correction</span>
-        <h3>A missing mark comes back</h3>
-        <p>The first photograph does not show the RECALL mark clearly. You ask for a correction; the customer resubmits on the same private link.</p>
-      </li>
-      <li>
-        <span class="n">04 / Merchant approval</span>
-        <h3>A person signs off the amount</h3>
-        <p>You approve the affected line only — $25.99, to the original payment — and the approval is tied to this revision.</p>
-      </li>
-      <li>
-        <span class="n">05 / Receipt</span>
-        <h3>PayPal confirms, then it is done</h3>
-        <p>The receipt is written from PayPal's confirmation of the refund, never from the request you sent.</p>
+        <span class="n">03 / Approve refund</span>
+        <h3>Refund the affected item only</h3>
+        <p>Record the human approval and show the provider-confirmed settlement.</p>
       </li>
     </ol>
 
@@ -948,13 +940,13 @@ section{position:relative}
   <div class="shell">
     <div class="cta__grid">
       <div>
-        <h2>Run a claim end to end in the sandbox.</h2>
-        <p>The desk opens your own workspace on test funds: prepare a claim form from a notice, publish it, and take a claim through to the receipt. The claim illustrated above is an example, not a record waiting in your desk. Or try the simulated practice claim — no PayPal account needed.</p>
+        <h2>Start with one practice claim.</h2>
+        <p>Walk one fictional claim through preparation, evidence review and a simulated refund. The sandbox workspace opens your own workspace on test funds when you want the connected desk.</p>
       </div>
       <div class="cta__acts">
-        <a class="btn btn--primary" href="/desk">Open the sandbox desk <span class="arrow" aria-hidden="true">↗</span></a>
-        <a class="btn btn--quiet" href="/practice">Try a practice claim <span class="arrow" aria-hidden="true">↗</span></a>
-        <a class="btn btn--quiet" href="https://github.com/dolepee/recall-relay" target="_blank" rel="noopener">Read the source <span class="arrow" aria-hidden="true">↗</span></a>
+        <a class="btn btn--primary" href="/practice">Try a practice claim <span class="arrow" aria-hidden="true">↗</span></a>
+        <a class="btn btn--quiet" href="/desk">Open Sandbox workspace <span class="arrow" aria-hidden="true">↗</span></a>
+        <a class="hero__link" href="https://github.com/dolepee/recall-relay" target="_blank" rel="noopener">Read the source</a>
       </div>
     </div>
   </div>

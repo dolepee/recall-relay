@@ -6,16 +6,19 @@ const kindLabel={PHOTO:'Photograph',CONFIRMATION:'Confirmation',TEXT:'Written in
 const practiceTitles={AWAITING_CUSTOMER:'Waiting for the claim',NEEDS_INFORMATION:'More information needed',SUBMITTED:'With the merchant',MANUAL:'Manual review needed',REVIEW:'Needs review',READY_FOR_APPROVAL:'Ready for simulated refund',RESERVED:'Simulated refund prepared',UNKNOWN:'Simulated refund needs attention',PENDING:'Simulated refund processing',COMPLETED:'Simulated refund recorded',FAILED:'Simulated refund needs attention',CANCELLED:'Simulated refund needs attention'};
 function PracticeStatus({code}){return <span className={cn('inline-flex rounded px-2 py-1 text-xs font-semibold',code==='COMPLETED'||code==='READY_FOR_APPROVAL'?'bg-teal-50 text-teal-800':'bg-slate-100 text-slate-700')}>{practiceTitles[code]||code}</span>;}
 
-function Journey({value}){
-  const c=value.case;
-  const steps=[
-    ['Reviewed requirements','Source-linked notice is reviewed for this practice case',true],
-    ['Customer evidence',c.submission&&c.missing.length===0?'Evidence complete for this version':'Waiting for the customer',Boolean(c.submission)&&c.missing.length===0],
-    ['Correction',c.correction?'Requested and answered on this case':'Optional merchant step',Boolean(c.correction&&c.correction.state==='RESPONDED')],
-    ['Merchant review',c.review?'Evidence reviewed for the current version':'Not reviewed for the current version',Boolean(c.review)],
-    ['Simulated refund',c.refund?'Recorded, no funds moved':c.unresolved?'Prepared but not recorded':'Not recorded',Boolean(c.refund)],
-  ];
-  return <ol aria-label="Practice journey" className="space-y-2 text-sm">{steps.map(([title,detail,done],i)=><li key={title} className="flex gap-3"><span aria-hidden="true" className={'mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold '+(done?'bg-teal-700 text-white':'bg-slate-100 text-slate-600')}>{done?'✓':i+1}</span><span><span className="font-medium">{title}</span><span className="block text-slate-600">{detail}</span></span></li>)}</ol>;
+function StageBar({value}){
+  const c=value?.case||{};
+  const active=c.refund||c.review||c.plan?.status==='READY_FOR_APPROVAL'?2:c.submission||c.correction?1:0;
+  const stages=[['Prepare claim','Notice, affected item, instructions'],['Review evidence','Evidence and one correction if needed'],['Approve refund','Affected item only; simulated record']];
+  return <ol className="rr-stages" aria-label="Practice stages">{stages.map(([title,detail],i)=><li key={title} aria-current={i===active?'step':undefined}><b>{String(i+1).padStart(2,'0')} · {title}</b><span className="block font-sans text-[11px] font-normal normal-case tracking-normal text-slate-500">{detail}</span></li>)}</ol>;
+}
+
+function SettlementStrip({value}){
+  return <section aria-label="Practice settlement summary" className="mt-4 grid gap-px border border-slate-300 bg-slate-300 sm:grid-cols-3">
+    <div className="bg-white px-4 py-3"><span className="text-xs font-medium text-slate-500">Affected item</span><strong className="mt-1 block font-mono text-lg tabular-nums">{money(value.scenario.affectedCents)}</strong><span className="text-xs text-slate-500">Refund target</span></div>
+    <div className="bg-white px-4 py-3"><span className="text-xs font-medium text-slate-500">Unaffected tray</span><strong className="mt-1 block font-mono text-lg tabular-nums">{money(value.scenario.unaffectedCents)}</strong><span className="text-xs text-slate-500">Excluded</span></div>
+    <div className="bg-white px-4 py-3"><span className="text-xs font-medium text-slate-500">Mode</span><strong className="mt-1 block text-sm font-semibold">Simulated</strong><span className="text-xs text-slate-500">No funds move</span></div>
+  </section>;
 }
 
 function Scenario({value}){
@@ -53,14 +56,14 @@ function Purchase({value}){
 function CustomerPanel({value,run,busy,error,onRefresh,stale}){
   const c=value.case;
   const [lot,setLot]=useState(c.submission?.lot||'');
-  const [ack,setAck]=useState(c.submission?.acknowledged||false);
+  const [ack,setAck]=useState(false);
   const [extra,setExtra]=useState(c.submission?.extra||{});
   const [photo,setPhoto]=useState(undefined);
   const [fileName,setFileName]=useState('');
   const [reading,setReading]=useState(false);
   const [response,setResponse]=useState('');
   const [localError,setLocalError]=useState('');
-  useEffect(()=>{setLot(c.submission?.lot||'');setAck(c.submission?.acknowledged||false);setExtra(c.submission?.extra||{});setPhoto(undefined);setFileName('');setResponse('');setLocalError('');},[c.id,c.revision]);
+  useEffect(()=>{setLot(c.submission?.lot||'');setAck(false);setExtra(c.submission?.extra||{});setPhoto(undefined);setFileName('');setResponse('');setLocalError('');},[c.id,c.revision]);
   async function pickFile(event){
     const file=event.target.files?.[0];if(!file)return;
     setLocalError('');setPhoto(undefined);setFileName('');
@@ -88,7 +91,13 @@ function CustomerPanel({value,run,busy,error,onRefresh,stale}){
     <p role="status" className="mt-3 text-sm leading-6 text-slate-700">{c.status.reason}</p>
     <CorrectionNote value={c.correction} customer completed={c.status.code==='COMPLETED'||!!c.receipt} reviewed={!!c.review}/>
     {c.submission&&c.missing.length>0&&!c.locked&&<div className="mt-4 rounded-md bg-slate-50 p-4"><p className="text-sm font-semibold">Still needed</p><ul className="mt-2 list-disc space-y-2 pl-5 text-sm">{c.missing.map(x=><li key={x}>{x}</li>)}</ul></div>}
-    {!c.locked&&<form onSubmit={submit} className="mt-5 border-t border-slate-200 pt-4">
+    {c.submission&&c.missing.length===0&&!c.locked&&c.correction?.state!=='REQUESTED'&&!c.refund&&<section aria-label="Evidence received" className="mt-4 border border-slate-300 bg-white p-4">
+      <p className="text-xs font-semibold text-slate-500">Evidence received</p>
+      <p className="mt-1 text-lg font-semibold">This version is with the merchant.</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">No review or simulated refund has been recorded. You can edit the submission, but saving a new version clears any prior review.</p>
+      <Action className="mt-4" disabled={busy} onClick={()=>run('role',{role:'merchant'})}>Continue as merchant</Action>
+    </section>}
+    {!c.locked&&<details open={!c.submission||c.correction?.state==='REQUESTED'||c.missing.length>0} className="mt-5 border-t border-slate-200 pt-2"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-teal-800">{c.submission?'Edit submitted evidence':'Add customer evidence'}</summary><form onSubmit={submit} className="pt-2">
       <label className="block text-sm font-medium" htmlFor="practice-lot">Lot printed on the cup<input id="practice-lot" className={inputClass} value={lot} maxLength={40} onChange={e=>setLot(e.target.value)} disabled={busy} placeholder="For example, LOT-A"/></label>
       <div className="mt-4"><p className="text-sm font-medium">Label photograph</p><div className="mt-2 flex flex-wrap gap-2"><Action secondary type="button" disabled={busy||reading} onClick={()=>useSample('a')}>Use fictional sample label A</Action><Action secondary type="button" disabled={busy||reading} onClick={()=>useSample('b')}>Use fictional sample label B</Action></div><p className="mt-2 text-xs leading-5 text-slate-500">Two example labels are provided so this practice case can be completed without a real photo. These are invented product images.</p></div>
       <label className="mt-3 block text-sm font-medium" htmlFor="practice-photo">Or upload a PNG or JPEG under 2 MB<input id="practice-photo" type="file" accept="image/png,image/jpeg" onChange={pickFile} disabled={busy||reading} className="mt-2 block min-h-11 w-full rounded-md border border-slate-300 p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 focus-visible:outline-2 focus-visible:outline-teal-700"/></label>
@@ -102,8 +111,8 @@ function CustomerPanel({value,run,busy,error,onRefresh,stale}){
       <ErrorText error={localError||error}/>
       {stale&&<Action secondary type="button" className="mt-3" onClick={onRefresh}>Refresh practice case</Action>}
       <Action type="submit" className="mt-4 w-full sm:w-auto" disabled={busy||reading}>{busy?'Saving practice claim…':c.correction?.state==='REQUESTED'?'Send updated evidence':c.submission?'Update practice claim':'Submit practice claim'}</Action>
-      <p className="mt-3 text-xs leading-5 text-slate-500">Reload this page and the practice case stays here. Submitting does not approve a refund or contact anyone.</p>
-    </form>}
+      <p className="mt-3 text-xs leading-5 text-slate-500">Reload this page and the practice case stays here. Submitting does not approve a refund or contact anyone. Saving an edited version creates a new revision and clears any recorded review.</p>
+    </form></details>}
     {c.refund&&<section aria-label="Simulated refund record" className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-5"><p className="text-sm font-semibold text-teal-900">Simulated refund · no funds moved</p><h3 className="mt-2 text-2xl font-semibold tabular-nums text-teal-950">{money(c.refund.cents)}</h3><p className="mt-2 text-sm leading-6 text-teal-950">Recorded on this practice case only. No payment provider was contacted and the $34.00 tray stays outside the refund.</p><dl className="mt-3 space-y-2 text-sm"><div className="flex flex-wrap justify-between gap-2"><dt className="text-teal-900">Status</dt><dd className="font-semibold">Simulated · completed</dd></div>{c.refund.reference&&<div className="flex flex-wrap justify-between gap-2"><dt className="text-teal-900">Practice reference</dt><dd className="break-all font-mono text-xs">{c.refund.reference}</dd></div>}</dl></section>}
     {c.unresolved&&<section aria-label="Unresolved simulated refund" className="mt-5 rounded-lg border border-slate-300 bg-slate-50 p-5"><p className="text-sm font-semibold text-slate-900">Simulated refund not recorded</p><p className="mt-2 text-sm leading-6 text-slate-700">A {money(c.unresolved.cents)} attempt is {c.unresolved.state.toLowerCase()} on this practice case. No funds moved and no payment provider was contacted. The merchant can resume a prepared attempt or start a new practice case.</p></section>}
     <ErrorText error={error}/>
@@ -121,9 +130,9 @@ function MerchantPanel({value,run,busy,error,onRefresh,stale}){
   const canReview=!c.locked&&c.submission&&c.missing.length===0&&c.correction?.state!=='REQUESTED'&&!c.review;
   const binding={caseId:c.id,attempt:value.attempt,revision:c.revision};
   if(!c.submission&&!c.correction) return <section aria-labelledby="practice-merchant" className="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
-    <p className="text-sm font-medium text-teal-800">Merchant view</p><h2 id="practice-merchant" className="mt-1 text-xl font-semibold">Nothing to review yet</h2>
-    <p className="mt-3 text-sm leading-6 text-slate-700">This case is waiting for customer evidence. Switch to the customer view to supply the label, lot and description, then return here.</p>
-    <Action className="mt-4" onClick={()=>run('role',{role:'customer'})}>Switch to the customer view</Action>
+    <p className="text-sm font-medium text-teal-800">Practice setup</p><h2 id="practice-merchant" className="mt-1 text-xl font-semibold">Start with the customer’s evidence</h2>
+    <p className="mt-3 text-sm leading-6 text-slate-700">The notice is ready. Add the lot, a fictional label and the required response, then return here to review the claim.</p>
+    <Action className="mt-4" onClick={()=>run('role',{role:'customer'})}>Open customer view</Action>
     <ErrorText error={error}/>
   </section>;
   return <section aria-labelledby="practice-merchant" className="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
@@ -158,11 +167,13 @@ export default function Practice(){
   useEffect(()=>{let active=true;api('practice/state').then(v=>active&&setState(v)).catch(e=>active&&(setError(e.message),setExpired(Boolean(e.expired))));return()=>{active=false;};},[]);
   async function run(action,data){setBusy(true);setError('');setStale(false);setExpired(false);try{setState(await api(`practice/${action}`,data));}catch(e){setError(e.message);setStale(Boolean(e.stale));setExpired(Boolean(e.expired));}finally{setBusy(false);}}
   const customer=state?.role==='customer';
-  return <Frame customer={customer} note="Practice · simulated · no payment provider"><title>Practice claim · Recall Relay</title>
-    <p className="text-sm font-medium text-teal-800">Practice case · simulated</p>
-    <h1 className="mt-2 text-3xl font-semibold text-balance">Run one complete claim, end to end.</h1>
-    <p className="mt-3 max-w-3xl text-pretty leading-7 text-slate-600">A reviewed practice notice, one fictional affected cup and its excluded tray. Switch roles below to collect evidence, request a correction, approve it and record a simulated refund. Nothing here contacts a payment provider or a live model.</p><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Prefer to inspect the full merchant layout first? <a className="font-semibold text-teal-800 underline" href="/sample">Open the read-only sample desk</a>.</p>
+  return <Frame practice customer={customer} note={`Practice · simulated · ${customer?'customer view':'merchant view'} · no payment provider`}>
+    <p className="text-sm font-medium text-teal-800">Practice claim · simulated</p>
+    <h1 className="mt-2 text-3xl font-semibold text-balance">One claim. Three decisions.</h1>
+    <p className="mt-3 max-w-3xl text-pretty leading-7 text-slate-600">Prepare the fictional claim, review the customer’s evidence, then approve the affected item only. Correction is part of review, not a separate stage.</p>
+    <StageBar value={state||{}}/>
     {!state?<section className="mt-6 rounded-lg border border-slate-200 bg-white p-6" aria-busy={!error}><p role="status">{error?'This practice case could not be opened.':'Opening your practice case…'}</p><ErrorText error={error}/>{expired&&<Action className="mt-4" disabled={busy} onClick={()=>run('new',{})}>Start a fresh practice case</Action>}<Action secondary className="mt-4" disabled={busy} onClick={refresh}>Retry</Action></section>:<>
+      <SettlementStrip value={state}/>
       <div className="mt-5 flex flex-wrap items-center gap-4">
         <div role="group" aria-label="Practice role" className="inline-flex rounded-md border border-slate-300 bg-white p-1">
           <button type="button" aria-pressed={!customer} disabled={busy} onClick={()=>run('role',{role:'merchant'})} className={'min-h-11 rounded px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal-700 '+(customer?'text-slate-700 hover:bg-slate-50':'bg-teal-700 text-white')}>Merchant view</button>
@@ -175,7 +186,6 @@ export default function Practice(){
         <aside className="space-y-4">
           <details className="rounded-lg border border-slate-200 bg-white px-5"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Reviewed requirements and practice notice</summary><div className="border-t border-slate-100 pb-5 pt-4"><Scenario value={state}/></div></details>
           <details className="rounded-lg border border-slate-200 bg-white px-5"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Fictional purchase and amounts</summary><div className="border-t border-slate-100 pb-5 pt-4"><Purchase value={state}/></div></details>
-          <details className="rounded-lg border border-slate-200 bg-white px-5"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Journey so far</summary><div className="border-t border-slate-100 pb-5 pt-4"><Journey value={state}/></div></details>
         </aside>
       </div>
       <p className="mt-6 max-w-3xl text-xs leading-5 text-slate-500">{state.boundary.storage} {state.boundary.provider} {state.boundary.assistant}</p>

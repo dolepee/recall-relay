@@ -56,11 +56,12 @@ test('the landing page offers the simulated practice claim beside, not instead o
   assert.match(html,/href="\/practice"/);
   assert.match(html,/Try a practice claim/);
   assert.match(html,/practice simulated, no PayPal account needed/);
-  assert.match(html,/simulated practice claim — no PayPal account needed/);
+  assert.match(html,/Try a practice claim/);
   // The connected sandbox desk keeps its existing entry points.
   assert.match(html,/href="\/desk"/);
   assert.match(html,/href="\/sample"/);
-  assert.match(html,/Open the sandbox desk/);
+  assert.match(html,/Open Sandbox workspace/);
+  assert.match(html,/test funds/);
   assert.doesNotMatch(html,/Practice claim only/i);
 });
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
-import {approveLabel, canApprove, canConfirmReview, customerTask, evidenceState, evidenceTitle, handoff, merchantNextStep, progressStage, refundFacts, reviewable, reviewedCurrent, stage, STAGES} from '../ui/guided-state.mjs';
+import {approveActionLabel, approveLabel, canApprove, canConfirmReview, customerTask, evidenceState, evidenceTitle, handoff, merchantNextStep, progressStage, refundFacts, reviewPhotoKey, reviewable, reviewedCurrent, stage, STAGES} from '../ui/guided-state.mjs';
 
 const scenario = {title: 'Practice notice · Relay Home cup', product: 'Relay Home cup (fictional)', sku: 'CUP-01', lot: 'LOT-A', notice: 'Practice exercise.', sourceLabel: 'Fictional practice notice', sourceNote: 'Written for this exercise.', requirements: [], totalCents: 5999, affectedCents: 2599, unaffectedCents: 3400};
 
@@ -81,9 +81,19 @@ test('a review is only confirmable with an explicit acknowledgement on a reviewa
   assert.equal(canConfirmReview(submitted(), null), false);
   assert.equal(canConfirmReview(submitted(), true), false, 'the customer cannot confirm a merchant review');
   assert.equal(canConfirmReview({...submitted(), role: 'merchant'}, true), true);
+  assert.equal(canConfirmReview({...submitted(), role: 'merchant'}, true, false), false, 'a loading or failed photo blocks review');
+  assert.equal(canConfirmReview({...submitted(), role: 'merchant'}, true, null), false, 'only a loaded current photo is ready');
+  assert.equal(canConfirmReview({...submitted({submission: {lot: 'LOT-A', acknowledged: true, hasPhoto: false, extra: {}}}), role: 'merchant'}, true), false, 'the server photo guard remains required');
   assert.equal(canConfirmReview({...submitted({missing: ['Lot code']}), role: 'merchant'}, true), false);
   assert.equal(canConfirmReview({...submitted({correction: {state: 'REQUESTED', message: 'x'}}), role: 'merchant'}, true), false);
   assert.equal(canConfirmReview({...submitted({locked: true}), role: 'merchant'}, true), false);
+});
+
+test('photo readiness is bound to the current case, revision and image', () => {
+  const first = submitted({photo: 'data:image/png;base64,AAA'});
+  const second = {...first, case: {...first.case, revision: 2, photo: 'data:image/png;base64,BBB'}};
+  assert.notEqual(reviewPhotoKey(first), reviewPhotoKey(second), 'a new revision must reset readiness');
+  assert.match(reviewPhotoKey(first), /PRACTICE-AAAA1111:1:data:image\/png/);
 });
 
 test('a refund needs a review recorded for the current revision and the displayed plan digest', () => {
@@ -96,7 +106,8 @@ test('a refund needs a review recorded for the current revision and the displaye
 });
 
 test('the final action names the exact affected amount and keeps the excluded line visible', () => {
-  assert.equal(approveLabel(reviewed()), 'Approve $25.99 refund');
+  assert.equal(approveLabel(reviewed()), 'Review refund');
+  assert.equal(approveActionLabel(reviewed()), 'Approve $25.99 simulated refund');
   const facts = refundFacts(reviewed());
   assert.equal(facts.affected, '$25.99');
   assert.equal(facts.excluded, '$34.00');
@@ -125,7 +136,7 @@ test('DESIGN.md records the governing system and the state and copy contract', a
     assert.ok(doc.includes(token), `missing ${token}`);
   assert.match(doc, /Prepare claim \/ Review evidence \/ Approve refund/);
   assert.match(doc, /starts unchecked/i);
-  assert.match(doc, /Approve \[amount\] refund/);
+  assert.match(doc, /Approve \[amount\] simulated refund/);
   assert.match(doc, /Do not promise retained previous submissions/i);
   assert.doesNotMatch(doc, /with the previous submission retained/i);
   assert.match(doc, /48px/);

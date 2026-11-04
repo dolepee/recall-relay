@@ -94,8 +94,17 @@ export function handoff(value) {
   return null;
 }
 
-export function canConfirmReview(value, acknowledged) {
-  return value.role === 'merchant' && reviewable(value) && acknowledged === true;
+export function canConfirmReview(value, acknowledged, photoReady = true) {
+  const c = value.case;
+  return value.role === 'merchant' && reviewable(value) && Boolean(c.submission?.hasPhoto) && acknowledged === true && photoReady === true;
+}
+
+// The photo is part of the review, not decoration. Bind its readiness to the
+// exact case, revision and image so a slow, failed or replaced photograph
+// cannot inherit a previous revision's loaded state.
+export function reviewPhotoKey(value) {
+  const c = value.case;
+  return `${c.id}:${c.revision}:${c.photo || 'missing'}`;
 }
 
 export function canApprove(value) {
@@ -103,8 +112,12 @@ export function canApprove(value) {
   return reviewedCurrent(value) && c.plan.status === 'READY_FOR_APPROVAL' && Boolean(c.plan.digest) && !c.locked;
 }
 
-export function approveLabel(value) {
-  return `Approve ${money(value.scenario.affectedCents)} refund`;
+export function approveLabel() {
+  return 'Review refund';
+}
+
+export function approveActionLabel(value) {
+  return `Approve ${money(value.scenario.affectedCents)} simulated refund`;
 }
 
 export function refundFacts(value) {

@@ -264,6 +264,7 @@ export class PracticeWorkspace {
     const claim = newClaim(this.now());
     this.desk.saveClaim(claim);
     session.claimId = claim.id;
+    session.role = 'customer';
     session.attempt += 1;
     this.save(session);
     return this.view(session);

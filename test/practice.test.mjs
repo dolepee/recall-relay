@@ -125,6 +125,8 @@ test('stale attempt, case, revision and digest requests are rejected without sid
     const oldCase={...bind(view),confirmed:true,digest:view.case.plan.digest};
     const restarted=ws.restart(session);
     assert.notEqual(restarted.case.id,view.case.id);
+    assert.equal(restarted.role,'customer');
+    ws.role(session,'merchant'); // Exercise the stale identity guard independently of the role guard.
     await assert.rejects(ws.approve(session,{...oldCase}),StaleActionError);
     assert.throws(()=>ws.review(session,{...oldCase}),StaleActionError);
     assert.equal(count(ws,'refunds'),0);
@@ -174,8 +176,10 @@ test('restart clears the old claim, photos and journal rows and caps attempts',a
     assert.equal(view.attempt,2);
     assert.equal(view.case.status.code,'AWAITING_CUSTOMER');
 
-    for(let i=2;i<10;i++) view=ws.restart(session);
+    assert.equal(view.role,'customer');
+    for(let i=2;i<10;i++){ws.role(session,'merchant');view=ws.restart(session);}
     assert.equal(view.attempt,10);
+    ws.role(session,'merchant');
     assert.throws(()=>ws.restart(session),/restart limit/);
   } finally { ws.close(); await rm(space.dir,{recursive:true,force:true}); }
 });
@@ -285,5 +289,23 @@ test('the revision limit is projected and a fresh customer session remains avail
     assert.equal(next.role,'customer');
     assert.equal(next.case.submissionLimitReached,false);
     assert.equal(next.case.revision,0);
+  }finally{ws.close();await rm(space.dir,{recursive:true,force:true});}
+});
+
+
+test('a restarted practice case persists the customer role and accepts fresh evidence',async()=>{
+  const space=await workspace(),ws=space.open();
+  try{
+    const {session,token}=ws.open(null);
+    const previous=await ready(ws,session);
+    const restarted=ws.restart(session);
+    assert.notEqual(restarted.case.id,previous.case.id);
+    assert.equal(restarted.role,'customer');
+    assert.equal(restarted.case.submission,null);
+    const reopened=ws.open(token).session;
+    assert.equal(reopened.role,'customer','reloading preserves the usable customer starting point');
+    const submitted=ws.submit(reopened,{...bind(restarted),lot:'LOT-A',acknowledged:true,photo:PHOTO_A,extra:extra()});
+    assert.equal(submitted.case.status.code,'SUBMITTED');
+    assert.equal(submitted.case.revision,1);
   }finally{ws.close();await rm(space.dir,{recursive:true,force:true});}
 });

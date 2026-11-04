@@ -1,9 +1,10 @@
-import React,{lazy,Suspense,useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
+import {ProgressiveWorkspace} from './progressive-workspace.jsx';
+import React,{useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {Frame} from './components.jsx';
 import {SampleContext,SampleStatus,SampleCasePanel,SourceRequirementsWidget,PaymentExceptionsWidget,AmountSummaryWidget} from './sample-widgets.jsx';
 import {SAMPLE_CASES,DEFAULT_SAMPLE_ORDER,caseForOrder} from './sample-data.mjs';
 
-const SampleStudio=lazy(()=>import('./sample-studio.jsx'));
+const loadStudio=()=>import('./sample-studio.jsx');
 const media=typeof window==='undefined'?null:window.matchMedia('(min-width: 1100px)');
 const subscribe=callback=>{if(!media)return()=>{};media.addEventListener('change',callback);return()=>media.removeEventListener('change',callback);};
 function useWide(){return useSyncExternalStore(subscribe,()=>media?.matches===true,()=>false);}
@@ -38,7 +39,7 @@ export default function SampleDesk(){
   return <Frame merchant sample note="Sample desk · read-only · fictional fixtures">
     <div className="rr-sample-banner mb-5" role="note"><strong>Sample desk.</strong> Six fictional claims in the current merchant layout. Read-only: no PayPal login, payment call, workspace creation or AI request happens here.</div>
     <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-slate-500">Read-only sample</p><h1 className="mt-2 text-2xl font-semibold text-balance">Inspect a recall claim without setting anything up.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Move between six fixture states: waiting, review, ready, correction, payment exception and a clearly labelled sample receipt.</p></div><div className="flex flex-wrap gap-2"><a className="rr-action inline-flex items-center justify-center px-4 py-2" data-secondary="true" href="/practice">Practice journey</a><a className="rr-action rr-action--primary inline-flex items-center justify-center px-4 py-2" href="/desk">Open sandbox desk</a></div></div>
-    <SampleContext.Provider value={value}>{wide?<Suspense fallback={<div className="rr-card p-6"><p role="status">Opening the sample workspace…</p></div>}><SampleStudio/></Suspense>:<SampleMobile selected={selected} selectCase={setSelected} caseForOrder={caseForOrder}/>}</SampleContext.Provider>
+    <SampleContext.Provider value={value}>{wide?<ProgressiveWorkspace load={loadStudio} fallback={<SampleMobile selected={selected} selectCase={setSelected} caseForOrder={caseForOrder}/>}/>:<SampleMobile selected={selected} selectCase={setSelected} caseForOrder={caseForOrder}/>}</SampleContext.Provider>
     <p className="mt-4 text-xs leading-5 text-slate-500">The sample is a static fixture, not a merchant workspace, a customer record, payment evidence or model output. The receipt is invented and no funds moved.</p>
   </Frame>;
 }

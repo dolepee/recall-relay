@@ -293,3 +293,71 @@
   .rr-review-head h2{font-size:1.65rem}
   .rr-recorded>div{grid-template-columns:1fr;gap:2px}
 }
+
+/* One product system across connected, customer, source and sample surfaces. */
+.rr-product-shell{--m-paper:var(--rr-canvas);--m-paper-2:#EEF2F7;--m-card:var(--rr-surface);--m-ink:var(--rr-ink);--m-ink-2:var(--rr-ink-2);--m-ink-3:var(--rr-ink-2);--m-cobalt:var(--rr-action);--m-cobalt-d:var(--rr-action-hover);--m-display:Inter,system-ui,sans-serif;--m-text:Inter,system-ui,sans-serif}
+.rr-product-shell .rr-main{max-width:1280px;padding:28px 24px 64px}
+.rr-product-shell .rr-header{background:var(--rr-surface)}
+.rr-product-shell .rr-header__inner{max-width:1280px}
+.rr-product-shell .rr-card{border-radius:12px}
+.rr-product-shell .rr-action,.rr-dialog .rr-action{min-height:48px;border-radius:8px;font:600 15px/1.35 Inter,system-ui,sans-serif;padding:10px 18px;text-decoration:none;white-space:normal}
+.rr-product-shell .rr-input{min-height:48px;border-radius:8px;font-size:16px}
+.rr-product-shell input,.rr-product-shell textarea{caret-color:var(--rr-action)}
+.rr-product-shell :is(p,dd,blockquote,a){overflow-wrap:anywhere}
+.rr-product-shell :is(.rr-lockup__name,.rr-lockup__sub){overflow-wrap:normal}
+.rr-product-shell .rr-lockup__name{font:700 19px/1.15 Inter,system-ui,sans-serif;letter-spacing:0}
+.rr-product-shell .rr-lockup__sub{display:block;font:500 12px/1.3 Inter,system-ui,sans-serif;letter-spacing:0;text-transform:none}
+.rr-product-shell .rr-status{font:600 12px/1.4 Inter,system-ui,sans-serif;letter-spacing:0;text-transform:none;border-radius:999px}
+.rr-product-shell .rr-header__note{font:500 13px/1.5 Inter,system-ui,sans-serif;letter-spacing:0;text-transform:none}
+.rr-product-shell .rr-header__inner{flex-wrap:nowrap}
+.rr-product-shell .rr-header__note{margin-left:16px}
+.rr-allocation{padding:20px;border:1px solid var(--rr-border,#DEE5EE);border-radius:12px;background:var(--rr-surface,#fff)}
+.rr-allocation h3{font-size:16px;margin:0 0 12px}
+.rr-allocation .rr-amounts dd{font-size:15px;overflow-wrap:anywhere;min-width:0}
+.rr-allocation .rr-destination{font-family:inherit;font-weight:500}
+.rr-allocation--compact{margin-top:18px;padding:16px}
+.rr-claim-layout{display:grid;gap:24px;margin-top:24px;align-items:start}
+.rr-claim-layout>*,.rr-connected-review-layout>*{min-width:0}
+.rr-claim-heading{margin-bottom:8px}
+.rr-customer-shell form{margin-top:0!important}
+.rr-customer-shell .rr-main{max-width:1040px}
+.rr-customer-shell .rr-header__note{margin-left:auto}
+.rr-customer-form label{font-size:16px}
+.rr-customer-form :is(input:not([type=checkbox]),textarea){font-size:16px}
+.rr-customer-form input[type=file]{min-height:48px;max-width:100%}
+.rr-customer-form input[type=checkbox]{accent-color:var(--rr-action)}
+.rr-product-shell .rr-receipt{border-radius:12px}
+.rr-connected-review-layout{display:grid;gap:20px;align-items:start}
+.rr-recorded :is(dt,dd){font-size:15px}
+.rr-case-money{margin:16px 0}
+.rr-product-shell .rr-source-review-stages{margin-bottom:24px}
+.rr-product-shell .rr-error{border-radius:8px}
+.rr-product-shell .rr-empty{max-width:720px;margin:32px auto;padding:32px}
+.rr-product-shell .rr-claim-queue button[aria-pressed=true]{border-color:var(--rr-action);background:#EDF1FE}
+@media(min-width:960px){
+ .rr-claim-layout{grid-template-columns:minmax(0,1.7fr) minmax(260px,.9fr)}
+ .rr-claim-layout>.rr-case-money{position:sticky;top:100px;margin:0}
+
+}
+@media(max-width:959px){
+ .rr-claim-layout>.rr-case-money{grid-row:1;margin:0}
+ .rr-claim-layout>.rr-allocation .rr-amounts{grid-template-columns:1fr}
+ .rr-product-shell .rr-header__inner{flex-wrap:wrap;padding-right:76px;position:relative}
+ .rr-product-shell .rr-nav{display:none}
+ .rr-product-shell .rr-mobile-menu{display:block;position:absolute;right:16px;top:12px}
+ .rr-product-shell .rr-header__note{flex:1 0 100%;margin:0}
+ .rr-product-shell .rr-main{padding:24px 16px 48px}
+ .rr-customer-shell .rr-header__inner{padding-right:16px}
+}
+@media(prefers-reduced-motion:reduce){.rr-product-shell *{scroll-behavior:auto!important;transition:none!important}}
+
+#claim-review{container-type:inline-size}
+.rr-connected-review-layout>.rr-case-money{grid-row:1;margin:0}
+@container (min-width:620px){.rr-connected-review-layout{grid-template-columns:minmax(0,1.7fr) minmax(220px,1fr)}.rr-connected-review-layout>.rr-case-money{grid-row:auto}}
+.rr-product-shell .rr-workspace-setup{padding:8px 20px}
+.rr-product-shell .rr-workspace-setup>summary{font-size:15px}
+.rr-customer-shell form{margin-top:24px!important}
+
+.rr-allocation .rr-amounts dt{flex:1;min-width:0}
+.rr-allocation .rr-amounts dd{flex:0 0 auto;white-space:nowrap;overflow-wrap:normal}
+.rr-allocation .rr-amounts dd.rr-destination{flex:0 1 120px;white-space:normal}

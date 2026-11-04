@@ -16,14 +16,14 @@ test('the connected Studio layout keeps the primary review and context rail read
   const queue=STUDIO_WIDGET_LAYOUT.queue,review=STUDIO_WIDGET_LAYOUT.review;
   assert.equal(queue.xTrack,0);
   assert.equal(review.xTrack,queue.xSpan,'the review follows the queue without a gap');
-  assert.equal(review.xSpan,11,'the review keeps a wide primary column');
-  assert.equal(review.xTrack+review.xSpan,17,'the context rail starts after the review');
+  assert.equal(review.xSpan,14,'the review keeps a wide primary column');
+  assert.equal(review.xTrack+review.xSpan,19,'the context rail starts after the review');
   assert.equal(review.ySpan,47,'the review and queue use the full vertical canvas');
 
   for(const id of ['coverage','exceptions','brief','advisory']){
     const panel=STUDIO_WIDGET_LAYOUT[id];
-    assert.equal(panel.xTrack,17,`${id} sits in the context rail`);
-    assert.equal(panel.xSpan,7,`${id} keeps a readable rail width`);
+    assert.equal(panel.xTrack,19,`${id} sits in the context rail`);
+    assert.equal(panel.xSpan,5,`${id} keeps a readable rail width`);
     assert.ok(panel.ySpan>=9,`${id} is not compressed into a tiny row band`);
   }
   assert.equal(STUDIO_WIDGET_LAYOUT.coverage.yTrack,0);

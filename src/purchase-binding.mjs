@@ -42,7 +42,7 @@ export function verifyProvisionedPurchase(grant,order,capture,now){
   }
   const item=items[grant.itemOrdinal];
   if(total!==grant.captureCents||!item||item.sku!==grant.sku||usdCents(item.unit_amount)!==grant.itemPaidCents)fail();
-  return {id:`IMPORTED-${bindingHash([grant.merchantId,grant.captureId]).slice(0,12).toUpperCase()}`,version:1,merchantId:grant.merchantId,captureId:grant.captureId,lineId:'PROVISIONED-CAPTURE-LINE',sku:grant.sku,lot:grant.lot,capturedAt:capture.create_time,currency:'USD',linePaidCents:grant.itemPaidCents,lineRefundedCents:0,captureRemainingCents:grant.captureCents,provenance:{kind:'OPERATOR_PROVISIONED',grantId:grant.id,operator:grant.operator,provisionedAt:grant.provisionedAt,orderId:grant.orderId,itemOrdinal:grant.itemOrdinal,catalogMapping:'OPERATOR_REVIEWED',providerVerifiedAt:now,grantDigest:bindingHash(grant)}};
+  return {id:`IMPORTED-${bindingHash([grant.merchantId,grant.captureId]).slice(0,12).toUpperCase()}`,version:1,merchantId:grant.merchantId,captureId:grant.captureId,lineId:'PROVISIONED-CAPTURE-LINE',sku:grant.sku,lot:grant.lot,capturedAt:capture.create_time,currency:'USD',linePaidCents:grant.itemPaidCents,lineRefundedCents:0,captureRemainingCents:grant.captureCents,originalCaptureCents:grant.captureCents,provenance:{kind:'OPERATOR_PROVISIONED',grantId:grant.id,operator:grant.operator,provisionedAt:grant.provisionedAt,orderId:grant.orderId,itemOrdinal:grant.itemOrdinal,catalogMapping:'OPERATOR_REVIEWED',providerVerifiedAt:now,grantDigest:bindingHash(grant)}};
 }
 
 // Shared by a local SQLite test and one hosted Durable Object per merchant/capture.

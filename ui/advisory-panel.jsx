@@ -42,7 +42,7 @@ export function caseFingerprint(item){
 
 function FactList({facts}){
   if(!facts||typeof facts!=='object')return null;
-  return <dl className="mt-2 grid gap-1 text-[11px] leading-4 text-slate-600 sm:grid-cols-2">
+  return <dl className="mt-2 grid gap-1 text-xs leading-4 text-slate-600 sm:grid-cols-2">
     <div><dt className="inline text-slate-500">Photograph recorded: </dt><dd className="inline font-medium">{facts.photoPresent?'Yes':'No'}</dd></div>
     <div><dt className="inline text-slate-500">Lot matches: </dt><dd className="inline font-medium">{facts.lotMatches?'Yes':'No or not established'}</dd></div>
     <div><dt className="inline text-slate-500">Review revision: </dt><dd className="inline font-medium">{facts.reviewRevision??'Not recorded'}</dd></div>
@@ -70,15 +70,15 @@ function ReadFacts({item}){
   }
   return <details className="mt-3 border-t border-slate-200 pt-2">
     <summary className="min-h-11 cursor-pointer py-2 text-xs font-semibold text-slate-700 focus-visible:outline-2 focus-visible:outline-teal-700">Read recorded case facts</summary>
-    <p className="mt-1 text-[11px] leading-4 text-slate-500">These three reads return recorded fields, source quotations and gaps. They do not call a model.</p>
+    <p className="mt-1 text-xs leading-4 text-slate-500">These three reads return recorded fields, source quotations and gaps. They do not call a model.</p>
     <div className="mt-2 flex flex-wrap gap-2">{Object.entries(sectionLabel).map(([value,label])=><Action key={value} secondary disabled={!!busy} onClick={()=>load(value)}>{busy===value?`Reading ${label.toLowerCase()}…`:label}</Action>)}</div>
     <ErrorText error={error}/>
     {result&&<div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2" aria-label={`Read-only ${sectionLabel[section]}`}>
-      <p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">{sectionLabel[section]} · revision {result.revision} · read-only</p>
+      <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-500">{sectionLabel[section]} · revision {result.revision} · read-only</p>
       <FactList facts={result.facts}/>
-      {result.clauses.length>0&&<ul className="mt-2 space-y-1.5">{result.clauses.slice(0,6).map(clause=><li key={clause.citationId} className="border-l-2 border-slate-300 pl-2 text-[11px] leading-4"><p className="break-words text-slate-700">“{clause.quote}”</p><p className="mt-0.5 text-slate-500">{dispositionLabel[clause.disposition]||clause.disposition}{clause.fieldIds?.length?` · ${clause.fieldIds.length} linked field(s)`:''}</p></li>)}</ul>}
-      {result.gaps.length>0&&<div className="mt-2"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">Gaps</p><ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] leading-4 text-slate-600">{result.gaps.map((gap,index)=><li key={`${index}-${gap}`} className="break-words">{gap}</li>)}</ul></div>}
-      {result.clauses.length===0&&result.gaps.length===0&&<p className="mt-1 text-[11px] leading-4 text-slate-600">No recorded clauses or gaps in this section.</p>}
+      {result.clauses.length>0&&<ul className="mt-2 space-y-1.5">{result.clauses.slice(0,6).map(clause=><li key={clause.citationId} className="border-l-2 border-slate-300 pl-2 text-xs leading-4"><p className="break-words text-slate-700">“{clause.quote}”</p><p className="mt-0.5 text-slate-500">{dispositionLabel[clause.disposition]||clause.disposition}{clause.fieldIds?.length?` · ${clause.fieldIds.length} linked field(s)`:''}</p></li>)}</ul>}
+      {result.gaps.length>0&&<div className="mt-2"><p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-500">Gaps</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-4 text-slate-600">{result.gaps.map((gap,index)=><li key={`${index}-${gap}`} className="break-words">{gap}</li>)}</ul></div>}
+      {result.clauses.length===0&&result.gaps.length===0&&<p className="mt-1 text-xs leading-4 text-slate-600">No recorded clauses or gaps in this section.</p>}
     </div>}
   </details>;
 }
@@ -86,16 +86,16 @@ function ReadFacts({item}){
 function Clause({clause}){
   if(clause.interpretationAvailable===false){
     return <li className="border-t border-slate-200 bg-amber-50/60 py-2 first:border-t-0 first:pt-0">
-      <p className="break-words text-[11px] leading-4 text-slate-700">“{clause.quote}”</p>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[.06em] text-amber-900">Interpretation withheld</p>
-      {clean(clause.explanation)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-600">{clause.explanation}</p>}
+      <p className="break-words text-xs leading-4 text-slate-700">“{clause.quote}”</p>
+      <p className="mt-1 text-xs font-semibold uppercase tracking-[.06em] text-amber-900">Interpretation withheld</p>
+      {clean(clause.explanation)&&<p className="mt-1 break-words text-xs leading-4 text-slate-600">{clause.explanation}</p>}
     </li>;
   }
   return <li className="border-t border-slate-200 py-2 first:border-t-0 first:pt-0">
-    <p className="break-words text-[11px] leading-4 text-slate-700">“{clause.quote}”</p>
-    <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] leading-4 text-slate-500"><span>{actorLabel[clause.actor]||clause.actor||'Actor unknown'}</span><span>·</span><span>{timingLabel[clause.timing]||'See source for timing'}</span><span>·</span><span>{dispositionLabel[clause.disposition]||clause.disposition}</span></p>
-    {clean(clause.condition)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-600"><span className="font-medium">Condition: </span>“{clause.condition}”</p>}
-    {clean(clause.explanation)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-600">{clause.explanation}</p>}
+    <p className="break-words text-xs leading-4 text-slate-700">“{clause.quote}”</p>
+    <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs leading-4 text-slate-500"><span>{actorLabel[clause.actor]||clause.actor||'Actor unknown'}</span><span>·</span><span>{timingLabel[clause.timing]||'See source for timing'}</span><span>·</span><span>{dispositionLabel[clause.disposition]||clause.disposition}</span></p>
+    {clean(clause.condition)&&<p className="mt-1 break-words text-xs leading-4 text-slate-600"><span className="font-medium">Condition: </span>“{clause.condition}”</p>}
+    {clean(clause.explanation)&&<p className="mt-1 break-words text-xs leading-4 text-slate-600">{clause.explanation}</p>}
   </li>;
 }
 
@@ -124,17 +124,17 @@ export function AdvisoryPanel({item}){
   const available=result?.clauses?.filter(clause=>clause.interpretationAvailable!==false).length||0;
   const statusLabel=result?result.status==='CITED'?'Cited advisory':available>0?'Some interpretations unavailable':'Source insufficient':'Read-only';
   return <section aria-label="AI advisory" className="h-full overflow-auto p-4">
-    <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-1 text-[11px] leading-4 text-slate-500">Advisory · revision {item.revision} · not a recorded fact</p></div><span className="rr-status">{statusLabel}</span></div>
-    <p className="mt-2 text-[11px] leading-4 text-slate-600">Interprets the source instructions; recorded gaps are shown separately. It cannot inspect the photograph, approve a refund or change evidence.</p>
-    <div className="mt-2 flex flex-wrap items-center gap-2"><Action secondary disabled={busy} onClick={prepare}>{busy?'Preparing advisory…':result?'Prepare again':'Prepare advisory'}</Action>{busy&&<p role="status" className="text-[11px] text-slate-600">Reading the selected revision.</p>}</div>
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-base font-semibold">AI advisory</h2><p className="mt-1 text-xs leading-4 text-slate-500">Advisory · revision {item.revision} · not a recorded fact</p></div><span className="rr-status">{statusLabel}</span></div>
+    <p className="mt-2 text-xs leading-4 text-slate-600">Interprets the source instructions; recorded gaps are shown separately. It cannot inspect the photograph, approve a refund or change evidence.</p>
+    <div className="mt-2 flex flex-wrap items-center gap-2"><Action secondary disabled={busy} onClick={prepare}>{busy?'Preparing advisory…':result?'Prepare again':'Prepare advisory'}</Action>{busy&&<p role="status" className="text-xs text-slate-600">Reading the selected revision.</p>}</div>
     <ErrorText error={error}/>
     {result&&<div className="mt-2" aria-label="Prepared AI advisory">
-      <div className="flex flex-wrap items-baseline justify-between gap-2"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">{statusLabel}</p>{clean(result.model)&&<p className="break-all text-[10px] leading-4 text-slate-500">Model: {result.model}</p>}</div>
-      {clean(result.summary)&&<p className="mt-1 break-words text-[11px] leading-4 text-slate-700">{result.summary}</p>}
-      {result.clauses.length>0?<ul className="mt-2">{result.clauses.map(clause=><Clause key={clause.citationId} clause={clause}/>)}</ul>:<p className="mt-2 text-[11px] leading-4 text-slate-600">No usable cited clause was returned.</p>}
-      {result.gaps.length>0&&<div className="mt-2 border-t border-slate-200 pt-2"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">Recorded evidence gaps</p><ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] leading-4 text-slate-600">{result.gaps.map((gap,index)=><li key={`${index}-${gap}`} className="break-words">{gap}</li>)}</ul></div>}
-      {result.limitations?.length>0&&<div className="mt-2 border-t border-slate-200 pt-2"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">Limitations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] leading-4 text-slate-500">{result.limitations.map((limitation,index)=><li key={`${index}-${limitation}`} className="break-words">{limitation}</li>)}</ul></div>}
-      <p className="mt-2 border-t border-slate-200 pt-2 text-[10px] leading-4 text-slate-500">Model-assisted explanation only. The recorded review brief and your review controls remain authoritative.</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2"><p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-500">{statusLabel}</p>{clean(result.model)&&<p className="break-all text-xs leading-4 text-slate-500">Model: {result.model}</p>}</div>
+      {clean(result.summary)&&<p className="mt-1 break-words text-xs leading-4 text-slate-700">{result.summary}</p>}
+      {result.clauses.length>0?<ul className="mt-2">{result.clauses.map(clause=><Clause key={clause.citationId} clause={clause}/>)}</ul>:<p className="mt-2 text-xs leading-4 text-slate-600">No usable cited clause was returned.</p>}
+      {result.gaps.length>0&&<div className="mt-2 border-t border-slate-200 pt-2"><p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-500">Recorded evidence gaps</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-4 text-slate-600">{result.gaps.map((gap,index)=><li key={`${index}-${gap}`} className="break-words">{gap}</li>)}</ul></div>}
+      {result.limitations?.length>0&&<div className="mt-2 border-t border-slate-200 pt-2"><p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-500">Limitations</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-4 text-slate-500">{result.limitations.map((limitation,index)=><li key={`${index}-${limitation}`} className="break-words">{limitation}</li>)}</ul></div>}
+      <p className="mt-2 border-t border-slate-200 pt-2 text-xs leading-4 text-slate-500">Model-assisted explanation only. The recorded review brief and your review controls remain authoritative.</p>
     </div>}
     <ReadFacts item={item}/>
   </section>;

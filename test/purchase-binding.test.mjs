@@ -23,7 +23,7 @@ function setup(f,owner,workspace=f.grant.workspace){
   desk.publish(true);return {desk,calls};
 }
 test('provider order/capture and operator catalog mapping produce a variable allocation',()=>{
-  for(const cents of [2599,3875]){const f=fixture(cents),p=verifyProvisionedPurchase(f.grant,f.order,f.capture,now);assert.equal(p.linePaidCents,cents);assert.equal(p.captureRemainingCents,cents+3400);assert.equal(p.provenance.catalogMapping,'OPERATOR_REVIEWED');assert.equal(p.lineId,'PROVISIONED-CAPTURE-LINE');}
+  for(const cents of [2599,3875]){const f=fixture(cents),p=verifyProvisionedPurchase(f.grant,f.order,f.capture,now);assert.equal(p.linePaidCents,cents);assert.equal(p.captureRemainingCents,cents+3400);assert.equal(p.originalCaptureCents,cents+3400);assert.equal(p.provenance.catalogMapping,'OPERATOR_REVIEWED');assert.equal(p.lineId,'PROVISIONED-CAPTURE-LINE');}
 });
 test('missing, mismatched and ambiguous provider allocation stays manual',()=>{
   const changes=[f=>{f.capture.payee.merchant_id='OTHER';},f=>{f.capture.supplementary_data.related_ids.order_id='OTHER';},f=>{f.order.purchase_units[0].reference_id='OTHER';},f=>{f.order.purchase_units[0].items=undefined;},f=>{f.order.purchase_units[0].items[0].quantity='2';},f=>{f.order.purchase_units[0].items[1].sku='CUP-01';},f=>{f.order.purchase_units[0].amount.breakdown.shipping=usdAmount(100);},f=>{f.capture.status='PARTIALLY_REFUNDED';},f=>{f.order.purchase_units[0].payments.refunds=[{id:'OLD'}];},f=>{f.capture.create_time='2020-01-01';},f=>{f.capture.create_time='2027-01-01';},f=>{f.grant.itemPaidCents++;}];
@@ -38,10 +38,10 @@ test('binding is idempotent and a variable refund uses the original capture amou
   try{
     const [a,b]=await Promise.all([desk.bindPurchase({grantId:f.grant.id}),desk.bindPurchase({grantId:f.grant.id})]);
     assert.equal(a.id,b.id);assert.equal(a.claimUrl,b.claimUrl);assert.equal(desk.merchantState().cases.length,1);assert.equal(a.amountCents,3875);
-    const token=a.claimUrl.split('#')[1];desk.submit(token,{revision:0,lot:'LOT-A',acknowledged:true,photo});
+    const token=a.claimUrl.split('#')[1];assert.deepEqual(desk.customerState(token).allocation,{currency:'USD',originalCents:7275,affectedCents:3875,excludedCents:3400});desk.submit(token,{revision:0,lot:'LOT-A',acknowledged:true,photo});
     const reviewed=desk.review(a.id,{revision:1,confirmed:true});
     await Promise.all([desk.approve(a.id,{digest:reviewed.plan.digest}),desk.approve(a.id,{digest:reviewed.plan.digest})]);
-    assert.equal(calls.refund,1);assert.equal(calls.cents,3875);assert.equal(desk.customerState(token).receipt.amountCents,3875);
+    assert.equal(calls.refund,1);assert.equal(calls.cents,3875);assert.equal(desk.customerState(token).receipt.amountCents,3875);assert.deepEqual(desk.customerState(token).allocation,{currency:'USD',originalCents:7275,affectedCents:3875,excludedCents:3400});
   }finally{desk.close();owner.close();}
 });
 test('capture-global ownership blocks a separately provisioned workspace and altered line identity',async()=>{

@@ -16,14 +16,14 @@ function DeclaredAmount({label,value}){
 }
 
 function Count({label,value}){
-  return <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 pb-1 last:border-0"><dt className="text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">{label}</dt><dd className="text-lg font-semibold tabular-nums">{value}</dd></div>;
+  return <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 pb-1 last:border-0"><dt className="text-xs font-semibold uppercase tracking-[.08em] text-slate-500">{label}</dt><dd className="text-lg font-semibold tabular-nums">{value}</dd></div>;
 }
 
 function OrderPreview({order,index,rows}){
   const capture=order.captureId||rows[0]?.declaredCaptureId||null;
   return <section className="rr-card min-w-0 p-4" aria-label={`Declared order ${order.orderId}`}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0"><h4 className="break-all text-base font-semibold">{order.orderId}</h4><p className="mt-1 break-all font-mono text-[11px] text-slate-500">Declared capture: {capture||'none declared'}</p><p className="mt-1 break-words text-xs text-slate-500">{order.capturedAt||'No declared date'} · {order.status||'No declared status'}</p></div>
+      <div className="min-w-0"><h4 className="break-all text-base font-semibold">{order.orderId}</h4><p className="mt-1 break-all font-mono text-xs text-slate-500">Declared capture: {capture||'none declared'}</p><p className="mt-1 break-words text-xs text-slate-500">{order.capturedAt||'No declared date'} · {order.status||'No declared status'}</p></div>
       <div className="flex flex-wrap items-center gap-2"><span className="rr-status" data-code="MANUAL">Capture unverified</span><span className="rr-status">Provider facts not checked</span></div>
     </div>
     <div className="mt-3 min-w-0 space-y-3">{rows.map(row=><article key={`${row.lineIndex}-${row.declaredLineId}`} className="min-w-0 border-t border-slate-200 pt-3" aria-label={`Declared line ${row.declaredLineId}`}>
@@ -34,7 +34,7 @@ function OrderPreview({order,index,rows}){
       <dl className="mt-2 grid gap-1.5 text-xs sm:grid-cols-2 xl:grid-cols-4"><DeclaredAmount label="Item total after discounts" value={row.itemPaidCents}/><DeclaredAmount label="Tax" value={row.taxCents}/><DeclaredAmount label="Shipping" value={row.shippingCents}/><DeclaredAmount label="Prior refunds" value={row.refundedCents}/></dl>
       <p className="mt-2 text-xs leading-5 text-slate-700"><span className="font-semibold">Declared candidate: </span>{row.disposition==='AFFECTED'?amount(row.candidateCents):'Not counted'}</p>
       {row.reasons?.length?<ul className="mt-1 list-disc space-y-1 break-words pl-4 text-xs leading-5 text-slate-600">{row.reasons.map((reason,i)=><li key={`${i}-${reason}`}>{reason}</li>)}</ul>:null}
-      <p className="mt-1 text-[11px] leading-4 text-slate-500">Allocation: none established. Verification: {row.verification==='UNVERIFIED'?'declared only, unverified':row.verification}. An imported capture is not purchase provenance.</p>
+      <p className="mt-1 text-xs leading-4 text-slate-500">Allocation: none established. Verification: {row.verification==='UNVERIFIED'?'declared only, unverified':row.verification}. An imported capture is not purchase provenance.</p>
     </article>)}</div>
   </section>;
 }
@@ -93,15 +93,15 @@ export function ImportPanel(){
         {notice&&<p role="status" className="mt-3 text-sm leading-6 text-slate-600">{notice}</p>}
       </form>
       {result&&<div className="mt-6" aria-label="Declared import preview">
-        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-[.1em] text-slate-500">Declared preview · read-only</p><h3 className="mt-1 text-lg font-semibold">What this import would mean</h3></div><span className="text-xs text-slate-500">Currency {result.currency} · {result.orders.length} declared {result.orders.length===1?'order':'orders'}</span></div>
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-semibold  text-slate-500">Declared preview · read-only</p><h3 className="mt-1 text-lg font-semibold">What this import would mean</h3></div><span className="text-xs text-slate-500">Currency {result.currency} · {result.orders.length} declared {result.orders.length===1?'order':'orders'}</span></div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <section className="rr-card p-4" aria-label="Declared candidate value"><p className="text-[11px] font-semibold uppercase tracking-[.1em] text-slate-500">Declared candidate value</p><p className="mt-2 text-2xl font-semibold tabular-nums">{money(result.summary.candidateCents)}</p><p className="mt-1 text-xs leading-5 text-slate-600">Declared balances on affected lines. Not a verified refundable amount or recall liability.</p></section>
-          <section className="rr-card p-4" aria-label="Verified refundable amount"><p className="text-[11px] font-semibold uppercase tracking-[.1em] text-slate-500">Verified refundable amount</p><p className="mt-2 text-lg font-semibold text-[color:var(--m-warn)]">{amount(result.summary.verifiedRefundableCents)}</p><p className="mt-1 text-xs leading-5 text-slate-600">No capture has been verified or bound to this workspace.</p></section>
-          <section className="rr-card p-4" aria-label="Confirmed refunds"><p className="text-[11px] font-semibold uppercase tracking-[.1em] text-slate-500">Confirmed refunds</p><p className="mt-2 text-lg font-semibold text-[color:var(--m-warn)]">{amount(result.summary.confirmedRefundCents)}</p><p className="mt-1 text-xs leading-5 text-slate-600">No provider receipt exists for this preview.</p></section>
-          <section className="rr-card p-4" aria-label="Line counts"><p className="text-[11px] font-semibold uppercase tracking-[.1em] text-slate-500">Line counts</p><dl className="mt-2 space-y-1"><Count label="Affected" value={result.summary.affectedCount}/><Count label="Unaffected" value={result.summary.unaffectedCount}/><Count label="Manual" value={result.summary.manualCount}/></dl><p className="mt-2 text-xs leading-5 text-slate-600">Zero is a recorded value; a manual line is not counted.</p></section>
+          <section className="rr-card p-4" aria-label="Declared candidate value"><p className="text-xs font-semibold  text-slate-500">Declared candidate value</p><p className="mt-2 text-2xl font-semibold tabular-nums">{money(result.summary.candidateCents)}</p><p className="mt-1 text-xs leading-5 text-slate-600">Declared balances on affected lines. Not a verified refundable amount or recall liability.</p></section>
+          <section className="rr-card p-4" aria-label="Verified refundable amount"><p className="text-xs font-semibold  text-slate-500">Verified refundable amount</p><p className="mt-2 text-lg font-semibold text-[color:var(--m-warn)]">{amount(result.summary.verifiedRefundableCents)}</p><p className="mt-1 text-xs leading-5 text-slate-600">No capture has been verified or bound to this workspace.</p></section>
+          <section className="rr-card p-4" aria-label="Confirmed refunds"><p className="text-xs font-semibold  text-slate-500">Confirmed refunds</p><p className="mt-2 text-lg font-semibold text-[color:var(--m-warn)]">{amount(result.summary.confirmedRefundCents)}</p><p className="mt-1 text-xs leading-5 text-slate-600">No provider receipt exists for this preview.</p></section>
+          <section className="rr-card p-4" aria-label="Line counts"><p className="text-xs font-semibold  text-slate-500">Line counts</p><dl className="mt-2 space-y-1"><Count label="Affected" value={result.summary.affectedCount}/><Count label="Unaffected" value={result.summary.unaffectedCount}/><Count label="Manual" value={result.summary.manualCount}/></dl><p className="mt-2 text-xs leading-5 text-slate-600">Zero is a recorded value; a manual line is not counted.</p></section>
         </div>
         <section className="rr-card mt-3 p-4" aria-label="Import scope and provenance">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-[.1em] text-slate-500">Scope and provenance</p><h4 className="mt-1 text-base font-semibold">Server-applied scope, declared source</h4></div><span className="rr-status">Not persisted</span></div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold  text-slate-500">Scope and provenance</p><h4 className="mt-1 text-base font-semibold">Server-applied scope, declared source</h4></div><span className="rr-status">Not persisted</span></div>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
             <div><dt className="text-slate-500">Published scope</dt><dd className="break-all font-semibold">{result.scope?.sku?(<>SKU {result.scope.sku} · lot {result.scope.lot||'not set'}</>):'No published scope'}</dd></div>
             <div><dt className="text-slate-500">Source</dt><dd className="break-words font-semibold">{result.source?.label||'Not declared'}</dd></div>

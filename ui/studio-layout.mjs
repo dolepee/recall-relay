@@ -13,12 +13,12 @@ export const STUDIO_WIDGET_MIN_ROWS=Object.freeze({
   advisory:12,
 });
 export const STUDIO_WIDGET_LAYOUT={
-  queue:{xTrack:0,yTrack:0,xSpan:6,ySpan:STUDIO_WIDGET_MIN_ROWS.queue},
-  review:{xTrack:6,yTrack:0,xSpan:11,ySpan:STUDIO_WIDGET_MIN_ROWS.review},
-  coverage:{xTrack:17,yTrack:0,xSpan:7,ySpan:STUDIO_WIDGET_MIN_ROWS.coverage},
-  exceptions:{xTrack:17,yTrack:12,xSpan:7,ySpan:STUDIO_WIDGET_MIN_ROWS.exceptions},
-  brief:{xTrack:17,yTrack:21,xSpan:7,ySpan:STUDIO_WIDGET_MIN_ROWS.brief},
-  advisory:{xTrack:17,yTrack:35,xSpan:7,ySpan:STUDIO_WIDGET_MIN_ROWS.advisory},
+  queue:{xTrack:0,yTrack:0,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.queue},
+  review:{xTrack:5,yTrack:0,xSpan:14,ySpan:STUDIO_WIDGET_MIN_ROWS.review},
+  coverage:{xTrack:19,yTrack:0,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.coverage},
+  exceptions:{xTrack:19,yTrack:12,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.exceptions},
+  brief:{xTrack:19,yTrack:21,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.brief},
+  advisory:{xTrack:19,yTrack:35,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.advisory},
 };
 
 const rowsFor=(id,contentHeights,rowHeight)=>Math.max(

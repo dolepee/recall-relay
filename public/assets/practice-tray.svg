@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160" role="img" aria-label="Illustrative Relay Home tray">
+  <rect width="240" height="160" rx="12" fill="#E9EDF2"/>
+  <ellipse cx="120" cy="126" rx="76" ry="9" fill="#CFD7E1" opacity=".45"/>
+  <path d="M36 62h168c6 0 10 4 10 10v38c0 9-7 16-16 16H42c-9 0-16-7-16-16V72c0-6 4-10 10-10Z" fill="#D8E0E9" stroke="#8FA2B8" stroke-width="3"/>
+  <path d="M46 74h148v34c0 7-5 12-12 12H58c-7 0-12-5-12-12V74Z" fill="#F7F9FC" stroke="#AAB8C8" stroke-width="2"/>
+  <path d="M12 76h18v30c0 4 3 7 7 7h3v10h-3c-14 0-25-11-25-25V76ZM210 76h18v22c0 14-11 25-25 25h-3V113h3c4 0 7-3 7-7V76Z" fill="#D8E0E9" stroke="#8FA2B8" stroke-width="3"/>
+  <path d="M72 90h96" stroke="#D4DCE6" stroke-width="3" stroke-linecap="round"/>
+</svg>

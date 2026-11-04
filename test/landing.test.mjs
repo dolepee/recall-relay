@@ -4,79 +4,90 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 
 const landing=resolve('public/landing.html');
+const read=()=>readFile(landing,'utf8');
 
-test('the landing document states its sandbox scope and stays self-contained',async()=>{
-  const html=await readFile(landing,'utf8');
-  for(const label of [
-    'Sandbox evaluation',
-    'Test funds · fictional merchandise',
-    'Sandbox workspace · <em>test funds</em>',
-    'Sandbox example',
-    'Example controls',
-    'Sandbox test record',
-    'Not a real PayPal transaction',
-  ]) assert.ok(html.includes(label),label);
+test('the homepage states the merchant job and the two real entry points',async()=>{
+  const html=await read();
+  for(const copy of [
+    'Recall resolution for merchants',
+    'Resolve recall claims. Refund the <em>right item.</em>',
+    'Turn a recall notice into clear customer instructions. Review the evidence, then approve the affected item’s refund to the original PayPal payment.',
+    'Try a guided claim',
+    'Simulated. No funds move.',
+    'Sandbox workspace',
+    'How it works',
+    'Evaluation',
+  ]) assert.ok(html.includes(copy),copy);
+  assert.match(html,/href="\/practice"/);
   assert.match(html,/href="\/desk"/);
+  assert.match(html,/href="\/sample"/);
+  assert.match(html,/id="relay"/);
   assert.doesNotMatch(html,/recall-relay\.dolepee\.com/);
-  assert.doesNotMatch(html,/Design prototype/);
+});
+
+test('the illustrative allocation explains the affected item, exclusion and destination without fake controls',async()=>{
+  const html=await read();
+  for(const copy of [
+    'One order. One affected item.',
+    'Illustrative example',
+    'Fictional example.',
+    'Relay Home cup',
+    'Affected item',
+    '$25.99',
+    'Relay Home tray',
+    'Excluded from refund',
+    '$34.00',
+    'Original purchase',
+    '$59.99',
+    'Proposed refund',
+    'To the original PayPal payment',
+    'Only the affected cup is included in the refund.',
+    'You review and approve the refund.',
+  ]) assert.ok(html.includes(copy),copy);
+  const example=html.slice(html.indexOf('<aside class="example"'),html.indexOf('</aside>',html.indexOf('<aside class="example"')));
+  assert.ok(example.length>0);
+  assert.doesNotMatch(example,/<button|<form|<input/i,'the example is illustrative, not an approval control');
+});
+
+test('the instructions cover the three stages, the decision ingredients and the practice distinction',async()=>{
+  const html=await read();
+  for(const copy of [
+    'One clear path from notice to refund.',
+    'Prepare claim',
+    'Review the notice and publish clear customer instructions.',
+    'Review evidence',
+    'Inspect the current submission and request an update if needed.',
+    'Approve refund',
+    'Confirm the affected amount and check the provider result.',
+    'Everything needed for the decision.',
+    'Source requirement',
+    'Current evidence',
+    'Refund confirmation',
+    'Practice or Sandbox?',
+    'No PayPal account is needed and no funds move.',
+    'test funds and fictional merchandise',
+  ]) assert.ok(html.includes(copy),copy);
+});
+
+test('the homepage remains self-contained and does not make unsupported claims',async()=>{
+  const html=await read();
   assert.doesNotMatch(html,/<script[^>]+src=/i);
   assert.doesNotMatch(html,/<link[^>]+rel="?stylesheet/i);
   assert.doesNotMatch(html,/<img[^>]+src="https?:/i);
+  assert.doesNotMatch(html,/testimonial|customer logo|certification|time savings|thousands of|trusted by/i);
+  assert.doesNotMatch(html,/named approval|who approved it/i);
 });
 
-test('landing copy describes what approval and the sandbox desk actually record',async()=>{
-  const html=await readFile(landing,'utf8');
-  // The journal records the generic actor `local-merchant`, not a person's name.
-  assert.doesNotMatch(html,/named approval/i);
-  assert.doesNotMatch(html,/who approved it/i);
-  assert.match(html,/explicit merchant approval/);
-  assert.match(html,/recorded against the revision it was made on/);
-  // The desk opens the visitor's own workspace; the illustrated claim is not seeded.
-  assert.doesNotMatch(html,/Follow this exact claim/i);
-  assert.match(html,/your own workspace on test funds/);
-  assert.match(html,/an example, not a record waiting in your desk/);
-  // Guard 02: a repeat approval resumes the one reserved request after re-checking the capture.
-  assert.doesNotMatch(html,/finds it reserved and stops/i);
-  assert.match(html,/resumes that one request and re-checks the capture first/);
-});
-
-test('the receipt promises only what the product receipt exposes',async()=>{
-  const html=await readFile(landing,'utf8');
-  // The product receipt shows a status, an amount and a refund reference; it exposes no timestamp.
-  assert.doesNotMatch(html,/\d{2}:\d{2}\s*UTC/);
-  assert.doesNotMatch(html,/One timestamp/i);
-  assert.match(html,/<dt>Status<\/dt>/);
-  assert.match(html,/from PayPal's confirmation of the refund/);
-  // Footer sits on light paper, so it must keep the default focus outline.
-  assert.doesNotMatch(html,/\.foot :focus-visible/);
-});
-
-test('the landing page offers the simulated practice claim beside, not instead of, the sandbox desk',async()=>{
-  const html=await readFile(landing,'utf8');
-  assert.match(html,/href="\/practice"/);
-  assert.match(html,/Try a practice claim/);
-  assert.match(html,/practice simulated, no PayPal account needed/);
-  assert.match(html,/simulated practice claim — no PayPal account needed/);
-  // The connected sandbox desk keeps its existing entry points.
-  assert.match(html,/href="\/desk"/);
-  assert.match(html,/href="\/sample"/);
-  assert.match(html,/Open the sandbox desk/);
-  assert.doesNotMatch(html,/Practice claim only/i);
-});
-
-test('the landing example uses the active 27026 crystal-cup source and no dresser copy',async()=>{
-  const html=await readFile(landing,'utf8');
-  assert.match(html,/Crystal Glass Cups with Loose Crystal Chips/);
-  assert.match(html,/CPSC 27-026/);
-  assert.match(html,/Consumer will be asked to fill out an online form and submit a photograph/);
-  assert.match(html,/permanent black marker/);
-  assert.match(html,/SCENARIO-ITEM · LOT-A/);
-  assert.match(html,/Linked-purchase confirmation/);
-  assert.match(html,/App check/);
-  assert.match(html,/Source guidance, not an app check/);
-  assert.match(html,/does not record manufacturer registration/);
-  assert.match(html,/Customer stated · not verified/);
-  assert.match(html,/Attested/);
-  assert.doesNotMatch(html,/Original-payment refund registration|On file/);
-  assert.doesNotMatch(html,/Romorgniz|six-drawer|dresser|drawers|RECALLED|CPSC 27-020|RZ-6D/);
+test('desktop and mobile navigation agree on real destinations',async()=>{
+  const html=await read();
+  const desktop=html.slice(html.indexOf('<nav class="nav"'),html.indexOf('</nav>',html.indexOf('<nav class="nav"')));
+  const mobile=html.slice(html.indexOf('<nav aria-label="Product navigation">',html.indexOf('<details class="mobile-menu"')),html.indexOf('</nav>',html.indexOf('<nav aria-label="Product navigation">',html.indexOf('<details class="mobile-menu"'))));
+  const hrefs=block=>[...block.matchAll(/href="([^"]+)"/g)].map(m=>m[1]);
+  assert.deepEqual(hrefs(mobile),hrefs(desktop),'the two menus expose the same destinations in the same order');
+  for(const target of hrefs(desktop)){
+    assert.ok(target==='#relay'||target==='/practice'||target==='/desk',`unexpected destination ${target}`);
+  }
+  assert.doesNotMatch(html,/href="#"/,'no placeholder links');
+  assert.match(html,/id="relay"/);
+  assert.match(html,/#relay\{scroll-margin-top:88px\}/,'the anchor clears the sticky header');
 });

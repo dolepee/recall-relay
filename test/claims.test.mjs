@@ -39,6 +39,8 @@ test('a verified sandbox order becomes one private claim, not a client-supplied 
     assert.equal(item.id,again.id);assert.equal(counters.capture,1);assert.equal(desk.merchantState().cases.length,1);
     const customer=desk.customerState(access(item));
     assert.equal(customer.status.code,'AWAITING_CUSTOMER');assert.equal(customer.amountCents,2599);
+    assert.deepEqual(customer.allocation,{currency:'USD',originalCents:5999,affectedCents:2599,excludedCents:3400});
+    assert.deepEqual(customer.allocation,desk.merchantState().cases[0].allocation);
     for(const field of ['claimUrl','access','purchase','payment','plan','photo'])assert.equal(customer[field],undefined);
     assert.throws(()=>desk.customerState('wrong'),/invalid/);
     assert.equal(desk.authenticateMerchant(access(item)),false);
@@ -73,6 +75,7 @@ test('concurrent approvals dispatch once and both sides see the same confirmed r
     assert.equal(counters.refund,1);
     const customer=desk.customerState(access(item));assert.equal(customer.status.code,'COMPLETED');
     assert.equal(customer.receipt.refundId,'TEST-REFUND');assert.equal(customer.receipt.amountCents,2599);
+    assert.deepEqual(customer.allocation,{currency:'USD',originalCents:5999,affectedCents:2599,excludedCents:3400});
     assert.deepEqual(customer.receipt,desk.merchantState().cases[0].receipt);
     assert.throws(()=>desk.submit(access(item),{revision:1,lot:'LOT-A'}),/locked/);
   }finally{desk.close();}

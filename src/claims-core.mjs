@@ -4,6 +4,7 @@ import {Buffer} from 'node:buffer';
 import {syncTransaction} from './transaction.mjs';
 import { planClaim } from './plan.mjs';
 import { usdCents } from './money.mjs';
+import {claimAllocation} from './claim-allocation.mjs';
 import {previewLedger} from './ledger-preview.mjs';
 import {bindingHash,provisionedPurchases,verifyProvisionedPurchase} from './purchase-binding.mjs';
 
@@ -166,7 +167,7 @@ export class ClaimDeskCore {
     const existing=this.checkout(id);
     if(existing.claimId)return this.merchantView(this.claim(existing.claimId));
     const policy=value.campaign||campaign;
-    const claim={id:value.id,campaign:policy,access:secret(),createdAt:this.now(),purchase:{id:`RR-${value.id.slice(0,8).toUpperCase()}`,version:1,merchantId:unit.payee.merchant_id,captureId:capture.id,lineId:`${policy.sku}-LINE`,sku:policy.sku,lot:policy.lot,capturedAt:details.create_time,currency:'USD',linePaidCents:ITEM,lineRefundedCents:0,captureRemainingCents:TOTAL},submission:null,revision:0,review:null};
+    const claim={id:value.id,campaign:policy,access:secret(),createdAt:this.now(),purchase:{id:`RR-${value.id.slice(0,8).toUpperCase()}`,version:1,merchantId:unit.payee.merchant_id,captureId:capture.id,lineId:`${policy.sku}-LINE`,sku:policy.sku,lot:policy.lot,capturedAt:details.create_time,currency:'USD',linePaidCents:ITEM,lineRefundedCents:0,captureRemainingCents:TOTAL,originalCaptureCents:TOTAL},submission:null,revision:0,review:null};
     await this.ownCapture(claim.purchase,claim.id);
     const bound=this.checkout(id);if(bound.claimId)return this.merchantView(this.claim(bound.claimId));
     syncTransaction(this.db,()=>{this.saveClaim(claim);value.state='CAPTURED';value.claimId=claim.id;this.saveCheckout(value);});
@@ -204,7 +205,7 @@ export class ClaimDeskCore {
   customerView(claim) {
     const row=this.reservation(claim);
     const correction=claim.correction?(({photoHash,...visible})=>visible)(claim.correction):null;
-    return {id:claim.id,order:claim.purchase.id,campaign:this.campaignFor(claim),amountCents:claim.purchase.linePaidCents-claim.purchase.lineRefundedCents,currency:'USD',status:this.status(claim),missing:this.missing(claim),revision:claim.revision,correction,submittedAt:claim.submission?.submittedAt||null,submission:claim.submission?{lot:claim.submission.lot,acknowledged:claim.submission.acknowledged,hasPhoto:!!claim.submission.photo,extra:claim.submission.extra||{}}:null,locked:!!row,receipt:row?.state==='COMPLETED'?{refundId:row.refund_id,amountCents:row.cents,currency:row.currency,status:'COMPLETED',destination:'Original PayPal payment'}:null};
+    return {id:claim.id,order:claim.purchase.id,allocation:claimAllocation(claim.purchase),campaign:this.campaignFor(claim),amountCents:claim.purchase.linePaidCents-claim.purchase.lineRefundedCents,currency:'USD',status:this.status(claim),missing:this.missing(claim),revision:claim.revision,correction,submittedAt:claim.submission?.submittedAt||null,submission:claim.submission?{lot:claim.submission.lot,acknowledged:claim.submission.acknowledged,hasPhoto:!!claim.submission.photo,extra:claim.submission.extra||{}}:null,locked:!!row,receipt:row?.state==='COMPLETED'?{refundId:row.refund_id,amountCents:row.cents,currency:row.currency,status:'COMPLETED',destination:'Original PayPal payment'}:null};
   }
   customerState(access) {return this.customerView(this.authorizeCustomer(access));}
   submit(access,input) {

@@ -1,6 +1,7 @@
 import React,{lazy,Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
 import './style.css';
+import './system.css';
 const CustomerClaim=lazy(()=>import('./claim.jsx').then(m=>({default:m.CustomerClaim})));
 const MerchantDesk=lazy(()=>import('./connected.jsx').then(m=>({default:m.MerchantDesk})));
 const Training=lazy(()=>import('./training.jsx'));

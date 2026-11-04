@@ -129,7 +129,7 @@ function CorrectionRequest({value,role}){
   </Callout>;
 }
 
-function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
+export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
   const c=value.case;
   const task=customerTask(value);
   const [lot,setLot]=useState(c.submission?.lot||'');
@@ -144,7 +144,7 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
   useEffect(()=>{setLot(c.submission?.lot||'');setAck(c.submission?.acknowledged||false);setExtra(c.submission?.extra||{});setPhoto(undefined);setFileName('');setResponse('');setLocalError('');setEditing(false);},[c.id,c.revision]);
   const next=handoff(value);
   const submitted=Boolean(c.submission)&&c.missing.length===0&&c.correction?.state!=='REQUESTED'&&!c.locked;
-  const showForm=!c.locked&&!c.refund&&(!submitted||editing||task==='correction');
+  const showForm=!c.submissionLimitReached&&!c.locked&&!c.refund&&(!submitted||editing||task==='correction');
   async function pickFile(event){
     const file=event.target.files?.[0];if(!file)return;
     setLocalError('');setPhoto(undefined);setFileName('');
@@ -263,6 +263,9 @@ function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
         <p>{next.body}</p>
       </Callout>}
 
+      {c.submissionLimitReached&&!c.locked&&!c.refund&&<Callout tone="attention" title="This practice case reached its submission limit" actions={<Button onClick={()=>run('new',{})} disabled={busy}>Start a fresh practice case</Button>}>
+        <p>This case has used all its evidence revisions. Start a fresh practice session to continue with a new case. No funds move.</p>
+      </Callout>}
       {c.refund&&<Receipt value={value} run={run} busy={busy}/>}
       {c.unresolved&&<Callout tone="attention" title="Simulated refund not recorded"><p>A {money(c.unresolved.cents)} attempt is {c.unresolved.state.toLowerCase()} on this practice case. No funds moved. The merchant can resume a prepared attempt or start a new practice case.</p></Callout>}
       <ErrorText error={error}/>

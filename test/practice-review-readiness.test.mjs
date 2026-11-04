@@ -17,7 +17,7 @@ await mkdir('.cache',{recursive:true});
 const bundleDir=await mkdtemp(resolve('.cache/practice-review-'));
 after(async()=>{dom.window.close();await rm(bundleDir,{recursive:true,force:true});});
 await build({entryPoints:['ui/practice.jsx'],outdir:bundleDir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
-const {ReviewStage}=await import(pathToFileURL(`${bundleDir}/practice.js`).href);
+const {ReviewStage,CustomerStage}=await import(pathToFileURL(`${bundleDir}/practice.js`).href);
 const React=await import('react');const {act}=React;const {createRoot}=await import('react-dom/client');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 const mounted=[];
@@ -62,4 +62,17 @@ test('a loading or failed photograph keeps review closed and recovers on retry',
   assert.equal(checkbox().disabled,false,'retry recovery restores the review gate after load');
   await act(async()=>{checkbox().click();await tick();button('Confirm evidence review').click();await tick();});
   assert.equal(calls.filter(([action])=>action==='review').length,1,'review is submitted once');
+});
+
+
+test('a customer at the submission limit can start fresh with incomplete or corrected evidence',async()=>{
+  for(const correction of [null,{state:'REQUESTED',message:'Replace the unclear label photograph.',replacePhoto:true}]){
+    const calls=[];
+    await render(React.createElement(CustomerStage,{value:{...value({revision:20,submissionLimitReached:true,missing:['Photograph required'],correction}),role:'customer'},run:async(...args)=>calls.push(args),busy:false,error:'',stale:false,onRefresh:()=>{},expired:false}));
+    assert.match(document.body.textContent,/reached its submission limit/);
+    assert.equal(document.querySelector('form'),null,'an exhausted case does not offer a doomed submission');
+    assert.ok(button('Start a fresh practice case'),'recovery does not depend on merchant handoff or complete evidence');
+    await act(async()=>{button('Start a fresh practice case').click();await tick();});
+    assert.deepEqual(calls,[['new',{}]],'recovery uses the existing fresh-session endpoint');
+  }
 });

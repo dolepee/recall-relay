@@ -324,6 +324,7 @@ export class PracticeWorkspace {
       case: {
         id: claim.purchase.id,
         revision: claim.revision,
+        submissionLimitReached: claim.revision >= MAX_REVISION,
         status,
         missing,
         plan: {status: plan.status, reason: plan.reason, digest: plan.status === 'READY_FOR_APPROVAL' ? plan.digest : null},

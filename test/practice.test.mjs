@@ -268,3 +268,22 @@ test('the practice provider has no network client or payment adapter import',asy
   const http=await readFile(new URL('../src/practice-http.mjs',import.meta.url),'utf8');
   assert.doesNotMatch(http,/paypal-sandbox|payPalSandbox/i);
 });
+
+test('the revision limit is projected and a fresh customer session remains available',async()=>{
+  const space=await workspace(),ws=space.open();
+  try{
+    const {session}=ws.open(null);
+    let view=ws.view(session);
+    assert.equal(view.case.submissionLimitReached,false);
+    for(let revision=0;revision<20;revision++)view=ws.submit(session,{...bind(view),lot:'LOT-A',acknowledged:true});
+    assert.ok(view.case.missing.length,'the blocked case still needs evidence');
+    assert.equal(view.case.submissionLimitReached,true);
+    assert.throws(()=>ws.submit(session,{...bind(view),lot:'LOT-A',acknowledged:true}),/submission limit/);
+    const fresh=ws.open(null);
+    const next=ws.view(fresh.session);
+    assert.notEqual(next.case.id,view.case.id);
+    assert.equal(next.role,'customer');
+    assert.equal(next.case.submissionLimitReached,false);
+    assert.equal(next.case.revision,0);
+  }finally{ws.close();await rm(space.dir,{recursive:true,force:true});}
+});

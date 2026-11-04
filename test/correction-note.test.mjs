@@ -40,8 +40,8 @@ test('correction guidance follows the current review and completion state',async
 
  text=await render(React.createElement(CorrectionNote,{value,reviewed:true,completed:true}));
  assert.match(text,/Change request closed/);
- assert.match(text,/This claim is complete; the change history is retained/);
- assert.doesNotMatch(text,/Review the current evidence|submitted for review/);
+ assert.match(text,/This claim is complete; the latest request and response remain visible/);
+ assert.doesNotMatch(text,/Review the current evidence|submitted for review|change history|previous submissions/);
 
  text=await render(React.createElement(CorrectionNote,{value,customer:true,completed:true}));
  assert.match(text,/Your update is complete/);

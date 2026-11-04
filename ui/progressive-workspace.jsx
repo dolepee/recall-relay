@@ -8,7 +8,7 @@ class WorkspaceBoundary extends Component {
 
 // Keep ordinary controls usable during a cold Studio download. Once someone
 // starts using them (or the download is slow), never replace their focused form.
-export function ProgressiveWorkspace({load,fallback,componentProps={},delayMs=10000}){
+export function ProgressiveWorkspace({load,fallback,componentProps={},studioControls=null,delayMs=10000}){
   const [loaded,setLoaded]=useState(null),[status,setStatus]=useState('loading');
   const [open,setOpen]=useState(false);
   const keepStandard=useRef(false),workspace=useRef(null),requested=useRef(false);
@@ -24,7 +24,7 @@ export function ProgressiveWorkspace({load,fallback,componentProps={},delayMs=10
     return()=>{active=false;clearTimeout(timer);};
   },[load,delayMs]);
   const Studio=loaded;
-  if(open&&Studio)return <div ref={workspace} tabIndex={-1} aria-label="Studio workspace"><WorkspaceBoundary fallback={fallback}><Studio {...componentProps}/></WorkspaceBoundary></div>;
+  if(open&&Studio)return <div ref={workspace} tabIndex={-1} aria-label="Studio workspace"><WorkspaceBoundary fallback={fallback}>{studioControls}<Studio {...componentProps}/></WorkspaceBoundary></div>;
   return <div>
     <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
       <p role="status">{status==='loading'?'Studio is loading. You can use the standard workspace now.':status==='slow'?'The Studio download is taking longer. Continue in the standard workspace.':status==='failed'?'Studio could not download. Continue in the standard workspace, or reload this page to retry.':'Studio is ready. Your standard workspace stays open until you choose to switch.'}</p>

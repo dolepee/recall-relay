@@ -20,21 +20,23 @@ after(async()=>{dom.window.close();await rm(dir,{recursive:true,force:true});});
 const tick=ms=>new Promise(r=>setTimeout(r,ms));
 async function mount(load,delayMs=10000){
   const container=document.createElement('div');document.body.append(container);root=createRoot(container);
-  await act(async()=>root.render(React.createElement(ProgressiveWorkspace,{load,delayMs,fallback:React.createElement('input',{'aria-label':'Standard review',defaultValue:'draft'})})));
+  await act(async()=>root.render(React.createElement(ProgressiveWorkspace,{load,delayMs,studioControls:React.createElement('button',null,'Claim guide'),fallback:React.createElement('input',{'aria-label':'Standard review',defaultValue:'draft'})})));
 }
 const loaded={default:()=>React.createElement('h2',null,'Studio loaded')};
 test('a fast download automatically opens Studio',async()=>{
   await mount(()=>Promise.resolve(loaded));
   assert.match(document.body.textContent,/Studio loaded/);
+  assert.match(document.body.textContent,/Claim guide/);
 });
 test('a slow download leaves usable controls and switches only on request',async()=>{
   let finish;await mount(()=>new Promise(r=>{finish=r;}),5);
   await act(()=>tick(15));
-  assert.match(document.body.textContent,/taking longer/);assert.ok(document.querySelector('input'));
+  assert.match(document.body.textContent,/taking longer/);assert.doesNotMatch(document.body.textContent,/Claim guide/);assert.ok(document.querySelector('input'));
   await act(async()=>finish(loaded));
   assert.ok(document.querySelector('input'));assert.doesNotMatch(document.body.textContent,/Studio loaded/);
   await act(async()=>document.querySelector('button').click());
   assert.match(document.body.textContent,/Studio loaded/);
+  assert.match(document.body.textContent,/Claim guide/);
 });
 test('finishing a download preserves an active draft and keyboard focus',async()=>{
   let finish;await mount(()=>new Promise(r=>{finish=r;}));
@@ -45,5 +47,5 @@ test('finishing a download preserves an active draft and keyboard focus',async()
 });
 test('a rejected import leaves the standard workspace usable',async()=>{
   await mount(()=>Promise.reject(new Error('offline')));
-  assert.match(document.body.textContent,/could not download/);assert.ok(document.querySelector('input'));
+  assert.match(document.body.textContent,/could not download/);assert.doesNotMatch(document.body.textContent,/Claim guide/);assert.ok(document.querySelector('input'));
 });

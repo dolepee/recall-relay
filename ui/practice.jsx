@@ -542,7 +542,7 @@ export default function Practice(){
   // A handoff changes who is acting, so the heading is the new reading position.
   const current=state?stage(state):1;
   const progress=state?progressStage(state):1;
-  useEffect(()=>{if(!state)return;const target=document.getElementById('claim-heading')||heading.current;target?.focus?.();},[state?.role,current]);
+  useEffect(()=>{if(!state)return;const target=document.getElementById('claim-heading')||heading.current;target?.focus?.();},[state?.role,current,progress,state?.case.id,Boolean(state?.case.refund)]);
   return <div className="rr-app">
     <AppShell note="Simulated. No funds move.">
       <div ref={heading} tabIndex={-1} style={{outline:'none'}}>

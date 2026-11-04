@@ -17,7 +17,7 @@ await mkdir('.cache',{recursive:true});
 const bundleDir=await mkdtemp(resolve('.cache/practice-review-'));
 after(async()=>{dom.window.close();await rm(bundleDir,{recursive:true,force:true});});
 await build({entryPoints:['ui/practice.jsx'],outdir:bundleDir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
-const {ReviewStage,CustomerStage}=await import(pathToFileURL(`${bundleDir}/practice.js`).href);
+const {default:Practice,ReviewStage,CustomerStage}=await import(pathToFileURL(`${bundleDir}/practice.js`).href);
 const React=await import('react');const {act}=React;const {createRoot}=await import('react-dom/client');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 const mounted=[];
@@ -75,4 +75,17 @@ test('a customer at the submission limit can start fresh with incomplete or corr
     await act(async()=>{button('Start a fresh practice case').click();await tick();});
     assert.deepEqual(calls,[['new',{}]],'recovery uses the existing fresh-session endpoint');
   }
+});
+
+
+test('saving customer evidence moves focus to the handoff heading',async()=>{
+  const initial={...value({missing:['Photograph required'],submission:null,revision:0}),role:'customer'};
+  const submitted={...value(),role:'customer'};
+  const original=globalThis.fetch;
+  globalThis.fetch=async(url,options)=>({ok:true,json:async()=>options?.method==='POST'?submitted:initial});
+  try{
+    await render(React.createElement(Practice));
+    await act(async()=>{button('Submit for review').click();await tick();});
+    assert.equal(text(document.activeElement),'Evidence submitted.');
+  }finally{globalThis.fetch=original;}
 });

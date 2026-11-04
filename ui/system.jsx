@@ -91,7 +91,7 @@ export function AppShell({children, strip, note, current = '/practice'}) {
             ))}
           </nav>
           {(note || strip) && <p className="rr-header__note">{note || strip}</p>}
-          <details className="rr-mobile-menu">
+          <details className="rr-mobile-menu" onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.currentTarget.open=false;event.currentTarget.querySelector('summary')?.focus();}}}>
             <summary>Menu</summary>
             <nav aria-label="Product navigation">
               {nav.map(([label, href]) => <a key={href} href={href} aria-current={href === current ? 'page' : undefined}>{label}</a>)}

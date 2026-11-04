@@ -349,7 +349,7 @@
  .rr-product-shell .rr-main{padding:24px 16px 48px}
  .rr-customer-shell .rr-header__inner{padding-right:16px}
 }
-@media(prefers-reduced-motion:reduce){.rr-product-shell *{scroll-behavior:auto!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.rr-app *{scroll-behavior:auto!important;transition:none!important}}
 
 #claim-review{container-type:inline-size}
 .rr-connected-review-layout>.rr-case-money{grid-row:1;margin:0}

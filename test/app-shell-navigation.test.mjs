@@ -28,3 +28,14 @@ test('the product navigation targets a real landing section on desktop and mobil
   assert.match(landing,/id="relay"/);
   await act(async()=>root.unmount());container.remove();
 });
+
+
+test('Escape closes the mobile navigation and returns focus to its summary',async()=>{
+  const container=document.createElement('div');document.body.appendChild(container);const root=createRoot(container);
+  await act(async()=>{root.render(React.createElement(AppShell,null));});
+  const menu=document.querySelector('.rr-mobile-menu'),summary=menu.querySelector('summary');
+  menu.open=true;menu.querySelector('a').focus();
+  await act(async()=>{menu.querySelector('a').dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+  assert.equal(menu.open,false);assert.equal(document.activeElement,summary);
+  await act(async()=>root.unmount());container.remove();
+});

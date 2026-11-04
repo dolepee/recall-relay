@@ -163,6 +163,7 @@ h3{font-size:1.15rem}
   .item{grid-template-columns:52px minmax(0,1fr);}
   .item b{grid-column:2;justify-self:start;margin-top:2px}
 }
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
@@ -285,6 +286,7 @@ h3{font-size:1.15rem}
 </footer>
 <script>
   const menu=document.querySelector('.mobile-menu');
+  menu?.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();menu.open=false;menu.querySelector('summary')?.focus();}});
   menu?.querySelectorAll('a').forEach(link=>link.addEventListener('click',()=>{menu.open=false;}));
 </script>
 </body>

@@ -51,3 +51,8 @@ test('referenced instructions block publication until a provenance-labelled snap
  const changed=ws.attachExternal(row.id,{revision:row.revision,dependencyId:'external-1-0',url:'https://example.com/recall',text:'After receiving the refund, dispose of the product.',confirmed:true});const fields=[{id:'photo',kind:'PHOTO',quote:remedies[0]}],decisions=changed.source.remedies.flatMap((q,p)=>[{id:`clause-${p}-0`,disposition:'INFORMATION',reason:'Information only.'}]);assert.throws(()=>assertExecutableSource(changed.source,fields,decisions),/manual steps/);
  }finally{db.close();}
 });
+
+test('an attached excerpt cannot hide a second external instruction',async()=>{
+ const db=new DatabaseSync(':memory:'),ws=new SourceWorkspace(db,{ai:{status:()=>({available:false})},loadSource:async()=>({recallNumber:'TEST',sourceDigest:'root',sourceUrl:'https://www.cpsc.gov/Example',remedies:['Upload a photograph of the label.','Follow the instructions on https://example.com/recall.']})});
+ try{let row=await ws.import('TEST');row=ws.attachExternal(row.id,{revision:1,dependencyId:'external-1-0',url:'https://example.com/recall',text:'Follow the instructions on https://another.example.com/required.',confirmed:true});assert.throws(()=>assertExecutableSource(row.source,[],[]),/external instructions/);}finally{db.close();}
+});

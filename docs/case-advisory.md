@@ -39,3 +39,10 @@ model actor/timing labels and prose are advisory. No accuracy, time-saving,
 photo-authenticity or eligibility guarantee is made.
 
 `UNSPECIFIED` means no supported sequence category was assigned; it also covers immediate actions. The UI says “See source for timing”, not that timing is absent from the notice. The complete quotation remains authoritative.
+
+Additional bounded source anchors now withhold unsupported actor assignments,
+missing applicability conditions, conflicting sequence labels, changed modality,
+narrowed prohibitions and omitted numeric qualifiers. The complete source quote
+always remains visible. Complex sentences may abstain; these checks do not prove
+free prose semantically correct. Frozen actual-model diagnostic results are kept
+separately from automated fixtures and from human-usefulness observations.

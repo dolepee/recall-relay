@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 // Actual workerd + SQLite storage; every external provider call is intercepted.
 import assert from 'node:assert/strict';
 import {crc32,deflateSync} from 'node:zlib';
@@ -9,7 +10,7 @@ import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 const origin='https://recall-relay.test',state=await mkdtemp(join(tmpdir(),'recall-cloud-test-'));
 const recallFixture=JSON.parse(await readFile(new URL('../test/fixtures/cpsc-20261021.json',import.meta.url),'utf8'));
 let purchaseSequence=0;
-let reference,captured=false,refundPosts=0,unexpected=0,loseRefundResponse=false,failReadback=false;
+let cartUnit,reference,captured=false,refundPosts=0,unexpected=0,loseRefundResponse=false,failReadback=false;
 const amount={value:'59.99',currency_code:'USD'};
 const capture={id:'FAKE-CAPTURE',status:'COMPLETED',amount,create_time:new Date().toISOString()};
 const json=data=>new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}});
@@ -18,9 +19,9 @@ async function fakeNetwork(request){
   if(u.origin==='https://www.saferproducts.gov'&&path==='/RestWebServices/Recall'&&u.searchParams.get('RecallNumber')==='27026')return json([recallFixture.records.find(record=>record.RecallNumber==='27026')]);
   if(u.origin!=='https://api-m.sandbox.paypal.com'){unexpected++;throw new Error('Unexpected external request in isolated test');}
   if(path==='/v1/oauth2/token')return json({token_type:'Bearer',access_token:'test-token',expires_in:300});
-  if(path==='/v2/checkout/orders'&&request.method==='POST'){const input=await request.json();reference=input.purchase_units[0].reference_id;captured=false;capture.id='FAKE-CAPTURE-'+(++purchaseSequence);return json({id:'FAKE-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=FAKE-ORDER'}]});}
+  if(path==='/v2/checkout/orders'&&request.method==='POST'){const input=await request.json();cartUnit=input.purchase_units[0];reference=cartUnit.reference_id;captured=false;capture.id='FAKE-CAPTURE-'+(++purchaseSequence);return json({id:'FAKE-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=FAKE-ORDER'}]});}
   if(path==='/v2/checkout/orders/FAKE-ORDER/capture'){captured=true;return json({id:'FAKE-ORDER',status:'COMPLETED'});}
-  if(path==='/v2/checkout/orders/FAKE-ORDER')return json({id:'FAKE-ORDER',status:captured?'COMPLETED':'APPROVED',purchase_units:[{reference_id:reference,amount,payee:{merchant_id:'TEST-MERCHANT'},...(captured?{payments:{captures:[capture]}}:{})}]});
+  if(path==='/v2/checkout/orders/FAKE-ORDER')return json({id:'FAKE-ORDER',status:captured?'COMPLETED':'APPROVED',purchase_units:[{reference_id:reference,amount:cartUnit.amount,items:cartUnit.items,payee:{merchant_id:'TEST-MERCHANT'},...(captured?{payments:{captures:[capture]}}:{})}]});
   if(path===`/v2/payments/captures/${capture.id}`)return json(capture);
   if(path===`/v2/payments/captures/${capture.id}/refund`){refundPosts++;assert.deepEqual((await request.json()).amount,{value:'25.99',currency_code:'USD'});if(loseRefundResponse)return new Response('Interrupted fake response',{status:503});return json({id:'FAKE-REFUND'});}
   if(path==='/v2/payments/refunds/FAKE-REFUND'&&failReadback)return new Response('Readback unavailable',{status:503});
@@ -57,7 +58,7 @@ const options=()=>convertV4MiniflareOptions({
     {type:'ESModule',path:resolve('cloud-dist/production.mjs'),contents:production},
   ],
   compatibilityDate:'2026-10-23',compatibilityFlags:['nodejs_compat'],
-  bindings:{PUBLIC_ORIGINS:[origin],AI_ENABLED:false,PAYPAL_SANDBOX_CLIENT_ID:'test-application',PAYPAL_SANDBOX_CLIENT_SECRET:'disposable-test-secret'},
+  bindings:{EVALUATION_ACCESS_HASH:createHash('sha256').update('a'.repeat(43)).digest('hex'),PUBLIC_ORIGINS:[origin],AI_ENABLED:false,PAYPAL_SANDBOX_CLIENT_ID:'test-application',PAYPAL_SANDBOX_CLIENT_SECRET:'disposable-test-secret'},
   durableObjects:{WORKSPACES:{className:'RecallWorkspace',useSQLite:true},BUDGET:{className:'UsageBudget',useSQLite:true},CAPTURE_OWNERS:{className:'CaptureOwnership',useSQLite:true}},
   resourcePersistencePath:state,outboundService:fakeNetwork,
 });
@@ -67,6 +68,9 @@ try{
     const response=await mf.dispatchFetch(origin+path,{method:body?'POST':'GET',headers:{Cookie:cookie,Origin:origin,...(body?{'Content-Type':'application/json'}:{}),...(authorization?{Authorization:authorization}:{})},body:body?JSON.stringify(body):undefined});
     return {status:response.status,value:await response.json(),cookie:response.headers.get('set-cookie')?.split(';')[0]};
   }
+  assert.equal((await call('/api/evaluation/access',{body:{code:'wrong'}})).status,403);
+  const invitation=await call('/api/evaluation/access',{body:{code:'a'.repeat(43)}});assert.equal(invitation.status,200);assert.ok(invitation.cookie.startsWith('rr_evaluation='));
+  const invited=await call('/api/merchant/state',{cookie:invitation.cookie});assert.equal(invited.status,200);assert.equal(invited.value.cases.length,0);
   const alice=(await call('/api/merchant/state')).cookie,bob=(await call('/api/merchant/state')).cookie;
   const action=(path,body)=>call('/api/merchant/'+path,{cookie:alice,body});
   const imported=await action('source-import',{recallNumber:'27026'});assert.equal(imported.status,200,JSON.stringify(imported));
@@ -167,5 +171,5 @@ try{
   assert.equal((await hinted.act('reconcile',{id:hinted.approval.id})).value.receipt.amountCents,2599);
   assert.equal(refundPosts,3);
   assert.equal(unexpected,0);
-  console.log(JSON.stringify({runtime:'Actual workerd + SQLite Durable Objects',provider:'Injected fake transport; no external requests',crossWorkspaceDenied:true,customerAuthorizationChecked:true,correctionSurvivesReopen:true,correctionRequiresFreshReview:true,resumedReservationPosts:1,beginWithoutDispatchBlocksResend:true,lostResponseBlocksResend:true,persistedHintReconcilesWithoutResend:true,totalFakeRefundPosts:refundPosts,reopenedReceiptVerified:true,hostilePngRejected:true}));
+  console.log(JSON.stringify({runtime:'Actual workerd + SQLite Durable Objects',provider:'Injected fake transport; no external requests',evaluationAccessSeparateFromOwnership:true,crossWorkspaceDenied:true,customerAuthorizationChecked:true,correctionSurvivesReopen:true,correctionRequiresFreshReview:true,resumedReservationPosts:1,beginWithoutDispatchBlocksResend:true,lostResponseBlocksResend:true,persistedHintReconcilesWithoutResend:true,totalFakeRefundPosts:refundPosts,reopenedReceiptVerified:true,hostilePngRejected:true}));
 }finally{await mf.dispose();await rm(state,{recursive:true,force:true});}

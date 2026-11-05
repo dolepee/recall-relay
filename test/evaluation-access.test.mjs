@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {evaluationAccess,evaluationCookie,evaluationCookieHeader} from '../src/evaluation-access.mjs';
+test('evaluation access requires the configured high entropy secret and grants no merchant cookie',()=>{
+ const code='a'.repeat(43),hash=createHash('sha256').update(code).digest('hex');assert.equal(evaluationAccess(code,hash),true);assert.equal(evaluationAccess('b'.repeat(43),hash),false);assert.equal(evaluationAccess(code,undefined),false);assert.equal(evaluationCookie('rr_evaluation='+code,hash),true);const cookie=evaluationCookieHeader(code,true);assert.match(cookie,/HttpOnly; SameSite=Strict; Path=\/api/);assert.match(cookie,/Secure/);assert.ok(!cookie.includes('rr_workspace'));
+});

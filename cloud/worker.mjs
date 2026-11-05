@@ -1,3 +1,4 @@
+import {evaluationAccess,evaluationCookie,evaluationCookieHeader} from '../src/evaluation-access.mjs';
 import {DurableObject} from 'cloudflare:workers';
 import {ClaimDeskCore} from '../src/claims-core.mjs';
 import {RefundJournalCore} from '../src/journal-core.mjs';
@@ -26,14 +27,15 @@ export class UsageBudget extends DurableObject {
   constructor(ctx,env){super(ctx,env);this.core=new UsageBudgetCore(ctx.storage,()=>this.limits(),{clock:()=>this.now()});}
   // Adjustable limits and clock. The shipped values live in src/cloud-budget.mjs; nothing here raises
   // a ceiling, and the daily counters always bind before the burst windows.
-  limits(){return {};}
+  limits(){return {evaluationReserveEnabled:/^[a-f0-9]{64}$/.test(this.env.EVALUATION_ACCESS_HASH||'')};}
   now(){return Date.now();}
   hasWorkspace(id){return this.core.hasWorkspace(id);}
-  openWorkspace(id){return this.core.openWorkspace(id);}
+  openWorkspace(id,evaluation=false){return this.core.openWorkspace(id,evaluation);}
+  protectWorkspace(id){return this.core.protectWorkspace(id);}
   admitAI(workspaceId){return this.core.admitAI(workspaceId);}
   aiAllowance(workspaceId){return this.core.aiAllowance(workspaceId);}
   hasPractice(id,ttl){return this.core.hasPractice(id,ttl);}
-  admitPractice(id,ttl){return this.core.admitPractice(id,ttl);}
+  admitPractice(id,ttl,evaluation=false){return this.core.admitPractice(id,ttl,evaluation);}
 }
 
 class HostedDesk extends ClaimDeskCore {
@@ -90,7 +92,7 @@ async function practiceFetch(request,env,url){
   const resolved=resolvePracticeSession(action,presented);
   if(resolved.expired)return json({error:'This practice session has expired. Start a fresh practice case.',expired:true},410,{'Set-Cookie':practiceCookieHeader('',url.origin,0)});
   if(resolved.fresh){
-    const opening=await registry.admitPractice(resolved.id,ttl);
+    const opening=await registry.admitPractice(resolved.id,ttl,evaluationCookie(request.headers.get('cookie'),env.EVALUATION_ACCESS_HASH));
     if(!opening?.opened){
       const label=resetLabel(opening?.resetAt);
       return json({error:`Practice is at capacity today.${label?` New practice cases open again at ${label}.`:''}`,resetAt:opening?.resetAt||null},429);
@@ -113,6 +115,11 @@ export default {
     try{
       const url=new URL(request.url);
       if(!env.PUBLIC_ORIGINS.includes(url.origin))return json({error:'Unknown application origin.'},403);
+      if(url.pathname==='/api/evaluation/access'){
+        if(request.method!=='POST'||request.headers.get('origin')!==url.origin||request.headers.get('content-type')!=='application/json')return json({error:'Same-origin JSON required.'},403);
+        const input=await boundedJSON(request,512);if(!evaluationAccess(input.code,env.EVALUATION_ACCESS_HASH))return json({error:'Evaluation access code is invalid or unavailable.'},403);
+        return json({accepted:true},200,{'Set-Cookie':evaluationCookieHeader(input.code,url.protocol==='https:')});
+      }
       if(url.pathname.startsWith('/api/practice/'))return practiceFetch(request,env,url);
       if(!url.pathname.startsWith('/api/merchant/')&&!url.pathname.startsWith('/api/claim/'))return json({error:'Unknown action.'},404);
       if(!['GET','POST'].includes(request.method))return json({error:'Unsupported method.'},405);
@@ -124,12 +131,13 @@ export default {
         session=routeWorkspace(url,'');
       }
       if(session.newSecret){
-        const opening=await registry.openWorkspace(session.id);
+        const opening=await registry.openWorkspace(session.id,evaluationCookie(request.headers.get('cookie'),env.EVALUATION_ACCESS_HASH));
         if(!opening?.opened){
           const label=resetLabel(opening?.resetAt);
           return json({error:`The sandbox is at capacity today.${label?` New desks open again at ${label}.`:''} Please return later.`,resetAt:opening?.resetAt||null},429);
         }
       }
+      if(session.owner&&evaluationCookie(request.headers.get('cookie'),env.EVALUATION_ACCESS_HASH))await registry.protectWorkspace(session.id);
       const input={workspace:session.id,owner:session.owner,path:url.pathname,method:request.method,origin:url.origin,contentType:request.headers.get('content-type'),authorization:request.headers.get('authorization')||'',body:request.method==='POST'?await boundedJSON(request):{}};
       const result=await env.WORKSPACES.getByName(session.id).handle(input);
       return json(result.value,result.status,session.newSecret?{'Set-Cookie':`rr_workspace=${session.newSecret}; HttpOnly; SameSite=Lax; Path=/; Max-Age=7776000${url.protocol==='https:'?'; Secure':''}`}:{ });

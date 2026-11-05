@@ -15,4 +15,5 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:cloud
+      - run: npm run test:cloud:ai
       - run: npm run build:cloud

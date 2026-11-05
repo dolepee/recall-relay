@@ -1,3 +1,4 @@
+import {reconcileLedger} from './recall-reconciliation.mjs';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {validateImageBytes} from './image-validation.mjs';
 import {Buffer} from 'node:buffer';
@@ -43,6 +44,7 @@ export class ClaimDeskCore {
       CREATE TABLE IF NOT EXISTS checkouts (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS purchase_bindings (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS claims (id TEXT PRIMARY KEY, access_hash TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS reconciliation_plans (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS refund_hints (request_id TEXT PRIMARY KEY, refund_id TEXT NOT NULL);
     `);
     if (!this.setting('merchant-key')) this.setSetting('merchant-key', secret());
@@ -52,6 +54,24 @@ export class ClaimDeskCore {
   activeCampaign(){const value=this.setting('active-campaign');return value?JSON.parse(value):campaign;}
   campaignFor(claim){return claim.campaign||campaign;}
   previewLedger(input){return previewLedger(input,this.setting('published')==='yes'?this.activeCampaign():null);}
+  reconciliationLedger(){
+    const claims=this.db.prepare('SELECT data FROM claims ORDER BY rowid LIMIT 51').all().map(r=>JSON.parse(r.data));
+    if(claims.length>50)throw new Error('This workspace has more than 50 saved purchases. Reconciliation supports 50 orders per ledger; provide an explicitly selected ledger instead. No partial saved-purchase ledger was loaded.');
+    if(!claims.length)throw new Error('No saved purchases yet. Paste a declared ledger instead.');
+    return {version:1,currency:'USD',source:{kind:'merchant-ledger',label:'Saved workspace purchase records (historical)',reference:null},orders:claims.map(c=>({orderId:c.purchase.id,captureId:c.purchase.captureId,capturedAt:c.purchase.capturedAt||null,status:'COMPLETED',lines:[{declaredLineId:c.purchase.lineId,sku:c.purchase.sku,lot:c.purchase.lot,quantity:1,itemPaidCents:c.purchase.linePaidCents,taxCents:0,shippingCents:0,refundedCents:c.purchase.lineRefundedCents}]}))};
+  }
+  reconciliationPlans(){return this.db.prepare('SELECT data FROM reconciliation_plans ORDER BY rowid DESC').all().map(r=>JSON.parse(r.data));}
+  reconcileLedger(input){
+    if(this.setting('published')!=='yes')throw new Error('Publish reviewed instructions first.');
+    if(!input||Object.keys(input).some(k=>!['ledger','corrections'].includes(k)))throw new Error('Supply a ledger and planning corrections only.');
+    const claims=this.db.prepare('SELECT data FROM claims').all().map(r=>{const c=JSON.parse(r.data);return {...c,campaign:this.campaignFor(c)};});
+    const result=reconcileLedger(input,this.activeCampaign(),claims,this.now());
+    const prior=this.db.prepare('SELECT data FROM reconciliation_plans WHERE id=?').get(result.digest);
+    if(prior)return JSON.parse(prior.data);
+    if(this.db.prepare('SELECT count(*) AS n FROM reconciliation_plans').get().n>=20)throw new Error('This workspace has 20 saved planning snapshots. Existing plans remain available.');
+    const value={...result,id:result.digest};
+    this.db.prepare('INSERT INTO reconciliation_plans VALUES (?,?)').run(value.id,JSON.stringify(value));return value;
+  }
   claimSlotsUsed(){return this.db.prepare('SELECT count(*) AS n FROM (SELECT id FROM checkouts UNION SELECT id FROM claims UNION SELECT id FROM purchase_bindings)').get().n;}
   async ownCapture(purchase,claimId){
     if(this.captureOwnership)await this.captureOwnership.claim({merchantId:purchase.merchantId,captureId:purchase.captureId,workspace:this.workspaceId,claimId,...(purchase.provenance?{grantId:purchase.provenance.grantId,grantDigest:purchase.provenance.grantDigest,operator:purchase.provenance.operator,provisionedAt:purchase.provenance.provisionedAt}:{})});

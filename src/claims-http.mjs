@@ -1,3 +1,4 @@
+import {reconciliationAdvice} from './recall-reconciliation.mjs';
 import {caseContext,caseAdvisory} from './case-advisory.mjs';
 import {assistCases} from './source-workspace.mjs';
 
@@ -27,6 +28,10 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
         const actions={
           '/api/merchant/case-context':()=>caseContext(desk,input),
           '/api/merchant/case-advisory':()=>caseAdvisory(ai,desk,input),
+          '/api/merchant/reconciliation-advice':()=>reconciliationAdvice(ai,desk,input),
+          '/api/merchant/reconciliation-ledger':()=>desk.reconciliationLedger(),
+          '/api/merchant/reconciliation-plans':()=>desk.reconciliationPlans(),
+          '/api/merchant/reconciliation-plan':()=>desk.reconcileLedger(input),
           '/api/merchant/import-preview':()=>desk.previewLedger(input),
           '/api/merchant/bind-purchase':()=>desk.bindPurchase(input),
           '/api/merchant/publish':()=>desk.publish(input.confirmed),

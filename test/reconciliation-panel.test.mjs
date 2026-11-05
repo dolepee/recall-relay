@@ -1,0 +1,31 @@
+import test,{after,afterEach} from 'node:test';
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {mkdir,mkdtemp,rm} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {JSDOM} from 'jsdom';
+import {ClaimDesk} from '../src/claims.mjs';
+const dom=new JSDOM('<html><body></body></html>',{url:'https://fixture.invalid/desk'});
+dom.window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
+for(const key of ['window','document','HTMLElement','Event'])globalThis[key]=key==='window'?dom.window:dom.window[key];
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;const React=await import('react');const {act}=React;const {createRoot}=await import('react-dom/client');
+await mkdir('.cache',{recursive:true});const dir=await mkdtemp(resolve('.cache/reconciliation-dom-'));
+await build({entryPoints:['ui/reconciliation-panel.jsx'],outdir:dir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
+const {ReconciliationPanel}=await import(pathToFileURL(`${dir}/reconciliation-panel.js`));
+let root,desk;afterEach(async()=>{await act(async()=>root?.unmount());document.body.innerHTML='';desk?.journal.close?.();});after(async()=>{dom.window.close();await rm(dir,{recursive:true,force:true});});
+const button=t=>[...document.querySelectorAll('button')].find(x=>x.textContent===t);
+async function click(t){assert.ok(button(t),t);await act(async()=>{button(t).click();await new Promise(r=>setTimeout(r,0));});}
+test('saved purchase reconciliation opens its existing claim and reloads the immutable plan',async()=>{
+ desk=new ClaimDesk({provider:new Proxy({}, {get(){throw new Error('No provider calls');}})});desk.setSetting('published','yes');desk.setSetting('active-campaign',JSON.stringify({sku:'CUP',lot:'A',coverage:[]}));
+ const c={id:'one',revision:1,createdAt:'2026-10-20T00:00:00Z',purchase:{id:'RR-ONE',captureId:'CAP',lineId:'LINE',sku:'CUP',lot:'A',capturedAt:'2026-10-20T00:00:00Z',linePaidCents:3875,lineRefundedCents:1000}};desk.db.prepare('INSERT INTO claims VALUES (?,?,?)').run('one','hash',JSON.stringify(c));
+ const actions=[];globalThis.fetch=async(path,options)=>{const input=JSON.parse(options.body);let value;if(path.endsWith('reconciliation-ledger'))value=desk.reconciliationLedger();else if(path.endsWith('reconciliation-plan'))value=desk.reconcileLedger(input);else if(path.endsWith('reconciliation-plans'))value=desk.reconciliationPlans();else throw new Error('Unexpected API');actions.push(path);return {ok:true,json:async()=>value};};
+ const target=document.createElement('div');document.body.append(target);root=createRoot(target);let opened;
+ await act(async()=>root.render(React.createElement(ReconciliationPanel,{openClaim:o=>{opened=o;},openBinding:()=>{}})));
+ await click('Use saved purchases');assert.match(document.querySelector('textarea').value,/CAP/);
+ await act(async()=>{document.querySelector('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,0));});
+ assert.match(document.body.textContent,/linked claim/);assert.match(document.body.textContent,/\$28\.75/);assert.match(document.body.textContent,/Not a current refundable balance/);
+ await click('Open existing claim');assert.equal(opened,'RR-ONE');assert.equal(desk.reconciliationPlans().length,1);
+ await click('Load saved plans');assert.equal(document.querySelectorAll('select option').length,2);
+ assert.ok(document.querySelector('a[download]'));assert.ok(actions.every(x=>!x.includes('approve')&&!x.includes('capture')));
+});

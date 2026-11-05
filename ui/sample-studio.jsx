@@ -1,6 +1,6 @@
 import React,{useMemo} from 'react';
 import {AgStudio,createWidgets} from 'ag-studio-react';
-import {merchantStudioTheme} from './studio-workspace.jsx';
+import {merchantStudioTheme} from './studio-theme.mjs';
 import {SampleOrderCell,SampleCasePanel,SourceRequirementsWidget,PaymentExceptionsWidget,AmountSummaryWidget} from './sample-widgets.jsx';
 import {sampleRows} from './sample-data.mjs';
 

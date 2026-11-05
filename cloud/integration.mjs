@@ -84,6 +84,12 @@ try{
   assert.equal((await action('case-context',{...caseInput,revision:99,section:'gaps'})).value.reason,'STALE_REVISION');
   assert.equal((await action('case-advisory',caseInput)).value.status,'INSUFFICIENT');
   assert.equal(refundPosts,0);
+  const ledgerForPlan=await action('reconciliation-ledger',{});assert.equal(ledgerForPlan.status,200);
+  const reconciliation=await action('reconciliation-plan',{ledger:ledgerForPlan.value});assert.equal(reconciliation.status,200,JSON.stringify(reconciliation));assert.equal(reconciliation.value.lines[0].readiness,'LINKED_CLAIM');assert.equal(reconciliation.value.lines[0].action.claimId,bound.value.id);assert.equal(reconciliation.value.providerChecked,false);
+  assert.equal((await call('/api/merchant/reconciliation-plans',{cookie:bob,body:{}})).value.length,0);
+  assert.equal((await action('reconciliation-plans',{})).value.length,1);
+  assert.equal(refundPosts,0);
+
 
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+token})).status,200);
   assert.equal((await call('/api/claim/state'+query,{authorization:'Bearer '+'x'.repeat(43)})).status,401);

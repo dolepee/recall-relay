@@ -39,6 +39,29 @@ allocation and no refund or approval action; duplicate capture declarations stay
 manual until reconciled. See the
 [import preview contract](docs/ledger-import-contract.md).
 
+## Recall-to-purchase reconciliation
+
+The desk's **Reconcile recall purchases** action separates recall scope
+(affected, excluded, unknown) from claim readiness. Use a version-1 merchant
+ledger or load historical saved workspace purchases. An exact capture, SKU,
+lot, item allocation and instruction-version match can open an existing claim.
+A capture ID alone never establishes a line allocation. Duplicates and mismatched
+allocations stay blocked; missing product/lot information stays explicit.
+
+For a missing lot, record a labelled planning assumption and reconcile again.
+This creates a new immutable plan, changes no customer evidence and cannot
+override a recorded out-of-scope lot. Up to 20 plans are retained per workspace
+and can be reloaded/exported. Historical purchase amounts show their recorded
+time and snapshot ID, never a current refundable balance.
+
+Linked Studio panels show scope, readiness, declared amounts and saved evidence;
+ordinary controls cover smaller screens. Read-only AI guidance interprets the
+saved public source clauses with exact citations. Ledger records, customer
+answers and capture identifiers are not sent to the model. Guidance does not
+change scope or approve a payment. This increment supports the published single
+SKU/lot scope, not arbitrary natural-language policy execution or automatic
+classification of every recall remedy.
+
 ## Provisioned purchases and AI advisory
 
 The desk always shows a compact **Provisioned purchases** section so the

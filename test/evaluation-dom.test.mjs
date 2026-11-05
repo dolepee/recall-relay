@@ -1,0 +1,15 @@
+import test,{after} from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';import {mkdir,mkdtemp,rm} from 'node:fs/promises';import {resolve} from 'node:path';import {pathToFileURL} from 'node:url';import {JSDOM} from 'jsdom';
+const dom=new JSDOM('<!doctype html><div id="root"></div>',{url:'https://fixture.invalid/evaluation',pretendToBeVisual:true});
+for(const name of ['window','document','HTMLElement','HTMLInputElement','Node','MutationObserver','Event','KeyboardEvent','MouseEvent'])globalThis[name]=name==='window'?dom.window:dom.window[name];Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});globalThis.getComputedStyle=dom.window.getComputedStyle.bind(dom.window);globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+await mkdir('.cache',{recursive:true});const dir=await mkdtemp(resolve('.cache/evaluation-dom-'));after(async()=>{dom.window.close();await rm(dir,{recursive:true,force:true});});await build({entryPoints:['ui/evaluation.jsx'],outfile:dir+'/app.mjs',bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
+const {EvaluationAccess}=await import(pathToFileURL(dir+'/app.mjs'));const React=await import('react'),{act}=React,{createRoot}=await import('react-dom/client');
+test('entering an evaluation code and clicking activation submits once and shows success or a recoverable error',async()=>{
+ for(const success of [false,true]){
+ const root=createRoot(document.getElementById('root'));let calls=[];globalThis.fetch=async(path,options)=>{calls.push({path,...options});return new Response(JSON.stringify(success?{accepted:true}:{error:'Invalid evaluation code.'}),{status:success?200:403});};
+ await act(async()=>root.render(React.createElement(EvaluationAccess)));const field=document.querySelector('input'),button=[...document.querySelectorAll('button')].find(b=>b.textContent==='Activate evaluation allowance');assert.equal(button.disabled,true);
+ await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(field,'a'.repeat(43));field.dispatchEvent(new Event('input',{bubbles:true}));});assert.equal(button.disabled,false);
+ await act(async()=>{button.click();await new Promise(r=>setTimeout(r,0));});assert.equal(calls.length,1);assert.equal(calls[0].path,'/api/evaluation/access');assert.deepEqual(JSON.parse(calls[0].body),{code:'a'.repeat(43)});
+ if(success){assert.match(document.querySelector('[role=status]').textContent,/activated/);assert.equal(document.querySelector('input'),null);}else{assert.match(document.body.textContent,/Invalid evaluation code/);assert.equal(button.disabled,false);}
+ await act(async()=>root.unmount());
+ }
+});

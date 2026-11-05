@@ -16,6 +16,7 @@ export function reconcileLedger({ledger,corrections=[]},policy,claims=[],now){
     edits.set(edit.rowKey,{lot:edit.lot.trim(),reason:edit.reason.trim()});
   }
   const repeats=new Map();for(const order of preview.orders)if(order.captureId)repeats.set(order.captureId,(repeats.get(order.captureId)||0)+1);
+  const plannedLots=new Map(preview.lines.map(r=>[`${r.orderIndex}:${r.lineIndex}`,edits.get(`${r.orderIndex}:${r.lineIndex}`)?.lot??r.lot]));
   const lines=preview.lines.map(row=>{
     const rowKey=`${row.orderIndex}:${row.lineIndex}`,edit=edits.get(rowKey);edits.delete(rowKey);
     const lot=edit?.lot??row.lot;
@@ -26,6 +27,7 @@ export function reconcileLedger({ledger,corrections=[]},policy,claims=[],now){
     const declaredRemaining=cents(row.itemPaidCents)&&cents(row.refundedCents)&&row.itemPaidCents>=row.refundedCents?row.itemPaidCents-row.refundedCents:null;
     const candidates=claims.filter(c=>c.purchase.captureId===row.declaredCaptureId&&c.purchase.sku===row.sku&&c.purchase.lot===row.lot);
     if(scope==='EXCLUDED'){readiness='BLOCKED';action=null;reasons.push('Outside the reviewed product and lot scope.');}
+    else if(repeats.get(row.declaredCaptureId)>1||preview.lines.filter(r=>r.orderIndex===row.orderIndex&&r.sku===row.sku&&plannedLots.get(`${r.orderIndex}:${r.lineIndex}`)===lot).length>1){readiness='BLOCKED';action=null;reasons.push('Repeated capture or ambiguous same-scope line allocation requires manual reconciliation.');}
     else if(edit||scope==='UNKNOWN'){readiness='NEEDS_EVIDENCE';action={kind:'EVIDENCE',label:'Review missing lot evidence'};reasons.push(edit?'Planning correction is a merchant assumption, not verified product evidence.':'Product or lot is unknown.');}
     else if(!row.declaredCaptureId||repeats.get(row.declaredCaptureId)>1||candidates.length>1){readiness='BLOCKED';action=null;reasons.push('Missing or repeated capture identity requires manual reconciliation.');}
     else if(candidates.length===1){

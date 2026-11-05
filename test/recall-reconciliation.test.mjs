@@ -37,3 +37,8 @@ test('AI guidance receives public clauses only and rejects fabricated source con
  const result=await reconciliationAdvice(ai,desk,{planId:plan.id});assert.equal(result.readOnly,true);assert.deepEqual(payload,{clauses:[{citationId:'q',quote:'Return LOT-A.'}]});assert.ok(!JSON.stringify(payload).includes('CAP'));assert.equal(result.clauses[0].interpretationAvailable,true);
  ai.generate=async()=>JSON.stringify({clauses:[{citationId:'q',actor:'CUSTOMER',timing:'UNSPECIFIED',condition:'after January',explanation:'Return LOT-A.'}]});await assert.rejects(reconciliationAdvice(ai,desk,{planId:plan.id}),/complete cited/);await assert.rejects(reconciliationAdvice(ai,desk,{planId:'not-owned'}),/Unknown/);desk.journal.close?.();
 });
+
+test('ambiguous same-scope lines and corrected duplicate captures never inflate totals',()=>{
+ const l=ledger();l.orders[0].lines.push({...l.orders[0].lines[0],declaredLineId:'second'});let result=run(l,[],[]);assert.equal(result.summary.declaredAffectedCents,0);assert.ok(result.lines.every(r=>r.scope==='AFFECTED'&&r.readiness==='BLOCKED'));
+ const x=ledger();x.orders[0].lines[0].lot=null;x.orders.push({...structuredClone(x.orders[0]),orderId:'duplicate'});result=run(x,[{rowKey:'0:0',lot:'LOT-A',reason:'scenario'},{rowKey:'1:0',lot:'LOT-A',reason:'scenario'}],[]);assert.equal(result.summary.declaredAffectedCents,0);assert.ok(result.lines.every(r=>r.scope==='AFFECTED'&&r.readiness==='BLOCKED'));
+});

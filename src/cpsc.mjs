@@ -1,3 +1,4 @@
+import {classifyRemedyRoute} from './remedy-route.mjs';
 import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 
@@ -24,17 +25,7 @@ export function recallDraft(record, { retrievedAt = new Date().toISOString() } =
   if (!text(record.Title) || !description || !remedies.length || !options.length)
     throw new Error('Recall source is incomplete; review the original notice.');
   const remedy = remedies.join('\n');
-  const originalPayment = /original (?:form of )?payment|same form of payment/i.test(remedy);
-  const check = /\bcheck\b|\bcheque\b/i.test(remedy);
-  const credit = /store credit|gift card/i.test(remedy);
-  const marketplace = /(?:Amazon|Walmart).{0,100}return systems/i.test(remedy);
-  let route = 'REFUND_ROUTE_UNSPECIFIED';
-  if (!options.includes('Refund')) route = 'NON_REFUND_REMEDY';
-  else if (marketplace) route = 'MARKETPLACE_RETURN_REQUIRED';
-  else if (credit && (originalPayment || check || /full refund or/i.test(remedy))) route = 'CHOICE_REQUIRES_REVIEW';
-  else if (check) route = 'CHECK_REFUND';
-  else if (credit) route = 'STORE_CREDIT';
-  else if (originalPayment) route = 'ORIGINAL_PAYMENT_CANDIDATE';
+  const route=classifyRemedyRoute(remedies,options);
   const sourceFields = {
     title:text(record.Title),description,remedies,options,
     products:(record.Products??[]).map(p=>({name:text(p.Name),model:text(p.Model),description:text(p.Description)})),

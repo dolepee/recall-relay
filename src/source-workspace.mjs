@@ -1,3 +1,4 @@
+import {classifyRemedyRoute} from './remedy-route.mjs';
 import {randomUUID,createHash} from 'node:crypto';
 import {fetchRecallDraft} from './cpsc.mjs';
 import {views,casesForView} from './case-views.mjs';
@@ -29,8 +30,8 @@ Negative examples (never return these as fields):
 If the notice asks for no customer evidence, return {"requirements":[]}. Return no prose.`;
 const hash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}
-export {aiFieldProblem,completeSourceQuote,validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue} from './source-policy.mjs';
-import {validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue} from './source-policy.mjs';
+export {aiFieldProblem,completeSourceQuote,validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue,assertExecutableSource,SOURCE_POLICY_VERSION} from './source-policy.mjs';
+import {validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue,assertExecutableSource,SOURCE_POLICY_VERSION} from './source-policy.mjs';
 export class SourceWorkspace {
   constructor(db,{loadSource=fetchRecallDraft,ai}={}){this.db=db;this.loadSource=loadSource;this.ai=ai;db.exec('CREATE TABLE IF NOT EXISTS source_setups (id TEXT PRIMARY KEY, data TEXT NOT NULL)');}
   save(row){this.db.prepare('INSERT INTO source_setups VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(row.id,JSON.stringify(row));return row;}
@@ -87,16 +88,12 @@ export class SourceWorkspace {
   activate(id,{revision,sku,lot,confirmed},desk){
     const row=this.get(id);
     if(confirmed!==true||row.revision!==revision||!row.review||row.review.sourceDigest!==row.source.sourceDigest)throw new Error('Review the current source fields before publishing a sandbox scenario.');
-    const coverage=sourceCoverage(row.source,row.review.fields,row.review.coverage||[]);
-    if(coverage.some(c=>['UNRESOLVED','MANUAL'].includes(c.disposition)))throw new Error('Review every source instruction before publishing. Unresolved or manual steps cannot publish a connected form.');
-    const issue=row.review.fields.map(sourceFieldIssue).find(Boolean);
-    if(issue)throw new Error(issue);
-    if(row.source.route!=='ORIGINAL_PAYMENT_CANDIDATE')throw new Error('This notice needs a manual remedy route. It cannot publish an original-payment sandbox scenario.');
-    if(row.review.fields.filter(f=>f.kind==='PHOTO').length!==1)throw new Error('This version supports exactly one required photograph and additional confirmations or text fields. Keep other evidence workflows manual.');
+    const coverage=assertExecutableSource(row.source,row.review.fields,row.review.coverage||[]);
+    if((row.source.options?classifyRemedyRoute(row.source.remedies,row.source.options):row.source.route)!=='ORIGINAL_PAYMENT_CANDIDATE')throw new Error('This notice needs a manual remedy route. It cannot publish an original-payment sandbox scenario.');
     if(![sku,lot].every(x=>typeof x==='string'&&/^[A-Z0-9][A-Z0-9 -]{0,39}$/.test(x))||lot==='ALL')throw new Error('Provide explicit uppercase test SKU and lot identifiers, up to 40 characters.');
-    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};
+    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,sourcePolicyVersion:SOURCE_POLICY_VERSION,sourceRemedies:row.source.remedies,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};
     desk.setSetting('active-campaign',JSON.stringify(campaign));desk.setSetting('published','yes');
-    return this.save({...row,revision:row.revision+1,publishedCampaign:{id:campaign.id,sku,lot,publishedAt:new Date().toISOString()}});
+    return this.save({...row,revision:row.revision+1,publishedCampaign:{id:campaign.id,sku,lot,sourcePolicyVersion:SOURCE_POLICY_VERSION,publishedAt:new Date().toISOString()}});
   }
 }
 

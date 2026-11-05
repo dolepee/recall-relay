@@ -42,3 +42,11 @@ test('ambiguous same-scope lines and corrected duplicate captures never inflate 
  const l=ledger();l.orders[0].lines.push({...l.orders[0].lines[0],declaredLineId:'second'});let result=run(l,[],[]);assert.equal(result.summary.declaredAffectedCents,0);assert.ok(result.lines.every(r=>r.scope==='AFFECTED'&&r.readiness==='BLOCKED'));
  const x=ledger();x.orders[0].lines[0].lot=null;x.orders.push({...structuredClone(x.orders[0]),orderId:'duplicate'});result=run(x,[{rowKey:'0:0',lot:'LOT-A',reason:'scenario'},{rowKey:'1:0',lot:'LOT-A',reason:'scenario'}],[]);assert.equal(result.summary.declaredAffectedCents,0);assert.ok(result.lines.every(r=>r.scope==='AFFECTED'&&r.readiness==='BLOCKED'));
 });
+
+test('saved purchase loading includes all supported records and refuses silent truncation',()=>{
+ const desk=new ClaimDesk({provider:{}});
+ for(let i=0;i<26;i++)desk.saveClaim({...claim,id:`c${i}`,access:`access${i}`,purchase:{...claim.purchase,id:`RR-${i}`,lineId:'LINE',captureId:`CAP-${i}`}});
+ const ledger=desk.reconciliationLedger();assert.equal(ledger.orders.length,26);assert.equal(ledger.orders[25].orderId,'RR-25');
+ for(let i=26;i<51;i++)desk.saveClaim({...claim,id:`c${i}`,access:`access${i}`,purchase:{...claim.purchase,id:`RR-${i}`,lineId:'LINE',captureId:`CAP-${i}`}});
+ assert.throws(()=>desk.reconciliationLedger(),/No partial saved-purchase ledger was loaded/);desk.journal.close?.();
+});

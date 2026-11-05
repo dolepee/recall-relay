@@ -55,7 +55,8 @@ export class ClaimDeskCore {
   campaignFor(claim){return claim.campaign||campaign;}
   previewLedger(input){return previewLedger(input,this.setting('published')==='yes'?this.activeCampaign():null);}
   reconciliationLedger(){
-    const claims=this.db.prepare('SELECT data FROM claims LIMIT 20').all().map(r=>JSON.parse(r.data));
+    const claims=this.db.prepare('SELECT data FROM claims ORDER BY rowid LIMIT 51').all().map(r=>JSON.parse(r.data));
+    if(claims.length>50)throw new Error('This workspace has more than 50 saved purchases. Reconciliation supports 50 orders per ledger; provide an explicitly selected ledger instead. No partial saved-purchase ledger was loaded.');
     if(!claims.length)throw new Error('No saved purchases yet. Paste a declared ledger instead.');
     return {version:1,currency:'USD',source:{kind:'merchant-ledger',label:'Saved workspace purchase records (historical)',reference:null},orders:claims.map(c=>({orderId:c.purchase.id,captureId:c.purchase.captureId,capturedAt:c.purchase.capturedAt||null,status:'COMPLETED',lines:[{declaredLineId:c.purchase.lineId,sku:c.purchase.sku,lot:c.purchase.lot,quantity:1,itemPaidCents:c.purchase.linePaidCents,taxCents:0,shippingCents:0,refundedCents:c.purchase.lineRefundedCents}]}))};
   }

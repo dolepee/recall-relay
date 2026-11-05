@@ -4,7 +4,7 @@ export default {
     if(url.pathname.startsWith('/api/'))return env.BACKEND.fetch(request);
     // The reviewed landing document answers /; the workbench keeps its own routes.
     const landing=url.pathname==='/';
-    const appRoute=['/desk','/setup','/claim','/practice','/sample'].includes(url.pathname);
+    const appRoute=['/desk','/setup','/claim','/practice','/practice/reconciliation','/sample'].includes(url.pathname);
     if(landing)url.pathname='/landing.html';
     else if(appRoute)url.pathname='/';
     else if(!url.pathname.startsWith('/assets/'))return new Response('Not found',{status:404});

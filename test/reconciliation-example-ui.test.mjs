@@ -1,0 +1,17 @@
+import test,{after} from 'node:test';import assert from 'node:assert/strict';
+import {build} from 'esbuild';import {mkdir,mkdtemp,rm} from 'node:fs/promises';import {resolve} from 'node:path';import {pathToFileURL} from 'node:url';import {JSDOM} from 'jsdom';
+const dom=new JSDOM('<html><body></body></html>',{url:'https://fixture.invalid/practice/reconciliation',pretendToBeVisual:true});dom.window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});dom.window.HTMLElement.prototype.scrollIntoView=function(){};
+for(const n of ['window','document','HTMLElement','Node','Event'])globalThis[n]=n==='window'?dom.window:dom.window[n];globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);globalThis.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+let requests=0;globalThis.fetch=async()=>{requests++;throw new Error('No network permitted');};
+const React=await import('react');const {act}=React;const {createRoot}=await import('react-dom/client');
+await mkdir('.cache',{recursive:true});const dir=await mkdtemp(resolve('.cache/recon-example-'));after(async()=>{dom.window.close();await rm(dir,{recursive:true,force:true});});
+await build({entryPoints:['ui/reconciliation-example.jsx'],outdir:dir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});const {default:Example}=await import(pathToFileURL(`${dir}/reconciliation-example.js`));
+const button=t=>[...document.querySelectorAll('button')].find(x=>x.textContent===t);const click=async t=>act(async()=>{assert.ok(button(t),t);button(t).click();await new Promise(r=>setTimeout(r,25));});
+test('visitors correct scope, inspect a fictional claim and reset without network or account state',async()=>{
+ const host=document.createElement('div');document.body.append(host);const root=createRoot(host);await act(async()=>root.render(React.createElement(Example)));
+ assert.match(document.body.textContent,/Every purchase, capture and claim on this page is fictional/);assert.match(document.body.textContent,/\$49\.75/);
+ await click('Apply LOT-A planning assumption');assert.match(document.body.textContent,/\$61\.75/);assert.match(document.body.textContent,/affected but still needs evidence/);assert.equal(button('Apply LOT-A planning assumption').disabled,true);
+ await click('LINKED-EXAMPLECUP-01 · affectedlinked claim');await click('Open fictional claim');assert.equal(document.activeElement.textContent,'Fictional linked claim');assert.match(document.body.textContent,/No provider record has been verified/);
+ assert.equal(document.querySelector('a[href="/practice"]').textContent,'Guided claim');await click('Back to reconciliation');await click('Reset example');assert.match(document.body.textContent,/\$49\.75/);assert.equal(requests,0);assert.equal(dom.window.localStorage.length,0);assert.equal(document.cookie,'');
+ await act(async()=>root.unmount());host.remove();
+});

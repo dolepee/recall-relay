@@ -299,3 +299,7 @@ Useful implementation references:
 [PayPal refunds](https://developer.paypal.com/docs/api/payments/v2/#captures_refund),
 [AG Studio Agent Framework](https://www.ag-grid.com/studio/react/ai-agents/),
 [CPSC recall data](https://www.cpsc.gov/Recalls).
+
+### Try reconciliation without an account
+
+Open [/practice/reconciliation](https://recall-relay.dolepee.com/practice/reconciliation) from the homepage or guided practice. This labelled synthetic ledger uses the same reconciliation projection as the merchant desk: inspect affected and excluded lines, apply a missing-lot planning assumption, see duplicate declarations stay blocked, and open a fictional linked claim. It makes no PayPal, live AI or workspace API calls. Changes reset on reload. The separate [/practice](https://recall-relay.dolepee.com/practice) journey demonstrates claim review and a simulated receipt.

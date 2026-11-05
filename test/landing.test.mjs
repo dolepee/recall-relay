@@ -11,9 +11,10 @@ test('the homepage states the merchant job and the two real entry points',async(
   for(const copy of [
     'Recall resolution for merchants',
     'Resolve recall claims. Refund the <em>right item.</em>',
-    'Turn a recall notice into clear customer instructions. Review the evidence, then approve the affected item’s refund to the original PayPal payment.',
-    'Try a guided claim',
-    'Simulated. No funds move.',
+    'Compare purchases with recall instructions. See what needs evidence or purchase checks, then review an affected item’s refund to its original PayPal payment.',
+    'Guided claim',
+    'Synthetic example. No login or funds needed.',
+    'Try reconciliation',
     'Sandbox workspace',
     'How it works',
     'Evaluation',
@@ -53,8 +54,8 @@ test('the instructions cover the three stages, the decision ingredients and the 
   const html=await read();
   for(const copy of [
     'One clear path from notice to refund.',
-    'Prepare claim',
-    'Review the notice and publish clear customer instructions.',
+    'Find affected purchases',
+    'Review the notice and compare purchase lines. Keep affected scope separate from missing evidence or purchase checks.',
     'Review evidence',
     'Inspect the current submission and request an update if needed.',
     'Approve refund',
@@ -85,7 +86,7 @@ test('desktop and mobile navigation agree on real destinations',async()=>{
   const hrefs=block=>[...block.matchAll(/href="([^"]+)"/g)].map(m=>m[1]);
   assert.deepEqual(hrefs(mobile),hrefs(desktop),'the two menus expose the same destinations in the same order');
   for(const target of hrefs(desktop)){
-    assert.ok(target==='#relay'||target==='/practice'||target==='/desk',`unexpected destination ${target}`);
+    assert.ok(target==='#relay'||target==='/practice'||target==='/practice/reconciliation'||target==='/desk',`unexpected destination ${target}`);
   }
   assert.doesNotMatch(html,/href="#"/,'no placeholder links');
   assert.match(html,/id="relay"/);

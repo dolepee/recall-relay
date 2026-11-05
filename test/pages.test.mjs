@@ -8,7 +8,7 @@ test('Pages serves the landing document at the root and keeps the workbench rout
   const landing=await pages.fetch(new Request('https://recall-relay.test/'),env);
   assert.equal(landing.status,200);assert.equal(seen.at(-1).pathname,'/landing.html');
   assert.equal(landing.headers.get('Cache-Control'),'no-store');
-  for(const path of ['/desk','/setup','/sample','/desk?purchase=test','/claim?workspace=example']){
+  for(const path of ['/desk','/setup','/sample','/practice/reconciliation','/desk?purchase=test','/claim?workspace=example']){
     const response=await pages.fetch(new Request('https://recall-relay.test'+path),env);
     assert.equal(response.status,200);assert.equal(seen.at(-1).pathname,'/');
     assert.equal(response.headers.get('Cache-Control'),'no-store');

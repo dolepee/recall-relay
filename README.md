@@ -1,12 +1,17 @@
 # Recall Relay
 
-Turn a reviewed recall notice into a customer claim form, collect its required
-evidence, and resolve an eligible refund to the original PayPal payment.
+Reconcile recall scope against purchase records, see which claims need attention,
+and resolve an eligible refund to the original PayPal payment. Reviewed notice
+instructions and the exact customer evidence revision stay linked to settlement.
 The customer returns to the same private page for a confirmed receipt.
 
 This build uses fictional merchandise and **PayPal Sandbox**. Public CPSC
 notices supply scenarios; importing one does not create a manufacturer
 relationship or register a real recall claim.
+
+Try the [synthetic reconciliation example](https://recall-relay.dolepee.com/practice/reconciliation)
+without an account, or complete a [guided simulated claim](https://recall-relay.dolepee.com/practice).
+Neither route moves funds or proves a PayPal payment.
 
 ## Read-only sample desk
 
@@ -81,6 +86,26 @@ gaps, and is labelled model-assisted rather than recorded fact. A stale revision
 hides the result. The Claim guide exposes the same three read-only reads
 (`get_case_brief`, `get_source_requirements`, `get_evidence_gaps`); none can
 approve, refund or change evidence.
+
+## Itemized checkout, retained history and recovery
+
+New Sandbox purchases save two priced item rows before dispatch and verify those
+rows against PayPal before capture and claim creation. The merchant can vary both
+prices; the affected amount follows the saved allocation. See
+[itemized checkout](docs/itemized-checkout.md).
+
+Connected claims retain source, evidence, review and refund-attempt history from
+the point retention begins. A recovered refund reference must match the original
+attempt correlation and authenticated provider readback. Manual dispositions do
+not mark money returned or authorize another refund. Unchanged notices reopen
+the existing setup; source changes retain versions. Referenced external
+instructions require a labelled merchant-supplied excerpt and fresh review.
+See [history and recovery](docs/history-and-recovery.md).
+
+Invited evaluators can activate a protected allowance at `/evaluation` when the
+operator configures it. It reserves existing capacity, grants no payment authority
+and is still bounded. The browser-only synthetic example has no server admission
+quota. See [evaluation access](docs/evaluation-access.md).
 
 ## Browser hosting
 

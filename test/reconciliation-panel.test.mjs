@@ -27,6 +27,7 @@ test('saved purchase reconciliation opens its existing claim and reloads the imm
  await click('Use saved purchases');assert.match(document.querySelector('#reconciliation-ledger').value,/CAP/);
  await act(async()=>{document.querySelector('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,0));});
  assert.match(document.body.textContent,/linked claim/);assert.match(document.body.textContent,/\$28\.75/);assert.match(document.body.textContent,/Not a current refundable balance/);
+ const view=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith('Next action')).querySelector('select');await act(async()=>{view.value='NEEDS_EVIDENCE';view.dispatchEvent(new Event('change',{bubbles:true}));});assert.match(document.querySelector('[aria-label="Selected purchase line"]').textContent,/No purchase in this view/);assert.equal(button('Open existing claim'),undefined);await act(async()=>{view.value='LINKED_CLAIM';view.dispatchEvent(new Event('change',{bubbles:true}));});
  await click('Open existing claim');assert.equal(opened,'RR-ONE');assert.equal(desk.reconciliationPlans().length,1);
  await click('Load saved plans');assert.equal([...document.querySelectorAll('label')].find(l=>l.textContent.startsWith('Saved planning snapshot')).querySelectorAll('option').length,2);
  assert.ok(document.querySelector('a[download^="reconciliation-"]'));assert.ok(actions.every(x=>!x.includes('approve')&&!x.includes('capture')));

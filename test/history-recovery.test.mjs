@@ -1,3 +1,4 @@
+import {externalDependencies} from '../src/external-sources.mjs';
 import {providerCart} from '../src/checkout-cart.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,4 +61,9 @@ test('an attached excerpt cannot hide a second external instruction',async()=>{
 
 test('first mutation of a legacy claim retains the existing snapshot before overwriting it',async()=>{
  const s=await fixture();try{const history=s.desk.history;s.desk.db.prepare('DELETE FROM workspace_events').run();s.desk.db.prepare('DELETE FROM history_photos').run();s.desk.history=null;const prior=s.desk.claim(s.item.id);s.desk.history=history;s.desk.saveClaim({...prior,review:null,revision:2},'customer-capability');const events=s.desk.claimHistory(s.item.id).events;assert.equal(events[0].event,'PRE_RETENTION_BASELINE');assert.equal(events[0].snapshot.revision,1);assert.equal(s.desk.historyPhotograph(s.item.id,{sequence:events[0].sequence}).photo,photo);assert.equal(events[1].snapshot.revision,2);}finally{s.desk.close();}
+});
+
+test('online and bare-www instruction references remain explicit external prerequisites',()=>{
+ for(const quote of ['Follow the instructions online to receive a refund.','Consumers should follow the instructions at www.example.com/recall to receive a refund.']){const dependencies=externalDependencies({remedies:[quote]});assert.equal(dependencies.length,1);assert.equal(dependencies[0].status,'UNRESOLVED');assert.throws(()=>assertExecutableSource({remedies:[quote]},[],[]),/external instructions/);}
+ assert.equal(externalDependencies({remedies:['Follow the instructions at www.example.com/recall.']})[0].url,'https://www.example.com/recall');
 });

@@ -43,7 +43,7 @@ manual until reconciled. See the
 
 The desk's **Reconcile recall purchases** action separates recall scope
 (affected, excluded, unknown) from claim readiness. Use a version-1 merchant
-ledger or load historical saved workspace purchases. An exact capture, SKU,
+ledger or load historical saved workspace purchases. CSV import reads locally, suggests column mappings, and lets you correct rows before accepting the ledger. Order and item references are required; other facts can stay unknown. The JSON editor remains under Advanced. An exact capture, SKU,
 lot, item allocation and instruction-version match can open an existing claim.
 A capture ID alone never establishes a line allocation. Duplicates and mismatched
 allocations stay blocked; missing product/lot information stays explicit.
@@ -303,3 +303,9 @@ Useful implementation references:
 ### Try reconciliation without an account
 
 Open [/practice/reconciliation](https://recall-relay.dolepee.com/practice/reconciliation) from the homepage or guided practice. This labelled synthetic ledger uses the same reconciliation projection as the merchant desk: inspect affected and excluded lines, apply a missing-lot planning assumption, see duplicate declarations stay blocked, and open a fictional linked claim. It makes no PayPal, live AI or workspace API calls. Changes reset on reload. The separate [/practice](https://recall-relay.dolepee.com/practice) journey demonstrates claim review and a simulated receipt.
+
+### Purchase CSV format
+
+In **Reconcile recall purchases**, choose a CSV file or paste CSV text. Match the headings, review any invalid rows, then choose **Use these purchase lines** and **Save reviewed reconciliation**. A fictional template is downloadable beside the file input. Files are limited to 256 KB, 50 orders and 200 item rows. Amount columns use USD dollars (for example `38.75`), converted to integer cents without rounding. Blank amounts stay unknown; enter `0.00` only for a known zero. Rows sharing an order reference must agree on capture reference, capture date and status; item references must be unique within an order. Multiple orders declaring the same capture remain separate so reconciliation can block duplicates. Unmapped columns are omitted from the accepted ledger. Files, mapping and row edits are local until the merchant explicitly saves a reconciliation. Imported capture references and amounts remain declarations, never provider verification or approval authority.
+
+The result view filters purchases by next action: collect missing evidence, check purchase binding, open a linked claim, resolve manually or outside recall scope. Planning totals remain separate from current refundability.

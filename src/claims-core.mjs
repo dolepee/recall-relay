@@ -154,20 +154,26 @@ export class ClaimDeskCore {
     if(value.state!=='CREATE_FAILED'&&(!Number.isFinite(Date.parse(value.firstDispatchAt||value.createdAt))||now-Date.parse(value.firstDispatchAt||value.createdAt)>CREATE_REPLAY_WINDOW_MS))
       throw new Error('This purchase setup needs manual reconciliation. Its safe retry window has ended; no new order was sent.');
     value.origin=value.origin||this.origin;
-    value.createAttemptAt=this.now();value.state='CREATE_IN_PROGRESS';this.saveCheckout(value);
+    value.createAttemptId=randomUUID();const attemptId=value.createAttemptId;value.createAttemptAt=this.now();value.state='CREATE_IN_PROGRESS';this.saveCheckout(value);
     let provider;
-    try{provider=await this.provider();}catch(error){const latest=this.checkout(id);if(latest.quarantine)throw new Error('This purchase setup was quarantined during authentication. No order was dispatched.');value.state=value.firstDispatchAt?'CREATE_UNKNOWN':'CREATE_FAILED';delete value.createAttemptAt;this.saveCheckout(value);throw error;}
-    const afterAuthentication=this.checkout(id);if(afterAuthentication.quarantine)return afterAuthentication;
-    value.firstDispatchAt=value.firstDispatchAt||this.now();value.state='CREATE_UNKNOWN';this.saveCheckout(value);
+    try{provider=await this.provider();}catch(error){
+      const latest=this.checkout(id);
+      if(latest.quarantine)throw new Error('This purchase setup was quarantined during authentication. No order was dispatched by this attempt.');
+      if(latest.createAttemptId!==attemptId||latest.orderId)throw new Error('A newer setup attempt has already progressed. Refresh its recorded state; the older authentication failure did not change it.');
+      latest.state=latest.firstDispatchAt?'CREATE_UNKNOWN':'CREATE_FAILED';delete latest.createAttemptAt;this.saveCheckout(latest);throw error;
+    }
+    const afterAuthentication=this.checkout(id);if(afterAuthentication.quarantine||afterAuthentication.createAttemptId!==attemptId||afterAuthentication.orderId)return afterAuthentication;
+    value.firstDispatchAt=afterAuthentication.firstDispatchAt||this.now();value.state='CREATE_UNKNOWN';this.saveCheckout(value);
     try{
       const order=await provider.createOrder({cents:TOTAL,requestId:value.createRequest,referenceId:value.id,returnUrl:`${value.origin}/desk?purchase=${value.id}`,cancelUrl:`${value.origin}/desk?cancelled=${value.id}`});
       const href=order.links?.find(l=>['approve','payer-action'].includes(l.rel))?.href;
       if(typeof order.id!=='string'||!href||new URL(href).origin!=='https://www.sandbox.paypal.com')throw new Error('PayPal did not return a sandbox approval link.');
       const latest=this.checkout(id);
       if(latest.quarantine){Object.assign(latest,{orderId:order.id,lateOrderObservedAt:this.now()});delete latest.createAttemptAt;this.saveCheckout(latest);return latest;}
-      Object.assign(value,{orderId:order.id,approvalUrl:href,state:'AWAITING_APPROVAL'});delete value.createAttemptAt;this.saveCheckout(value);
-      return value;
-    }catch(error){if(this.checkout(id).quarantine)throw new Error('The quarantined purchase remains unresolved. No new order was sent by recovery.');delete value.createAttemptAt;this.saveCheckout(value);throw new Error('Purchase setup is unresolved. Resume this setup with the same request; do not approve another purchase. '+error.message);}
+      if(latest.orderId||latest.createAttemptId!==attemptId)return latest;
+      Object.assign(latest,{orderId:order.id,approvalUrl:href,state:'AWAITING_APPROVAL'});delete latest.createAttemptAt;this.saveCheckout(latest);
+      return latest;
+    }catch(error){const latest=this.checkout(id);if(latest.quarantine)throw new Error('The quarantined purchase remains unresolved. No new order was sent by recovery.');if(latest.createAttemptId!==attemptId||latest.orderId)throw new Error('A newer setup attempt has progressed. Refresh its state; the older response did not change it.');delete latest.createAttemptAt;this.saveCheckout(latest);throw new Error('Purchase setup is unresolved. Resume this setup with the same request; do not approve another purchase. '+error.message);}
   }
   quarantineCheckout(id,{confirmed,reason}={}) {
     if(confirmed!==true||typeof reason!=='string'||reason.trim().length<10||reason.length>600||/[\u0000-\u001f]/.test(reason))throw new Error('Confirm quarantine and record a reason of 10–600 characters.');
@@ -183,7 +189,7 @@ export class ClaimDeskCore {
     if(value.quarantine)throw new Error('Quarantined purchases cannot be captured or turned into claims. Reconcile the original order manually.');
     if(value.claimId)return this.merchantView(this.claim(value.claimId));
     if(!value.orderId)throw new Error('The purchase setup is incomplete. Resume this setup before approving it.');
-    assertExecutableCampaign(value.campaign||this.activeCampaign());
+    if(value.state!=='CAPTURE_ATTEMPTED')assertExecutableCampaign(value.campaign||this.activeCampaign());
     const provider=await this.provider();
     let order=await provider.orderDetails(value.orderId);
     if(order.id!==value.orderId)throw new Error('PayPal returned a different order.');

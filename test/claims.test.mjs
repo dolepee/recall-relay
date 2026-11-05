@@ -1,3 +1,4 @@
+import {providerCart} from '../src/checkout-cart.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync} from 'node:fs';
@@ -9,11 +10,11 @@ import {SourceWorkspace,assistCases} from '../src/source-workspace.mjs';
 
 const photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWP4DwQACfsD/c8LaHIAAAAASUVORK5CYII=';
 function setup(path=':memory:') {
-  const counters={capture:0,refund:0,read:0};let reference,readFails=false,refundFails=false,complete=false;
+  const counters={capture:0,refund:0,read:0};let cart,reference,readFails=false,refundFails=false,complete=false;
   const capture={id:'TEST-CAPTURE',status:'COMPLETED',amount:{currency_code:'USD',value:'59.99'},create_time:new Date().toISOString()};
   const provider={
-    async createOrder(input){reference=input.referenceId;return {id:'TEST-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=TEST-ORDER'}]};},
-    async orderDetails(){return {id:'TEST-ORDER',status:complete?'COMPLETED':'APPROVED',purchase_units:[{reference_id:reference,amount:capture.amount,payee:{merchant_id:'TEST-MERCHANT'},payments:{captures:[capture]}}]};},
+    async createOrder(input){reference=input.referenceId;cart=input.cart;return {id:'TEST-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=TEST-ORDER'}]};},
+    async orderDetails(){return {id:'TEST-ORDER',status:complete?'COMPLETED':'APPROVED',purchase_units:[{reference_id:reference,...providerCart(cart),payee:{merchant_id:'TEST-MERCHANT'},payments:{captures:[capture]}}]};},
     async captureOrder(){counters.capture++;complete=true;return {};},
     async captureDetails(){return capture;},
     async refund(row){counters.refund++;if(refundFails)throw new Error('Response interrupted');return {id:'TEST-REFUND'};},

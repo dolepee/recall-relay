@@ -1,3 +1,4 @@
+import {checkoutCart,assertCheckoutItems} from './checkout-cart.mjs';
 import {WorkspaceHistory} from './workspace-history.mjs';
 import {checkoutRecovery,CREATE_REPLAY_WINDOW_MS} from './checkout-recovery.mjs';
 import {assertExecutableCampaign} from './source-policy.mjs';
@@ -14,7 +15,7 @@ import {bindingHash,provisionedPurchases,verifyProvisionedPurchase} from './purc
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const secret = () => randomBytes(32).toString('base64url');
-const TOTAL = 5999, ITEM = 2599;
+const LEGACY_TOTAL = 5999, LEGACY_ITEM = 2599;
 export const campaign = Object.freeze({
   id: 'SAMPLE-CUP-RECALL', version: 1, title: 'Cup refund campaign · sandbox example',
   product: 'Relay Home cup', sku: 'CUP-01', lot: 'LOT-A', remedy: 'REFUND',
@@ -123,7 +124,7 @@ export class ClaimDeskCore {
   authenticateMerchant(value) { return typeof value === 'string' && hash(value) === hash(this.merchantKey()); }
   saveCheckout(value) { this.db.prepare('INSERT INTO checkouts VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,JSON.stringify(value)); }
   checkout(id) { const row=this.db.prepare('SELECT data FROM checkouts WHERE id=?').get(id); if(!row)throw new Error('Unknown sandbox purchase.');return JSON.parse(row.data); }
-  saveClaim(value,actor='system-record') {return syncTransaction(this.db,()=>{const previous=this.db.prepare('SELECT data FROM claims WHERE id=?').get(value.id);const data=JSON.stringify(value);if(previous?.data===data)return;this.db.prepare('INSERT INTO claims VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,hash(value.access),data);if(this.history){const old=previous?JSON.parse(previous.data):null;const kind=!old?'CLAIM_CREATED':old.revision!==value.revision?(value.correction?.state==='REQUESTED'?'CORRECTION_REQUESTED':'EVIDENCE_REVISION'):old.review?.reviewedAt!==value.review?.reviewedAt?'EVIDENCE_REVIEWED':'CLAIM_UPDATED';this.history.append('CLAIM',value.id,kind,value,actor);}});}
+  saveClaim(value,actor='system-record') {return syncTransaction(this.db,()=>{const previous=this.db.prepare('SELECT data FROM claims WHERE id=?').get(value.id);const data=JSON.stringify(value);if(previous?.data===data)return;this.db.prepare('INSERT INTO claims VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,hash(value.access),data);if(this.history){const old=previous?JSON.parse(previous.data):null;if(old&&!this.history.list('CLAIM',value.id).length)this.history.append('CLAIM',value.id,'PRE_RETENTION_BASELINE',old,'system-retention-baseline');const kind=!old?'CLAIM_CREATED':old.revision!==value.revision?(value.correction?.state==='REQUESTED'?'CORRECTION_REQUESTED':'EVIDENCE_REVISION'):old.review?.reviewedAt!==value.review?.reviewedAt?'EVIDENCE_REVIEWED':'CLAIM_UPDATED';this.history.append('CLAIM',value.id,kind,value,actor);}});}
   claimHistory(id){const claim=this.claim(id),events=this.history?.list('CLAIM',id)||[],row=this.reservation(claim);return {caseId:id,identity:'Authenticated workspace merchant; no individual identity verified.',historyAvailableFrom:events[0]?.at||null,earlierHistoryAvailable:false,events,refundEvents:row?(this.journal.history?.list('REFUND',row.request_id)||[]):[]};}
   historyPhotograph(id,{sequence}){this.claim(id);if(!this.history||!Number.isSafeInteger(sequence))throw new Error('Choose a retained history event.');return {caseId:id,sequence,photo:this.history.photo('CLAIM',id,sequence),historical:true,approvalAuthority:false};}
 
@@ -134,14 +135,15 @@ export class ClaimDeskCore {
     if(!row)throw new Error('This private claim link is invalid.');return JSON.parse(row.data);
   }
   publish(confirmed) { if(confirmed!==true)throw new Error('Review the fictional campaign before publishing.');this.setSetting('published','yes');return this.merchantState(); }
-  async createCheckout() {
+  async createCheckout(input={}) {
     if(this.setting('published')!=='yes')throw new Error('Review and publish the sandbox campaign first.');
     assertExecutableCampaign(this.activeCampaign());
+    const cart=checkoutCart(input,this.activeCampaign());
     const unfinished=this.db.prepare('SELECT data FROM checkouts ORDER BY rowid').all().map(r=>JSON.parse(r.data)).find(c=>!c.orderId&&!c.claimId&&!c.quarantine);
     if(unfinished)return this.resumeCheckout(unfinished.id);
     if(this.maxCheckouts&&this.claimSlotsUsed()>=this.maxCheckouts)
       throw new Error('This sandbox workspace has reached its test-purchase limit. Existing claims and receipts remain available.');
-    const value={id:randomUUID(),createRequest:randomUUID(),captureRequest:randomUUID(),state:'CREATE_FAILED',createdAt:this.now(),campaign:this.activeCampaign(),origin:this.origin};
+    const value={id:randomUUID(),createRequest:randomUUID(),captureRequest:randomUUID(),state:'CREATE_FAILED',createdAt:this.now(),campaign:this.activeCampaign(),cart,origin:this.origin};
     this.saveCheckout(value);
     return this.resumeCheckout(value.id);
   }
@@ -170,7 +172,7 @@ export class ClaimDeskCore {
     const afterAuthentication=this.checkout(id);if(afterAuthentication.quarantine||afterAuthentication.createAttemptId!==attemptId||afterAuthentication.orderId)return afterAuthentication;
     value.firstDispatchAt=afterAuthentication.firstDispatchAt||this.now();value.state='CREATE_UNKNOWN';this.saveCheckout(value);
     try{
-      const order=await provider.createOrder({cents:TOTAL,requestId:value.createRequest,referenceId:value.id,returnUrl:`${value.origin}/desk?purchase=${value.id}`,cancelUrl:`${value.origin}/desk?cancelled=${value.id}`});
+      const order=await provider.createOrder({cents:value.cart?.totalCents??LEGACY_TOTAL,cart:value.cart,requestId:value.createRequest,referenceId:value.id,returnUrl:`${value.origin}/desk?purchase=${value.id}`,cancelUrl:`${value.origin}/desk?cancelled=${value.id}`});
       const href=order.links?.find(l=>['approve','payer-action'].includes(l.rel))?.href;
       if(typeof order.id!=='string'||!href||new URL(href).origin!=='https://www.sandbox.paypal.com')throw new Error('PayPal did not return a sandbox approval link.');
       const latest=this.checkout(id);
@@ -201,6 +203,8 @@ export class ClaimDeskCore {
     // Re-read after the await: a second request may already have started capture.
     value=this.checkout(id);
     if(value.claimId)return this.merchantView(this.claim(value.claimId));
+    if(value.cart){const units=order.purchase_units;if(units?.length!==1||units[0].reference_id!==value.id)throw new Error('Provider order identity differs from this checkout.');assertCheckoutItems(units[0],value.cart);}
+    const total=value.cart?.totalCents??LEGACY_TOTAL;
     if(order.status!=='COMPLETED') {
       if(value.state==='CAPTURE_ATTEMPTED')throw new Error('The capture is unresolved. Refresh its status; no second capture will be sent.');
       if(order.status!=='APPROVED')throw new Error('Approve the purchase in PayPal Sandbox first.');
@@ -209,15 +213,15 @@ export class ClaimDeskCore {
       order=await provider.orderDetails(value.orderId);
     }
     const units=order.purchase_units, unit=units?.[0], capture=unit?.payments?.captures?.[0];
-    if(order.id!==value.orderId || order.status!=='COMPLETED' || units?.length!==1 || unit.reference_id!==value.id || usdCents(unit.amount)!==TOTAL || unit.payments?.captures?.length!==1 || !capture?.id || capture.status!=='COMPLETED' || usdCents(capture.amount)!==TOTAL || !unit.payee?.merchant_id)
+    if(order.id!==value.orderId || order.status!=='COMPLETED' || units?.length!==1 || unit.reference_id!==value.id || usdCents(unit.amount)!==total || unit.payments?.captures?.length!==1 || !capture?.id || capture.status!=='COMPLETED' || usdCents(capture.amount)!==total || !unit.payee?.merchant_id)
       throw new Error('The completed purchase does not match this sandbox order.');
     const details=await provider.captureDetails(capture.id);
-    if(details.id!==capture.id || details.status!=='COMPLETED' || usdCents(details.amount)!==TOTAL || !Number.isFinite(Date.parse(details.create_time)))throw new Error('The original capture could not be verified.');
+    if(details.id!==capture.id || details.status!=='COMPLETED' || usdCents(details.amount)!==total || !Number.isFinite(Date.parse(details.create_time)))throw new Error('The original capture could not be verified.');
     // Another reconciliation request may have bound the same order in the meantime.
     const existing=this.checkout(id);
     if(existing.claimId)return this.merchantView(this.claim(existing.claimId));
     const policy=value.campaign||campaign;
-    const claim={id:value.id,campaign:policy,access:secret(),createdAt:this.now(),purchase:{id:`RR-${value.id.slice(0,8).toUpperCase()}`,version:1,merchantId:unit.payee.merchant_id,captureId:capture.id,lineId:`${policy.sku}-LINE`,sku:policy.sku,lot:policy.lot,capturedAt:details.create_time,currency:'USD',linePaidCents:ITEM,lineRefundedCents:0,captureRemainingCents:TOTAL,originalCaptureCents:TOTAL},submission:null,revision:0,review:null};
+    const claim={id:value.id,campaign:policy,access:secret(),createdAt:this.now(),purchase:{id:`RR-${value.id.slice(0,8).toUpperCase()}`,version:1,merchantId:unit.payee.merchant_id,captureId:capture.id,lineId:`${policy.sku}-LINE`,sku:policy.sku,lot:policy.lot,capturedAt:details.create_time,currency:'USD',linePaidCents:value.cart?assertCheckoutItems(unit,value.cart).paidCents:LEGACY_ITEM,lineRefundedCents:0,captureRemainingCents:total,originalCaptureCents:total,cart:value.cart||null},submission:null,revision:0,review:null};
     await this.ownCapture(claim.purchase,claim.id);
     const bound=this.checkout(id);if(bound.claimId)return this.merchantView(this.claim(bound.claimId));
     syncTransaction(this.db,()=>{this.saveClaim(claim);value.state='CAPTURED';value.claimId=claim.id;this.saveCheckout(value);});

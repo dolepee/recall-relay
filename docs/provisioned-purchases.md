@@ -85,3 +85,12 @@ workerd with SQLite. They do not prove that a particular real Sandbox order is
 eligible. Missing or already-refunded historical proof purchases are deliberately
 not admitted. A real positive binding must be recorded separately before claiming
 an end-to-end existing-purchase Sandbox demonstration.
+
+## From planning to a supported existing purchase
+
+1. Reconcile a declared ledger against the published SKU and lot. Export the planning result for operator review. This does not create payment permission.
+2. Establish the authenticated workspace owner from the trusted sales record. The operator checks the original order/capture, its merchant, item ordinal, SKU, quantity and allocation. The first supported shape is one quantity-one affected line in a single USD capture, with zero tax, shipping, discounts and prior refunds. Unsupported shapes require manual settlement outside this tool.
+3. Prepare the private grant JSON shown above and run `node scripts/check-purchase-grants.mjs /absolute/private/grants.json`. This offline check validates configuration and active dates only. It neither contacts PayPal nor establishes ownership. Install the reviewed array through the existing `PROVISIONED_PURCHASES` secret workflow. Do not paste grants into CSV imports or commit them.
+4. In that browser workspace, open **Provisioned purchases**, select the reviewed grant and explicitly bind it. The server performs authenticated item and capture readback and durable capture ownership assignment. Complete the ordinary customer evidence, merchant review and explicit refund-approval journey.
+
+A workspace reference is an identifier, not proof that the requestor owns it. The operator must establish that relationship separately. There is no public self-service arbitrary-capture import; the UI deliberately cannot turn a declared ledger or caller-supplied capture ID into payment authority.

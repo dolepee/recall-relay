@@ -39,7 +39,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
           '/api/merchant/import-preview':()=>desk.previewLedger(input),
           '/api/merchant/bind-purchase':()=>desk.bindPurchase(input),
           '/api/merchant/publish':()=>desk.publish(input.confirmed),
-          '/api/merchant/checkout':()=>desk.createCheckout(),
+          '/api/merchant/checkout':()=>desk.createCheckout(input),
           '/api/merchant/resume-checkout':()=>desk.resumeCheckout(input.id),
           '/api/merchant/quarantine-checkout':()=>desk.quarantineCheckout(input.id,input),
           '/api/merchant/capture':()=>desk.captureCheckout(input.id),

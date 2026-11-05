@@ -18,6 +18,10 @@ import {PRACTICE_TTL_MS} from './cloud-practice-routing.mjs';
 
 export const DEFAULT_BUDGET_LIMITS=Object.freeze({
   workspacesPerDay:200,
+  evaluationReserveEnabled:false,
+  evaluationWorkspacesPerDay:20,
+  evaluationAIperDay:20,
+  evaluationPracticePerDay:40,
   aiPerWorkspacePerDay:20,
   aiGlobalPerDay:80,
   aiPerWorkspacePerBurst:2,
@@ -69,7 +73,7 @@ export class UsageBudgetCore {
     this.storage=storage;
     this.limitSource=typeof limits==='function'?limits:()=>limits;
     this.clock=clock;
-    storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_budget (day TEXT NOT NULL, scope TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day,scope)); CREATE TABLE IF NOT EXISTS known_workspaces (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS known_practice_sessions (id TEXT PRIMARY KEY, issued_at INTEGER NOT NULL)');
+    storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_budget (day TEXT NOT NULL, scope TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day,scope)); CREATE TABLE IF NOT EXISTS known_workspaces (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS evaluation_workspaces (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS known_practice_sessions (id TEXT PRIMARY KEY, issued_at INTEGER NOT NULL)');
   }
   limits(){return {...DEFAULT_BUDGET_LIMITS,...this.limitSource()};}
   hasWorkspace(id){return this.storage.sql.exec('SELECT id FROM known_workspaces WHERE id=?',id).toArray().length===1;}
@@ -108,11 +112,14 @@ export class UsageBudgetCore {
       return {available:true,reason:null,resetAt:dayResetInstant(day)};
     });
   }
+  protectWorkspace(id){if(this.hasWorkspace(id))this.storage.sql.exec('INSERT INTO evaluation_workspaces VALUES (?) ON CONFLICT(id) DO NOTHING',id);}
   aiSpec(workspaceId){
     const limits=this.limits();
+    const evaluation=limits.evaluationReserveEnabled&&this.storage.sql.exec('SELECT id FROM evaluation_workspaces WHERE id=?',workspaceId).toArray().length===1;
+    const reserved=limits.evaluationReserveEnabled?[{scope:evaluation?'ai-evaluation':'ai-public',limit:evaluation?limits.evaluationAIperDay:Math.max(0,limits.aiGlobalPerDay-limits.evaluationAIperDay)}]:[];
     return {
-      daily:[{scope:'ai-workspace-'+workspaceId,limit:limits.aiPerWorkspacePerDay},{scope:'ai-total',limit:limits.aiGlobalPerDay}],
-      burst:[{scope:BURST_PREFIX+'workspace-'+workspaceId,limit:limits.aiPerWorkspacePerBurst},{scope:BURST_PREFIX+'total',limit:limits.aiGlobalPerBurst}],
+      daily:[...reserved,{scope:'ai-workspace-'+workspaceId,limit:limits.aiPerWorkspacePerDay},{scope:'ai-total',limit:limits.aiGlobalPerDay}],
+      burst:[{scope:BURST_PREFIX+'workspace-'+workspaceId,limit:limits.aiPerWorkspacePerBurst},...(limits.evaluationReserveEnabled?[{scope:BURST_PREFIX+(evaluation?'evaluation':'public'),limit:evaluation?1:Math.max(0,limits.aiGlobalPerBurst-1)}]:[]),{scope:BURST_PREFIX+'total',limit:limits.aiGlobalPerBurst}],
     };
   }
   admitAI(workspaceId){const {daily,burst}=this.aiSpec(workspaceId);return this.admit(daily,burst);}
@@ -132,7 +139,7 @@ export class UsageBudgetCore {
       return this.storage.sql.exec('SELECT id FROM known_practice_sessions WHERE id=?',id).toArray().length===1;
     });
   }
-  admitPractice(id,ttlMs){
+  admitPractice(id,ttlMs,evaluation=false){
     return this.storage.transactionSync(()=>{
       const now=Number(this.clock()),day=utcDay(now);
       if(day===null)return {opened:false,reason:'clock',resetAt:null};
@@ -141,22 +148,26 @@ export class UsageBudgetCore {
       this.prunePractice(now,ttlMs);
       const resetAt=dayResetInstant(day);
       if(this.storage.sql.exec('SELECT id FROM known_practice_sessions WHERE id=?',id).toArray().length===1)return {opened:true,existing:true,resetAt};
+      const classScope=evaluation?'practice-evaluation':'practice-public',classLimit=evaluation?limits.evaluationPracticePerDay:PRACTICE_SESSIONS_PER_DAY-limits.evaluationPracticePerDay;
+      if(limits.evaluationReserveEnabled&&this.count(day,classScope)>=classLimit)return {opened:false,reason:'capacity',resetAt};
       if(this.count(day,'practice-sessions')>=PRACTICE_SESSIONS_PER_DAY)return {opened:false,reason:'capacity',resetAt};
       this.storage.sql.exec('INSERT INTO known_practice_sessions VALUES (?,?)',id,now);
-      this.bump(day,'practice-sessions');
+      this.bump(day,'practice-sessions');if(limits.evaluationReserveEnabled)this.bump(day,classScope);
       return {opened:true,existing:false,resetAt};
     });
   }
-  openWorkspace(id){
+  openWorkspace(id,evaluation=false){
     return this.storage.transactionSync(()=>{
       const now=Number(this.clock()),day=utcDay(now);
       if(day===null)return {opened:false,reason:'clock',resetAt:null};
       const limits=this.limits();
       this.prune(day,burstBucket(now,limits.burstWindowSeconds));
       const resetAt=dayResetInstant(day);
+      const classScope=evaluation?'workspaces-evaluation':'workspaces-public',classLimit=evaluation?limits.evaluationWorkspacesPerDay:limits.workspacesPerDay-limits.evaluationWorkspacesPerDay;
+      if(limits.evaluationReserveEnabled&&this.count(day,classScope)>=classLimit)return {opened:false,reason:'capacity',resetAt};
       if(this.count(day,'workspaces')>=limits.workspacesPerDay)return {opened:false,reason:'capacity',resetAt};
       this.storage.sql.exec('INSERT INTO known_workspaces VALUES (?)',id);
-      this.bump(day,'workspaces');
+      this.bump(day,'workspaces');if(limits.evaluationReserveEnabled){this.bump(day,classScope);if(evaluation)this.protectWorkspace(id);}
       return {opened:true,reason:null,resetAt};
     });
   }

@@ -1,3 +1,4 @@
+import {providerCart} from '../src/checkout-cart.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
@@ -7,8 +8,8 @@ import {syncTransaction} from '../src/transaction.mjs';
 import {assertExecutableSource} from '../src/source-policy.mjs';
 const photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWP4DwQACfsD/c8LaHIAAAAASUVORK5CYII=';
 async function fixture(){
- let reference,refunds=0;const capture={id:'CAPTURE',status:'COMPLETED',amount:{currency_code:'USD',value:'59.99'},create_time:new Date().toISOString()};
- const provider={createOrder:async input=>{reference=input.referenceId;return {id:'ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=ORDER'}]};},orderDetails:async()=>({id:'ORDER',status:'COMPLETED',purchase_units:[{reference_id:reference,amount:capture.amount,payee:{merchant_id:'MERCHANT'},payments:{captures:[capture]}}]}),captureDetails:async()=>capture,refund:async()=>{refunds++;throw new Error('Lost response');},verifiedRefund:async(row,id)=>({id,status:'COMPLETED',amount:{currency_code:'USD',value:'25.99'},invoice_id:'rr-'+row.request_id})};
+ let cart,reference,refunds=0;const capture={id:'CAPTURE',status:'COMPLETED',amount:{currency_code:'USD',value:'59.99'},create_time:new Date().toISOString()};
+ const provider={createOrder:async input=>{reference=input.referenceId;cart=input.cart;return {id:'ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=ORDER'}]};},orderDetails:async()=>({id:'ORDER',status:'COMPLETED',purchase_units:[{reference_id:reference,...providerCart(cart),payee:{merchant_id:'MERCHANT'},payments:{captures:[capture]}}]}),captureDetails:async()=>capture,refund:async()=>{refunds++;throw new Error('Lost response');},verifiedRefund:async(row,id)=>({id,status:'COMPLETED',amount:{currency_code:'USD',value:'25.99'},invoice_id:'rr-'+row.request_id})};
  const desk=new ClaimDesk({provider:async()=>provider});desk.publish(true);const item=await desk.captureCheckout((await desk.createCheckout()).id),access=item.claimUrl.split('#')[1];
  desk.submit(access,{revision:0,lot:'LOT-A',acknowledged:true,photo});const reviewed=desk.review(item.id,{revision:1,confirmed:true});return {desk,provider,item,access,reviewed,refunds:()=>refunds};
 }
@@ -55,4 +56,8 @@ test('referenced instructions block publication until a provenance-labelled snap
 test('an attached excerpt cannot hide a second external instruction',async()=>{
  const db=new DatabaseSync(':memory:'),ws=new SourceWorkspace(db,{ai:{status:()=>({available:false})},loadSource:async()=>({recallNumber:'TEST',sourceDigest:'root',sourceUrl:'https://www.cpsc.gov/Example',remedies:['Upload a photograph of the label.','Follow the instructions on https://example.com/recall.']})});
  try{let row=await ws.import('TEST');row=ws.attachExternal(row.id,{revision:1,dependencyId:'external-1-0',url:'https://example.com/recall',text:'Follow the instructions on https://another.example.com/required.',confirmed:true});assert.throws(()=>assertExecutableSource(row.source,[],[]),/external instructions/);}finally{db.close();}
+});
+
+test('first mutation of a legacy claim retains the existing snapshot before overwriting it',async()=>{
+ const s=await fixture();try{const history=s.desk.history;s.desk.db.prepare('DELETE FROM workspace_events').run();s.desk.db.prepare('DELETE FROM history_photos').run();s.desk.history=null;const prior=s.desk.claim(s.item.id);s.desk.history=history;s.desk.saveClaim({...prior,review:null,revision:2},'customer-capability');const events=s.desk.claimHistory(s.item.id).events;assert.equal(events[0].event,'PRE_RETENTION_BASELINE');assert.equal(events[0].snapshot.revision,1);assert.equal(s.desk.historyPhotograph(s.item.id,{sequence:events[0].sequence}).photo,photo);assert.equal(events[1].snapshot.revision,2);}finally{s.desk.close();}
 });

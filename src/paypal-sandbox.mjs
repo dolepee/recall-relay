@@ -1,3 +1,4 @@
+import {providerCart} from './checkout-cart.mjs';
 import { usdAmount, usdCents } from './money.mjs';
 import {Buffer} from 'node:buffer';
 
@@ -35,13 +36,13 @@ export class PayPalSandbox {
   }
 
   // Caller persists the request ID before invoking these methods. No automatic retries.
-  async createOrder({ cents, requestId, referenceId, returnUrl, cancelUrl }) {
+  async createOrder({ cents, requestId, referenceId, returnUrl, cancelUrl, cart }) {
     const context = returnUrl ? { payment_source: { paypal: { experience_context: {
       return_url: returnUrl, cancel_url: cancelUrl, user_action: 'PAY_NOW', shipping_preference: 'NO_SHIPPING',
     } } } } : {};
     return this.#request('/v2/checkout/orders', {
       method: 'POST', headers: requestHeaders(requestId),
-      body: JSON.stringify({ intent: 'CAPTURE', purchase_units: [{ ...(referenceId ? {reference_id: referenceId} : {}), amount: usdAmount(cents), description: 'Recall Relay sandbox test purchase' }], ...context }),
+      body: JSON.stringify({ intent: 'CAPTURE', purchase_units: [{ ...(referenceId ? {reference_id: referenceId} : {}), ...(cart?providerCart(cart):{amount:usdAmount(cents)}), description: 'Recall Relay sandbox test purchase' }], ...context }),
     });
   }
 

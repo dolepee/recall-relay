@@ -11,7 +11,7 @@ test('visitors correct scope, inspect a fictional claim and reset without networ
  const host=document.createElement('div');document.body.append(host);const root=createRoot(host);await act(async()=>root.render(React.createElement(Example)));
  assert.match(document.body.textContent,/Every purchase, capture and claim on this page is fictional/);assert.match(document.body.textContent,/\$49\.75/);
  await click('Apply LOT-A planning assumption');assert.match(document.body.textContent,/\$61\.75/);assert.match(document.body.textContent,/affected but still needs evidence/);assert.equal(button('Apply LOT-A planning assumption').disabled,true);
- await click('LINKED-EXAMPLECUP-01 · affectedlinked claim');await click('Open fictional claim');assert.equal(document.activeElement.textContent,'Fictional linked claim');assert.match(document.body.textContent,/No provider record has been verified/);
+ await click('LINKED-EXAMPLECUP-01 · affectedOpen linked claim');await click('Open fictional claim');assert.equal(document.activeElement.textContent,'Fictional linked claim');assert.match(document.body.textContent,/No provider record has been verified/);
  assert.equal(document.querySelector('a[href="/practice"]').textContent,'Guided claim');await click('Back to reconciliation');await click('Reset example');assert.match(document.body.textContent,/\$49\.75/);assert.equal(requests,0);assert.equal(dom.window.localStorage.length,0);assert.equal(document.cookie,'');
  await act(async()=>root.unmount());host.remove();
 });

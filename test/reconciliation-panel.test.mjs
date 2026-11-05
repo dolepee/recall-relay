@@ -7,6 +7,7 @@ import {pathToFileURL} from 'node:url';
 import {JSDOM} from 'jsdom';
 import {ClaimDesk} from '../src/claims.mjs';
 const dom=new JSDOM('<html><body></body></html>',{url:'https://fixture.invalid/desk',pretendToBeVisual:true});
+dom.window.HTMLElement.prototype.scrollIntoView=function(){};
 dom.window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
 for(const key of ['window','document','HTMLElement','Event'])globalThis[key]=key==='window'?dom.window:dom.window[key];
 globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);globalThis.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);
@@ -23,12 +24,12 @@ test('saved purchase reconciliation opens its existing claim and reloads the imm
  const actions=[];globalThis.fetch=async(path,options)=>{const input=JSON.parse(options.body);let value;if(path.endsWith('reconciliation-ledger'))value=desk.reconciliationLedger();else if(path.endsWith('reconciliation-plan'))value=desk.reconcileLedger(input);else if(path.endsWith('reconciliation-plans'))value=desk.reconciliationPlans();else throw new Error('Unexpected API');actions.push(path);return {ok:true,json:async()=>value};};
  const target=document.createElement('div');document.body.append(target);root=createRoot(target);let opened;
  await act(async()=>root.render(React.createElement(ReconciliationPanel,{openClaim:o=>{opened=o;},openBinding:()=>{}})));
- await click('Use saved purchases');assert.match(document.querySelector('textarea').value,/CAP/);
+ await click('Use saved purchases');assert.match(document.querySelector('#reconciliation-ledger').value,/CAP/);
  await act(async()=>{document.querySelector('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,0));});
  assert.match(document.body.textContent,/linked claim/);assert.match(document.body.textContent,/\$28\.75/);assert.match(document.body.textContent,/Not a current refundable balance/);
  await click('Open existing claim');assert.equal(opened,'RR-ONE');assert.equal(desk.reconciliationPlans().length,1);
- await click('Load saved plans');assert.equal(document.querySelectorAll('select option').length,2);
- assert.ok(document.querySelector('a[download]'));assert.ok(actions.every(x=>!x.includes('approve')&&!x.includes('capture')));
+ await click('Load saved plans');assert.equal([...document.querySelectorAll('label')].find(l=>l.textContent.startsWith('Saved planning snapshot')).querySelectorAll('option').length,2);
+ assert.ok(document.querySelector('a[download^="reconciliation-"]'));assert.ok(actions.every(x=>!x.includes('approve')&&!x.includes('capture')));
 });
 
 test('a pending reconciliation disables correction acceptance and cannot publish new edits with an old plan',async()=>{

@@ -1,3 +1,4 @@
+import {externalDependencies} from './external-sources.mjs';
 function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}
 const KINDS=['PHOTO','CONFIRMATION','TEXT'];
 const PHOTO_CUE=/\b(photo|photograph|photographs|photos|picture|pictures|image|images)\b/i;
@@ -33,7 +34,7 @@ function sentenceSpans(text){
 export function sourceClauses(source){
   return source.remedies.flatMap((text,p)=>sentenceSpans(text).map((span,i)=>({id:`clause-${p}-${i}`,quote:text.slice(span.start,span.end).trim()})));
 }
-export const SOURCE_POLICY_VERSION=2;
+export const SOURCE_POLICY_VERSION=3;
 // A bounded executable subset, not a general natural-language policy engine.
 // Drafts may retain richer quotations for review; only direct, unconditional,
 // pre-refund customer responses with one photo can become an executable form.
@@ -59,13 +60,15 @@ export function sourceCoverage(source,fields,decisions=[]){
     const obligations=profile.kinds.map(kind=>({id:`${clause.id}-${kind}`,kind,actor:profile.actor,applicability:profile.applicability,phase:profile.phase,evidenceCount:kind==='PHOTO'?profile.photoCount:null,fieldIds:linked.filter(f=>f.kind===kind&&normalize(f.quote)===normalize(clause.quote)).map(f=>f.id)}));
     const missing=obligations.filter(o=>!o.fieldIds.length).map(o=>o.kind);
     const decision=decisions.find(d=>d.id===clause.id);
-    const issue=profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null;
+    const phaseIssue=profile.issues.find(i=>i.startsWith('Post-refund'));
+    const issue=phaseIssue||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
     // An INFORMATION decision cannot waive a detected customer obligation.
     const disposition=issue?'MANUAL':obligations.length?(missing.length?'UNRESOLVED':'FIELD'):linked.length?'MANUAL':decision?.disposition||'UNRESOLVED';
     return {...clause,fieldIds:linked.map(f=>f.id),obligations,missingKinds:missing,issue,disposition,reason:issue||(obligations.length?(missing.length?`Missing response: ${missing.join(', ')}.`:''):linked.length?'Selected field does not establish a supported customer response.':decision?.reason||'')};
   });
 }
 export function assertExecutableSource(source,fields,decisions=[]){
+  if(externalDependencies(source).some(d=>d.status==='UNRESOLVED'))throw new Error('Review every source obligation: referenced external instructions need a reviewed public-text snapshot before publication. Their contents have not been ingested.');
   const issue=fields.map(sourceFieldIssue).find(Boolean);if(issue)throw new Error(issue);
   const coverage=sourceCoverage(source,fields,decisions);
   if(coverage.some(c=>['UNRESOLVED','MANUAL'].includes(c.disposition)))throw new Error('Review every source obligation before publishing. Missing responses and manual steps cannot publish a connected form.');
@@ -75,7 +78,7 @@ export function assertExecutableSource(source,fields,decisions=[]){
 export function assertExecutableCampaign(policy){
   if(!policy.sourceDigest)return; // Server-authored fictional fixtures; imported public notices carry a digest.
   if(policy.sourcePolicyVersion!==SOURCE_POLICY_VERSION||!Array.isArray(policy.sourceRemedies))throw new Error('Review and republish the source instructions under the current policy before starting or binding another purchase. Existing claims keep their saved instructions.');
-  assertExecutableSource({remedies:policy.sourceRemedies},policy.fields||[],policy.coverage||[]);
+  assertExecutableSource({remedies:policy.sourceRemedies,rootRemedies:policy.sourceRootRemedies,externalSnapshots:policy.sourceExternalSnapshots},policy.fields||[],policy.coverage||[]);
 }
 // Assistant quotations must cover a complete source sentence, or a contiguous run
 // of complete sentences. A shorter fragment is expanded to the one complete
@@ -107,7 +110,7 @@ export function validateManualField({kind,quote},source){
     throw new Error('A proposed field lacks an exact source quotation. No field was saved.');
   const complete=completeSourceQuote(quote,source);
   if(complete.problem||complete.quote.length>1600)throw new Error('Select one complete source sentence with all its conditions.');
-  return {kind,quote:complete.quote,sourceUrl:source.sourceUrl};
+  return {kind,quote:complete.quote,sourceUrl:source.externalSnapshots?.find(s=>s.text.includes(complete.quote))?.url||source.sourceUrl};
 }
 
 export function validateSourceSuggestion(raw,source){
@@ -126,7 +129,7 @@ export function validateSourceSuggestion(raw,source){
     const key=`${r.kind}\u0000${quote}`;
     if(seen.has(key)){filtered.push({kind:r.kind,quote:r.quote,reason:'Duplicate response for this quotation; the first valid response was kept.'});continue;}
     seen.add(key);
-    requirements.push({id:`field-${requirements.length+1}`,kind:r.kind,quote,sourceUrl:source.sourceUrl});
+    requirements.push({id:`field-${requirements.length+1}`,kind:r.kind,quote,sourceUrl:source.externalSnapshots?.find(s=>s.text.includes(quote))?.url||source.sourceUrl});
   }
   return {requirements,filtered,sourceDigest:source.sourceDigest,paymentAuthorized:false,evidenceVerified:false};
 }

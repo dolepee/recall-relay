@@ -26,6 +26,10 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
         if(req.method!=='POST'){json(res,405,{error:'Use the action button to continue.'});return true;}
         const input=await body(req);
         const actions={
+          '/api/merchant/history':()=>desk.claimHistory(input.caseId),
+          '/api/merchant/history-photograph':()=>desk.historyPhotograph(input.caseId,input),
+          '/api/merchant/recover-refund':()=>desk.recoverRefund(input.id,input),
+          '/api/merchant/refund-disposition':()=>desk.recordRefundDisposition(input.id,input),
           '/api/merchant/case-context':()=>caseContext(desk,input),
           '/api/merchant/case-advisory':()=>caseAdvisory(ai,desk,input),
           '/api/merchant/reconciliation-advice':()=>reconciliationAdvice(ai,desk,input),
@@ -44,6 +48,10 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
           '/api/merchant/request-changes':()=>desk.requestChanges(input.id,input),
           '/api/merchant/approve':()=>desk.approve(input.id,input),
           '/api/merchant/reconcile':()=>desk.reconcile(input.id),
+          '/api/merchant/source-external':()=>sourceWorkspace.attachExternal(input.id,input),
+          '/api/merchant/source-list':()=>sourceWorkspace.state(desk,{offset:input.offset}),
+          '/api/merchant/source-history':()=>sourceWorkspace.historyFor(input.id),
+          '/api/merchant/source-refresh':()=>sourceWorkspace.refresh(input.id,input.revision),
           '/api/merchant/source-import':()=>sourceWorkspace.import(input.recallNumber),
           '/api/merchant/source-suggest':()=>sourceWorkspace.suggest(input.id,input.revision),
           '/api/merchant/source-add':()=>sourceWorkspace.addField(input.id,input),

@@ -64,7 +64,7 @@ export class PayPalSandbox {
     return this.#request(`/v2/payments/captures/${resourceId(reservation.capture)}/refund`, {
       method: 'POST',
       headers: requestHeaders(reservation.request_id),
-      body: JSON.stringify({ amount: usdAmount(reservation.cents), note_to_payer: 'Merchant-approved product refund' }),
+      body: JSON.stringify({ amount: usdAmount(reservation.cents), invoice_id:'rr-'+reservation.request_id, note_to_payer: 'Merchant-approved product refund' }),
     });
   }
 

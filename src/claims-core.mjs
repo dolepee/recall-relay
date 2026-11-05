@@ -1,3 +1,4 @@
+import {WorkspaceHistory} from './workspace-history.mjs';
 import {checkoutRecovery,CREATE_REPLAY_WINDOW_MS} from './checkout-recovery.mjs';
 import {assertExecutableCampaign} from './source-policy.mjs';
 import {reconcileLedger} from './recall-reconciliation.mjs';
@@ -37,8 +38,9 @@ function photoValue(photo) {
 }
 
 export class ClaimDeskCore {
-  constructor({ journal, provider, now = () => new Date().toISOString(), origin = 'http://127.0.0.1:4318', workspaceId, purchaseGrants, captureOwnership }) {
+  constructor({ journal, provider, now = () => new Date().toISOString(), origin = 'http://127.0.0.1:4318', workspaceId, purchaseGrants, captureOwnership, retainHistory=true }) {
     this.journal = journal; this.db = journal.db;
+    this.history=retainHistory?new WorkspaceHistory(this.db,{now}):null;this.journal.historyEnabled=retainHistory;this.journal.now=now;
     this.provider = provider; this.now = now; this.origin = origin;
     this.workspaceId=workspaceId;this.purchaseGrants=provisionedPurchases(purchaseGrants,workspaceId);this.captureOwnership=captureOwnership;
     this.db.exec(`
@@ -121,7 +123,10 @@ export class ClaimDeskCore {
   authenticateMerchant(value) { return typeof value === 'string' && hash(value) === hash(this.merchantKey()); }
   saveCheckout(value) { this.db.prepare('INSERT INTO checkouts VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,JSON.stringify(value)); }
   checkout(id) { const row=this.db.prepare('SELECT data FROM checkouts WHERE id=?').get(id); if(!row)throw new Error('Unknown sandbox purchase.');return JSON.parse(row.data); }
-  saveClaim(value) { this.db.prepare('INSERT INTO claims VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,hash(value.access),JSON.stringify(value)); }
+  saveClaim(value,actor='system-record') {return syncTransaction(this.db,()=>{const previous=this.db.prepare('SELECT data FROM claims WHERE id=?').get(value.id);const data=JSON.stringify(value);if(previous?.data===data)return;this.db.prepare('INSERT INTO claims VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(value.id,hash(value.access),data);if(this.history){const old=previous?JSON.parse(previous.data):null;const kind=!old?'CLAIM_CREATED':old.revision!==value.revision?(value.correction?.state==='REQUESTED'?'CORRECTION_REQUESTED':'EVIDENCE_REVISION'):old.review?.reviewedAt!==value.review?.reviewedAt?'EVIDENCE_REVIEWED':'CLAIM_UPDATED';this.history.append('CLAIM',value.id,kind,value,actor);}});}
+  claimHistory(id){const claim=this.claim(id),events=this.history?.list('CLAIM',id)||[],row=this.reservation(claim);return {caseId:id,identity:'Authenticated workspace merchant; no individual identity verified.',historyAvailableFrom:events[0]?.at||null,earlierHistoryAvailable:false,events,refundEvents:row?(this.journal.history?.list('REFUND',row.request_id)||[]):[]};}
+  historyPhotograph(id,{sequence}){this.claim(id);if(!this.history||!Number.isSafeInteger(sequence))throw new Error('Choose a retained history event.');return {caseId:id,sequence,photo:this.history.photo('CLAIM',id,sequence),historical:true,approvalAuthority:false};}
+
   claim(id) { const row=this.db.prepare('SELECT data FROM claims WHERE id=?').get(id);if(!row)throw new Error('Claim not found.');return JSON.parse(row.data); }
   authorizeCustomer(access) {
     if (typeof access !== 'string' || !/^[\w-]{43}$/.test(access)) throw new Error('This private claim link is invalid.');
@@ -263,6 +268,7 @@ export class ClaimDeskCore {
     const claim=this.authorizeCustomer(access);
     if(this.sourcePolicyIssue(claim))throw new Error(this.sourcePolicyIssue(claim));
     if(this.reservation(claim))throw new Error('This claim is already in payment review. Its submitted evidence is locked.');
+    if(this.history&&this.history.list('CLAIM',claim.id).filter(e=>e.event==='EVIDENCE_REVISION').length>=12)throw new Error('The retained evidence revision limit is reached. Continue through manual support; no history was discarded.');
     if(input.revision!==claim.revision)throw new Error('This claim changed in another window. Refresh before submitting.');
     const lot=typeof input.lot==='string'?input.lot.trim().toUpperCase():'';
     if(lot.length>40 || (lot && !/^[A-Z0-9 -]+$/.test(lot)))throw new Error('Use the letters and numbers printed on the lot label.');
@@ -281,9 +287,9 @@ export class ClaimDeskCore {
     }
     claim.revision++;claim.review=null;
     claim.submission={lot,photo,extra,acknowledged:input.acknowledged===true,submittedAt:this.now()};
-    this.saveClaim(claim);return this.customerView(claim);
+    this.saveClaim(claim,'customer-capability');return this.customerView(claim);
   }
-  merchantView(claim) {return {...this.customerView(claim),purchaseProvenance:claim.purchase.provenance||null,plan:this.plan(claim),review:claim.review,photo:claim.submission?.photo||null,claimUrl:`/claim?claim=${claim.id}#${claim.access}`,payment:this.reservation(claim)};}
+  merchantView(claim) {return {...this.customerView(claim),purchaseProvenance:claim.purchase.provenance||null,plan:this.plan(claim),review:claim.review,photo:claim.submission?.photo||null,claimUrl:`/claim?claim=${claim.id}#${claim.access}`,payment:this.reservation(claim),refundRecovery:this.reservation(claim)?{correlationRecorded:!!this.journal.metadata(this.reservation(claim).request_id)?.correlation}:null};}
   merchantState() {
     return {mode:'real-sandbox',campaign:this.activeCampaign(),published:this.setting('published')==='yes',provisionedPurchases:this.purchaseGrants.map(g=>({grantId:g.id,sku:g.sku,lot:g.lot,itemPaidCents:g.itemPaidCents,captureCents:g.captureCents,operator:g.operator,provisionedAt:g.provisionedAt,catalogMapping:'OPERATOR_REVIEWED'})),cases:this.db.prepare('SELECT data FROM claims ORDER BY rowid DESC').all().map(row=>{const {photo,...summary}=this.merchantView(JSON.parse(row.data));return summary;}),checkouts:this.db.prepare('SELECT data FROM checkouts ORDER BY rowid DESC').all().map(row=>{const value=JSON.parse(row.data);return {...value,recovery:checkoutRecovery(value,this.now())};})};
   }
@@ -302,7 +308,7 @@ export class ClaimDeskCore {
     if(typeof replacePhoto!=='boolean')throw new Error('Choose whether a replacement photograph is required.');
     claim.revision++;claim.review=null;
     claim.correction={state:'REQUESTED',message:text,replacePhoto,requestedAt:this.now(),revision:claim.revision,photoHash:claim.submission.photo?hash(claim.submission.photo):null};
-    this.saveClaim(claim);return this.merchantView(claim);
+    this.saveClaim(claim,'authenticated-workspace-merchant');return this.merchantView(claim);
   }
   review(id,{revision,confirmed}) {
     const claim=this.claim(id);
@@ -311,7 +317,7 @@ export class ClaimDeskCore {
     if(claim.correction?.state==='REQUESTED'||confirmed!==true || revision!==claim.revision || this.missing(claim).length || claim.submission?.lot!==this.campaignFor(claim).lot)throw new Error('Review the current label photo and matching lot before confirming this case.');
     photoValue(claim.submission.photo);
     claim.review={revision,submissionHash:hash(JSON.stringify(claim.submission)),reviewedAt:this.now()};
-    this.saveClaim(claim);return this.merchantView(claim);
+    this.saveClaim(claim,'authenticated-workspace-merchant');return this.merchantView(claim);
   }
   async approve(id,{digest}) {
     let claim=this.claim(id),previous=this.reservation(claim);
@@ -344,6 +350,30 @@ export class ClaimDeskCore {
     const observed=await provider.verifiedRefund(row,response.id);
     this.journal.observe(row.request_id,observed);
     return this.merchantView(this.claim(id));
+  }
+  async recoverRefund(id,input){
+    const claim=this.claim(id),row=this.reservation(claim);
+    if(!row||row.state==='RESERVED'||input?.requestId!==row.request_id||input.revision!==claim.revision||input.confirmed!==true||typeof input.reason!=='string'||input.reason.trim().length<10||input.reason.length>600||typeof input.refundId!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(input.refundId))throw new Error('Choose the original attempted refund, current revision and recovered reference; confirm a reason of 10–600 characters.');
+    const hint=this.db.prepare('SELECT refund_id FROM refund_hints WHERE request_id=?').get(row.request_id)?.refund_id;
+    if(row.refund_id&&row.refund_id!==input.refundId||hint&&hint!==input.refundId)throw new Error('This refund attempt already has a different provider reference.');
+    const meta=this.journal.metadata(row.request_id);
+    if(!hint&&!row.refund_id&&!meta?.correlation)throw new Error('This legacy attempt lacks provider correlation. Record a manual support disposition; a matching amount alone cannot establish settlement.');
+    const provider=await this.provider(),observed=await provider.verifiedRefund(row,input.refundId);
+    if(!hint&&!row.refund_id&&observed.invoice_id!==meta.correlation)throw new Error('The provider reference does not carry the original attempt correlation. No settlement was recorded.');
+    return syncTransaction(this.db,()=>{
+      const latest=this.reservation(this.claim(id));if(latest.request_id!==row.request_id||this.claim(id).revision!==input.revision)throw new Error('The payment context changed; refresh before recovering.');
+      this.db.prepare('INSERT INTO refund_hints VALUES (?,?) ON CONFLICT(request_id) DO NOTHING').run(row.request_id,observed.id);
+      this.journal.observe(row.request_id,observed);
+      if(this.history)this.history.append('CLAIM',id,'REFUND_REFERENCE_RECOVERED',{requestId:row.request_id,refundId:observed.id,reason:input.reason.trim(),correlation:observed.invoice_id||null,status:observed.status});
+      return this.merchantView(this.claim(id));
+    });
+  }
+  recordRefundDisposition(id,input){
+    const claim=this.claim(id),row=this.reservation(claim);
+    if(!row||input?.requestId!==row.request_id||input.revision!==claim.revision||input.confirmed!==true||!['ESCALATED_TO_PROVIDER','MANUAL_REMEDY_REQUIRED'].includes(input.disposition)||typeof input.reason!=='string'||input.reason.trim().length<10||input.reason.length>600)throw new Error('Record a confirmed manual disposition for the current original attempt.');
+    if(!this.history)throw new Error('Manual financial dispositions are unavailable in simulated practice.');
+    this.history.append('CLAIM',id,'MANUAL_REFUND_DISPOSITION',{requestId:row.request_id,disposition:input.disposition,reason:input.reason.trim(),paymentState:row.state,settlementChanged:false});
+    return this.merchantView(claim);
   }
   async reconcile(id) {
     const claim=this.claim(id),row=this.reservation(claim);

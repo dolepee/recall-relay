@@ -95,6 +95,7 @@ export class PracticeWorkspace {
       origin,
       now,
       provider,
+      retainHistory:false,
     });
     // The practice notice is reviewed by construction; customer evidence still
     // needs its own recorded review before a simulated refund is allowed.
@@ -165,7 +166,7 @@ export class PracticeWorkspace {
     try { claim = this.desk.claim(claimId); } catch { return; }
     const capture = claim.purchase.captureId;
     const requestIds = this.desk.db.prepare('SELECT request_id FROM refunds WHERE capture=?').all(capture).map(row => row.request_id);
-    for (const requestId of requestIds) this.desk.db.prepare('DELETE FROM refund_hints WHERE request_id=?').run(requestId);
+    for (const requestId of requestIds){this.desk.db.prepare('DELETE FROM refund_hints WHERE request_id=?').run(requestId);this.desk.db.prepare('DELETE FROM refund_attempt_meta WHERE request_id=?').run(requestId);}
     this.desk.db.prepare('DELETE FROM refunds WHERE capture=?').run(capture);
     this.desk.db.prepare('DELETE FROM claims WHERE id=?').run(claimId);
   }

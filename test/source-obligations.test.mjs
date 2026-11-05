@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {SourceWorkspace,sourceCoverage} from '../src/source-workspace.mjs';import {ClaimDesk} from '../src/claims.mjs';
 const photo='Submit a photograph of the product label.';
-const compound='Submit a photograph of the marked cup and attest that you disposed of it according to the posted instructions.';
+const compound='Submit a photograph of the marked cup and attest that you disposed of it.';
 const source=remedies=>({title:'Synthetic source policy test',recallNumber:'TEST',sourceDigest:'a'.repeat(64),sourceUrl:'https://example.invalid/fixture',route:'ORIGINAL_PAYMENT_CANDIDATE',remedies});
 async function prepared(remedies,fields){const desk=new ClaimDesk({provider:async()=>{throw Error('Provider must not be called');}});const ws=new SourceWorkspace(desk.db,{loadSource:async()=>source(remedies)});let row=await ws.import('TEST');for(const [kind,quote] of fields)row=ws.addField(row.id,{revision:row.revision,kind,quote});return {desk,ws,row,review(decisions=[]){row=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true,clauseDecisions:decisions});this.row=row;return row;},publish(){return ws.activate(row.id,{revision:row.revision,sku:'CUP',lot:'LOT-A',confirmed:true},desk);}};}
 test('compound obligations require both responses; INFORMATION cannot waive an omitted attestation',async()=>{

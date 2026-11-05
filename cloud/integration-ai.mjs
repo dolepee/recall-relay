@@ -35,7 +35,7 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 // ---- injected inference --------------------------------------------------------------------------
 // The harness scripts one step per assistant call: controlled text, a result with no usable text, or a
 // thrown failure. Nothing here decides an admission.
-let script=[],inferenceCalls=0,unexpected=0,reference=null,captured=false,inFlight=0,peakInFlight=0;
+let script=[],inferenceCalls=0,unexpected=0,cartUnit=null,reference=null,captured=false,inFlight=0,peakInFlight=0;
 const usableView={mode:'text',result:{response:'{"view":"WAITING"}'}};
 const noUsableText={mode:'text',result:{choices:[{finish_reason:'length',message:{}}]}};
 const emptyResponse={mode:'text',result:{response:''}};
@@ -59,9 +59,9 @@ async function fakeNetwork(request){
     return json([recallFixture.records.find(record=>record.RecallNumber==='27026')]);
   if(url.origin!=='https://api-m.sandbox.paypal.com'){unexpected++;throw new Error('Unexpected external request in isolated test');}
   if(path==='/v1/oauth2/token')return json({token_type:'Bearer',access_token:'test-token',expires_in:300});
-  if(path==='/v2/checkout/orders'&&request.method==='POST'){const input=await request.json();reference=input.purchase_units[0].reference_id;return json({id:'FAKE-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=FAKE-ORDER'}]});}
+  if(path==='/v2/checkout/orders'&&request.method==='POST'){const input=await request.json();cartUnit=input.purchase_units[0];reference=cartUnit.reference_id;return json({id:'FAKE-ORDER',links:[{rel:'approve',href:'https://www.sandbox.paypal.com/checkoutnow?token=FAKE-ORDER'}]});}
   if(path==='/v2/checkout/orders/FAKE-ORDER/capture'){captured=true;return json({id:'FAKE-ORDER',status:'COMPLETED'});}
-  if(path==='/v2/checkout/orders/FAKE-ORDER')return json({id:'FAKE-ORDER',status:captured?'COMPLETED':'APPROVED',purchase_units:[{reference_id:reference,amount,payee:{merchant_id:'TEST-MERCHANT'},...(captured?{payments:{captures:[capture]}}:{})}]});
+  if(path==='/v2/checkout/orders/FAKE-ORDER')return json({id:'FAKE-ORDER',status:captured?'COMPLETED':'APPROVED',purchase_units:[{reference_id:reference,amount:cartUnit.amount,items:cartUnit.items,payee:{merchant_id:'TEST-MERCHANT'},...(captured?{payments:{captures:[capture]}}:{})}]});
   if(path==='/v2/payments/captures/FAKE-CAPTURE')return json(capture);
   if(path==='/v2/payments/captures/FAKE-CAPTURE/refund')return json({id:'FAKE-REFUND'});
   if(path==='/v2/payments/refunds/FAKE-REFUND')return json({id:'FAKE-REFUND',status:'COMPLETED',amount:{value:'25.99',currency_code:'USD'},links:[{rel:'up',href:'https://api-m.sandbox.paypal.com/v2/payments/captures/FAKE-CAPTURE'}]});
@@ -273,7 +273,7 @@ try{
   // 7. The daily ceilings bind dispatched attempts: the last unit of both ceilings is spent by a real
   // generation, and the next attempt is refused before the provider is ever contacted.
   await area('the daily ceilings bound dispatched attempts',async()=>{
-    A.deepEqual(DEFAULT_BUDGET_LIMITS,{workspacesPerDay:200,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
+    A.deepEqual(DEFAULT_BUDGET_LIMITS,{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
     await configure({limits:null});
     const d=await desk();
     const perWorkspace=DEFAULT_BUDGET_LIMITS.aiPerWorkspacePerDay,global=DEFAULT_BUDGET_LIMITS.aiGlobalPerDay;

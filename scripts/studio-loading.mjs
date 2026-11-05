@@ -17,7 +17,7 @@ export function studioPreload(){
       if(!vendor)throw new Error('Studio vendor chunk missing');
       // Start the download with the document, before route/workspace imports.
       // Match the actual desk breakpoints; other routes never request Studio.
-      const code=`(()=>{const p=location.pathname;if((p==='/desk'&&matchMedia('(min-width: 1280px)').matches)||(p==='/sample'&&matchMedia('(min-width: 1100px)').matches)){const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='anonymous';l.href=${JSON.stringify('/'+vendor.fileName)};document.head.append(l);}})();`;
+      const code=`(()=>{const p=location.pathname;if(((p==='/desk'||p==='/practice/reconciliation')&&matchMedia('(min-width: 1280px)').matches)||(p==='/sample'&&matchMedia('(min-width: 1100px)').matches)){const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='anonymous';l.href=${JSON.stringify('/'+vendor.fileName)};document.head.append(l);}})();`;
       return [{tag:'script',children:code,injectTo:'head-prepend'}];
     }},
   };

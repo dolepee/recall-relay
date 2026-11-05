@@ -545,6 +545,7 @@ export default function Practice(){
   useEffect(()=>{if(!state)return;const target=document.getElementById('claim-heading')||heading.current;target?.focus?.();},[state?.role,current,progress,state?.case.id,Boolean(state?.case.refund)]);
   return <div className="rr-app">
     <AppShell note="Simulated. No funds move.">
+      <Callout title="Want to find affected purchases first?"><p>Try a separate synthetic reconciliation example: inspect a mixed ledger, correct a missing lot for planning, and see why affected does not mean ready for refund.</p><a className="rr-btn rr-btn--secondary" href="/practice/reconciliation">Try reconciliation</a></Callout>
       <div ref={heading} tabIndex={-1} style={{outline:'none'}}>
         <StageTrack current={progress}/>
         {current===1&&<div className="rr-page-head">

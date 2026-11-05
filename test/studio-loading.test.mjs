@@ -26,7 +26,7 @@ test('Studio remains cached across app edits and preloads only on desktop desks'
   }
   const html=String(first.find(x=>x.fileName==='index.html').source);
   const script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];assert.ok(script);
-  for(const [path,width,expected] of [['/desk',1280,1],['/desk',1279,0],['/sample',1100,1],['/sample',1099,0],['/practice',1440,0],['/setup',1440,0],['/claim',1440,0],['/',1440,0]]){
+  for(const [path,width,expected] of [['/desk',1280,1],['/desk',1279,0],['/practice/reconciliation',1280,1],['/practice/reconciliation',390,0],['/sample',1100,1],['/sample',1099,0],['/practice',1440,0],['/setup',1440,0],['/claim',1440,0],['/',1440,0]]){
     const links=[];vm.runInNewContext(script,{location:{pathname:path},matchMedia:q=>({matches:width>=Number(q.match(/\d+/)[0])}),document:{createElement:()=>({}),head:{append:l=>links.push(l)}}});
     assert.equal(links.length,expected,`${path} at ${width}`);
     if(expected){assert.equal(links[0].href,'/'+vendor(first).fileName);assert.equal(links[0].rel,'modulepreload');assert.equal(links[0].crossOrigin,'anonymous');}

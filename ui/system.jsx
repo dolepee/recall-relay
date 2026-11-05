@@ -71,7 +71,7 @@ export function StageTrack({current}) {
 }
 
 export function AppShell({children, strip, note, current = '/practice'}) {
-  const nav = [['Guided practice', '/practice'], ['How it works', '/#relay']];
+  const nav = [['Guided claim', '/practice'], ['Try reconciliation', '/practice/reconciliation'], ['How it works', '/#relay']];
   return (
     <>
       <a className="rr-skip" href="#main">Skip to main content</a>

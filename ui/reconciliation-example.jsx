@@ -1,0 +1,27 @@
+import React,{useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
+import {AppShell,Button,Card,Callout} from './system.jsx';
+import {ProgressiveWorkspace} from './progressive-workspace.jsx';
+import {ReconciliationContext,ReconciliationList,ReconciliationDetail,ReconciliationSummary} from './reconciliation-panel.jsx';
+import {examplePlan} from './reconciliation-example-data.mjs';
+const loadStudio=()=>import('./reconciliation-studio.jsx');
+const media=typeof window==='undefined'?null:window.matchMedia('(min-width: 1280px)');
+const subscribe=cb=>{media?.addEventListener('change',cb);return()=>media?.removeEventListener('change',cb);};
+export default function ReconciliationExample(){
+ const [corrected,setCorrected]=useState(false),[selected,select]=useState('1:0'),[destination,setDestination]=useState(null);
+ const detailHeading=useRef(null),destinationHeading=useRef(null),assumption=useRef(null),guideHeading=useRef(null),correctionStatus=useRef(null);
+ const wide=useSyncExternalStore(subscribe,()=>media?.matches===true,()=>false);
+ const result=useMemo(()=>examplePlan(corrected),[corrected]);
+ useEffect(()=>{document.title='Try reconciliation · Recall Relay';},[]);
+ useEffect(()=>{if(!destination)return;const frame=requestAnimationFrame(()=>{destinationHeading.current?.focus();destinationHeading.current?.scrollIntoView({block:'start'});});return()=>cancelAnimationFrame(frame);},[destination]);
+ const value={result,selected,select:key=>{select(key);if(!wide)requestAnimationFrame(()=>{detailHeading.current?.focus();detailHeading.current?.scrollIntoView({block:'start'});});},detailHeading,busy:false,openClaim:()=>setDestination('claim'),openBinding:()=>setDestination('binding'),correct:()=>{guideHeading.current?.focus();guideHeading.current?.scrollIntoView({block:'center'});}};
+ function reset(){setCorrected(false);select('1:0');setDestination(null);}
+ return <div className="rr-app"><AppShell current="/practice/reconciliation" note="Synthetic example · no funds move.">
+  <div className="rr-page-head"><p className="text-sm font-semibold text-slate-600">Try reconciliation</p><h1>Find the purchases that need action.</h1><p className="rr-lede">One fictional ledger. See what is affected, what is missing, and which claim to open next.</p></div>
+  <Callout title="Synthetic example"><p>Every purchase, capture and claim on this page is fictional. No PayPal or live AI call, account, upload or merchant workspace is needed. Changes stay on this page and reset on reload.</p></Callout>
+  <Card className="mt-5 p-5"><h2 ref={guideHeading} tabIndex={-1} className="text-lg font-semibold">Try a missing-lot correction</h2><p className="mt-2 text-sm">The fictional notice covers CUP-01, LOT-A. MISSING-LOT starts with an unknown lot. Assume LOT-A for planning, then notice that customer evidence is still required.</p><div className="rr-actions mt-4"><Button ref={assumption} disabled={corrected} onClick={()=>{setCorrected(true);select('1:0');setDestination(null);requestAnimationFrame(()=>correctionStatus.current?.focus());}}>Apply LOT-A planning assumption</Button><Button variant="secondary" onClick={reset}>Reset example</Button></div><p ref={correctionStatus} tabIndex={-1} role="status" className="mt-3 text-sm">{corrected?'Planning correction applied: the item is affected but still needs evidence. No refund was approved.':'Original example: the missing-lot item is unknown and needs evidence.'}</p></Card>
+  {destination&&<Card className="mt-5 p-5"><h2 ref={destinationHeading} tabIndex={-1} className="text-lg font-semibold">{destination==='claim'?'Fictional linked claim':'Purchase binding is missing'}</h2>{destination==='claim'?<><p className="mt-3">The selected fictional purchase has a $38.75 affected item and a fictional $10 prior refund. Its historical remaining item amount is $28.75. No provider record has been verified.</p><p className="mt-2">Customer label evidence and merchant review are still required. This example cannot approve or send a refund.</p></>:<p className="mt-3">This affected row has no linked purchase record. A capture identifier alone does not prove an item allocation or ownership. In the merchant desk, review purchase binding before opening a claim.</p>}<div className="rr-actions mt-4"><Button variant="secondary" onClick={()=>{setDestination(null);requestAnimationFrame(()=>{guideHeading.current?.focus();guideHeading.current?.scrollIntoView({block:'center'});});}}>Back to reconciliation</Button><a className="rr-btn rr-btn--secondary" href="/practice">Try a separate guided claim</a></div></Card>}
+  <div className="mt-5"><ReconciliationContext.Provider value={value}>{wide?<ProgressiveWorkspace load={loadStudio} fallback={<div className="grid gap-4 lg:grid-cols-3"><ReconciliationList/><ReconciliationDetail/><ReconciliationSummary/></div>}/>:<><ReconciliationSummary/><ReconciliationList/><ReconciliationDetail/></>}</ReconciliationContext.Provider></div>
+  <p className="mt-4 text-sm text-slate-600">Two duplicate capture declarations stay blocked and are excluded from the planning total. Affected scope is separate from claim readiness. The displayed planning total is fictional, not refundable money.</p>
+  <div className="rr-actions mt-5"><a className="rr-btn rr-btn--secondary" href="/practice">Continue with a separate guided claim</a><a className="rr-btn rr-btn--secondary" href="/desk">Open the Sandbox desk</a></div>
+ </AppShell></div>;
+}

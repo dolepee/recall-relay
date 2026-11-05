@@ -3,7 +3,7 @@ import {resolve,sep,extname} from 'node:path';
 
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2','.ico':'image/x-icon'};
 // The reviewed landing document answers /; the workbench keeps its own routes.
-const appPages=new Set(['/desk','/setup','/claim','/training','/practice','/sample']);
+const appPages=new Set(['/desk','/setup','/claim','/training','/practice','/practice/reconciliation','/sample']);
 export function builtAssets(directory){
   const root=resolve(directory);
   return async(req,res,path)=>{

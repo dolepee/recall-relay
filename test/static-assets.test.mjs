@@ -33,7 +33,7 @@ test('the root document is the reviewed landing page while the workbench keeps i
     assert.equal(landing.headers['Content-Type'],'text/html; charset=utf-8');
     assert.equal(landing.headers['Cache-Control'],'no-store');
     assert.equal(landing.headers['X-Content-Type-Options'],'nosniff');
-    for(const path of ['/desk','/setup','/claim','/training','/sample'])assert.equal((await request(path)).body.toString(),'<h1>app</h1>',path);
+    for(const path of ['/desk','/setup','/claim','/training','/sample','/practice/reconciliation'])assert.equal((await request(path)).body.toString(),'<h1>app</h1>',path);
     assert.equal((await request('/landing.html')).status,404);
   }finally{await rm(dir,{recursive:true,force:true});}
 });

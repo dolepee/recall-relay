@@ -1,3 +1,6 @@
+import {externalDependencies} from './external-sources.mjs';
+import {WorkspaceHistory} from './workspace-history.mjs';
+import {syncTransaction} from './transaction.mjs';
 import {classifyRemedyRoute} from './remedy-route.mjs';
 import {randomUUID,createHash} from 'node:crypto';
 import {fetchRecallDraft} from './cpsc.mjs';
@@ -33,8 +36,9 @@ function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').r
 export {aiFieldProblem,completeSourceQuote,validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue,assertExecutableSource,SOURCE_POLICY_VERSION} from './source-policy.mjs';
 import {validateManualField,validateSourceSuggestion,sourceClauses,sourceCoverage,sourceFieldIssue,assertExecutableSource,SOURCE_POLICY_VERSION} from './source-policy.mjs';
 export class SourceWorkspace {
-  constructor(db,{loadSource=fetchRecallDraft,ai}={}){this.db=db;this.loadSource=loadSource;this.ai=ai;db.exec('CREATE TABLE IF NOT EXISTS source_setups (id TEXT PRIMARY KEY, data TEXT NOT NULL)');}
-  save(row){this.db.prepare('INSERT INTO source_setups VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(row.id,JSON.stringify(row));return row;}
+  constructor(db,{loadSource=fetchRecallDraft,ai}={}){this.db=db;this.history=new WorkspaceHistory(db);this.loadSource=loadSource;this.ai=ai;db.exec('CREATE TABLE IF NOT EXISTS source_setups (id TEXT PRIMARY KEY, data TEXT NOT NULL)');}
+  save(row){return syncTransaction(this.db,()=>{this.db.prepare('INSERT INTO source_setups VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(row.id,JSON.stringify(row));this.history.append('SOURCE',row.id,'SOURCE_VERSION_SAVED',row);return row;});}
+  historyFor(id){this.get(id);return {setupId:id,events:this.history.list('SOURCE',id),identity:'Authenticated workspace merchant; not a named identity.'};}
   get(id){const r=this.db.prepare('SELECT data FROM source_setups WHERE id=?').get(id);if(!r)throw new Error('Notice setup not found.');return JSON.parse(r.data);}
   // Availability is reported from the admission counters when the assistant can supply them, so the
   // interface never offers a control whose allowance is already gone.
@@ -47,8 +51,37 @@ export class SourceWorkspace {
     const active=desk.activeCampaign();
     return {id:active.id,version:active.version,title:active.title,product:active.product,sku:active.sku,lot:active.lot,scenario:active.scenario===true};
   }
-  async state(desk){return {ai:await this.availability(),activeCampaign:this.activeCampaign(desk),setups:this.db.prepare('SELECT data FROM source_setups ORDER BY rowid DESC LIMIT 20').all().map(r=>JSON.parse(r.data))};}
-  async import(number){const source=await this.loadSource(number);return this.save({id:randomUUID(),revision:1,source,suggestion:null,review:null,createdAt:new Date().toISOString()});}
+  async state(desk,{offset=0}={}){
+    if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new Error('Choose a valid source history page.');
+    const page=this.db.prepare('SELECT data FROM source_setups ORDER BY rowid DESC LIMIT 20 OFFSET ?').all(offset).map(r=>JSON.parse(r.data)),active=this.activeCampaign(desk);
+    const total=this.db.prepare('SELECT count(*) AS n FROM source_setups').get().n;
+    if(active&&!page.some(r=>r.publishedCampaign?.id===active.id)){const row=this.db.prepare("SELECT data FROM source_setups WHERE json_extract(data,'$.publishedCampaign.id')=? ORDER BY rowid DESC LIMIT 1").get(active.id);if(row)page.push(JSON.parse(row.data));}
+    return {ai:await this.availability(),activeCampaign:active,setups:page,total,hasMore:offset+20<total,nextOffset:offset+20};
+  }
+  async refresh(id,revision){const row=this.get(id);if(row.revision!==revision)throw new Error('Source setup changed. Reload before checking for updates.');return this.import(row.source.recallNumber);}
+  async import(number){
+    const source=await this.loadSource(number),checkedAt=new Date().toISOString();
+    return syncTransaction(this.db,()=>{
+      const rows=this.db.prepare('SELECT data FROM source_setups ORDER BY rowid DESC').all().map(r=>JSON.parse(r.data));
+      const same=rows.find(r=>source.sourceDigest&&(r.rootSource?.sourceDigest||r.source.sourceDigest)===source.sourceDigest&&r.source.recallNumber===source.recallNumber);
+      if(same)return this.save({...same,lastCheckedAt:checkedAt});
+      const prior=rows.find(r=>r.source.recallNumber===source.recallNumber);
+      const oldQuotes=prior?sourceClauses(prior.source).map(c=>c.quote):[],newQuotes=sourceClauses(source).map(c=>c.quote);
+      return this.save({id:randomUUID(),revision:1,rootSource:source,source,externalSnapshots:[],suggestion:null,review:null,createdAt:checkedAt,lastCheckedAt:checkedAt,previousSetupId:prior?.id||null,sourceChange:prior?{fromDigest:prior.source.sourceDigest,toDigest:source.sourceDigest,added:newQuotes.filter(q=>!oldQuotes.includes(q)),removed:oldQuotes.filter(q=>!newQuotes.includes(q))}:null});
+    });
+  }
+  attachExternal(id,{revision,dependencyId,url,text,confirmed}){
+    const row=this.get(id),root=row.rootSource||row.source;
+    if(row.revision!==revision||confirmed!==true||typeof text!=='string'||text.trim().length<20||text.length>10000||/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text))throw new Error('Review a public instruction excerpt of 20–10000 characters for the current source version.');
+    const dependency=externalDependencies({...root,rootRemedies:root.remedies}).find(d=>d.id===dependencyId);if(!dependency)throw new Error('Choose an unresolved reference in this source.');
+    let target;try{target=new URL(url);}catch{throw new Error('Provide the public HTTPS instruction URL.');}
+    if(target.protocol!=='https:'||target.username||target.password||!/^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(target.hostname)||dependency.url&&new URL(dependency.url).hostname!==target.hostname)throw new Error('Use the referenced public website with HTTPS and no credentials. This action does not fetch it.');
+    const snapshots=(row.externalSnapshots||[]).filter(s=>s.dependencyId!==dependencyId);if(snapshots.length>=3)throw new Error('At most 3 external source excerpts are supported.');
+    snapshots.push({dependencyId,url:target.href,text:text.trim(),digest:hash({url:target.href,text:text.trim()}),reviewedAt:new Date().toISOString(),verification:'MERCHANT_SUPPLIED_PUBLIC_EXCERPT_NOT_FETCHED'});
+    const source={...root,rootRemedies:root.remedies,externalSnapshots:snapshots,sourceDigest:hash({root:root.sourceDigest,external:snapshots.map(s=>s.digest)}),remedies:[...root.remedies,...snapshots.map(s=>s.text)]};
+    source.requirements=sourceClauses(source).map(c=>({quote:c.quote,sourceUrl:snapshots.find(s=>s.text.includes(c.quote))?.url||root.sourceUrl}));
+    return this.save({...row,revision:row.revision+1,rootSource:root,source,externalSnapshots:snapshots,suggestion:null,review:null});
+  }
   async suggest(id,revision){
     const row=this.get(id);if(row.revision!==revision)throw new Error('This notice changed. Reload before drafting.');
     const raw=await this.ai.generate(sourcePrompt,{title:row.source.title,remedies:row.source.remedies});
@@ -91,7 +124,7 @@ export class SourceWorkspace {
     const coverage=assertExecutableSource(row.source,row.review.fields,row.review.coverage||[]);
     if((row.source.options?classifyRemedyRoute(row.source.remedies,row.source.options):row.source.route)!=='ORIGINAL_PAYMENT_CANDIDATE')throw new Error('This notice needs a manual remedy route. It cannot publish an original-payment sandbox scenario.');
     if(![sku,lot].every(x=>typeof x==='string'&&/^[A-Z0-9][A-Z0-9 -]{0,39}$/.test(x))||lot==='ALL')throw new Error('Provide explicit uppercase test SKU and lot identifiers, up to 40 characters.');
-    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,sourcePolicyVersion:SOURCE_POLICY_VERSION,sourceRemedies:row.source.remedies,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};
+    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,sourcePolicyVersion:SOURCE_POLICY_VERSION,sourceRemedies:row.source.remedies,sourceRootRemedies:row.source.rootRemedies,sourceExternalSnapshots:row.source.externalSnapshots,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};
     desk.setSetting('active-campaign',JSON.stringify(campaign));desk.setSetting('published','yes');
     return this.save({...row,revision:row.revision+1,publishedCampaign:{id:campaign.id,sku,lot,sourcePolicyVersion:SOURCE_POLICY_VERSION,publishedAt:new Date().toISOString()}});
   }

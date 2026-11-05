@@ -39,3 +39,12 @@ test('recall lookup rejects arbitrary URLs, fuzzy results and incomplete sources
   assert.throws(()=>recallDraft({...find('27026'),URL:'https://www.cpsc.gov.attacker.example/Recalls/2027/example'}));
   assert.throws(()=>recallDraft({...find('27026'),Remedies:[]}));
 });
+
+test('negated original-payment promises and verb check do not become payment routes',()=>{
+ const record=find('27026');const route=text=>recallDraft({...record,Remedies:[{Name:text}]}).route;
+ assert.equal(route('Refunds will not return to the original form of payment.'),'REFUND_ROUTE_UNSPECIFIED');
+ assert.equal(route('Refunds will never be issued to the original payment.'),'REFUND_ROUTE_UNSPECIFIED');
+ assert.equal(route('Check the label and request a refund.'),'REFUND_ROUTE_UNSPECIFIED');
+ assert.equal(route('The refund, in the form of a check, will be mailed to the consumer.'),'CHECK_REFUND');
+ assert.equal(recallDraft({...record,RemedyOptions:[{Option:'Refund'},{Option:'Replacement'}]}).route,'CHOICE_REQUIRES_REVIEW');
+});

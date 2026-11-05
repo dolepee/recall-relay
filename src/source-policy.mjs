@@ -33,19 +33,49 @@ function sentenceSpans(text){
 export function sourceClauses(source){
   return source.remedies.flatMap((text,p)=>sentenceSpans(text).map((span,i)=>({id:`clause-${p}-${i}`,quote:text.slice(span.start,span.end).trim()})));
 }
+export const SOURCE_POLICY_VERSION=2;
+// A bounded executable subset, not a general natural-language policy engine.
+// Drafts may retain richer quotations for review; only direct, unconditional,
+// pre-refund customer responses with one photo can become an executable form.
+export function sourceInstructionProfile(quote){
+  const kinds=KINDS.filter(kind=>!aiFieldProblem({kind,quote}));
+  const issues=[];
+  const direct=/^(?:(?:consumers?|customers?|you)\s+(?:(?:should|must|shall)\s+|(?:will be|are)\s+asked to\s+|need to\s+)|(?:the )?(?:firm|manufacturer|retailer|company) will ask (?:consumers?|customers?|you) to\s+)?(?:(?:fill out|complete) (?:an?|the) (?:online )?form and )?(?:upload|submit|send|email|e-mail|take|provide|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i;
+  if(!direct.test(quote.trim())||/\b(?:if|unless|when|where|whenever|wherever|provided that|in (?:the )?event|in case|as long as|only (?:when|if|after)|depending on|subject to|for (?:consumers?|customers?) (?:who|with))\b/i.test(quote))issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');
+  if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');
+  const photoCount=[...quote.matchAll(/\b(?:photos?|photographs?|pictures?|images?)\b/gi)].length===1&&!/\b(?:photos|photographs|pictures|images)\b|\b(?:two|three|four|multiple|separate|distinct|several|[2-9]|[1-9][0-9]+)\s+(?:(?:distinct|separate|required)\s+)?(?:photo|photograph|picture|image)\b|\b(?:both|each|every|all)\s+(?:sides?|views?|angles?)\b/i.test(quote)?1:null;
+  if(kinds.includes('PHOTO')&&photoCount!==1)issues.push('The required photograph count is multiple or unclear. This form supports exactly one photograph; keep this instruction manual.');
+  return {actor:'CUSTOMER',applicability:issues.some(i=>i.startsWith('Conditional'))?'UNSUPPORTED':'UNCONDITIONAL',phase:issues.some(i=>i.startsWith('Post-refund'))?'UNSUPPORTED':'BEFORE_REFUND',photoCount,kinds,issues};
+}
 export function sourceFieldIssue(field){
-  const problem=aiFieldProblem(field);
-  if(problem)return problem;
-  if(/\b(?:if|unless|only when|(?:after|following|once)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment))\b/i.test(field.quote))
-    return 'Conditional or post-refund instructions need a manual workflow; they cannot become an always-required field.';
-  return null;
+  const problem=aiFieldProblem(field);if(problem)return problem;
+  if(sentenceSpans(field.quote).length!==1)return 'One field must quote one complete source sentence. Separate sentences need their own response obligations.';
+  return sourceInstructionProfile(field.quote).issues[0]||null;
 }
 export function sourceCoverage(source,fields,decisions=[]){
   return sourceClauses(source).map(clause=>{
-    const fieldIds=fields.filter(f=>normalize(f.quote).includes(normalize(clause.quote))).map(f=>f.id);
+    const profile=sourceInstructionProfile(clause.quote);
+    const linked=fields.filter(f=>normalize(f.quote).includes(normalize(clause.quote)));
+    const obligations=profile.kinds.map(kind=>({id:`${clause.id}-${kind}`,kind,actor:profile.actor,applicability:profile.applicability,phase:profile.phase,evidenceCount:kind==='PHOTO'?profile.photoCount:null,fieldIds:linked.filter(f=>f.kind===kind&&normalize(f.quote)===normalize(clause.quote)).map(f=>f.id)}));
+    const missing=obligations.filter(o=>!o.fieldIds.length).map(o=>o.kind);
     const decision=decisions.find(d=>d.id===clause.id);
-    return {...clause,fieldIds,disposition:fieldIds.length?'FIELD':decision?.disposition||'UNRESOLVED',reason:fieldIds.length?'':decision?.reason||''};
+    const issue=profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null;
+    // An INFORMATION decision cannot waive a detected customer obligation.
+    const disposition=issue?'MANUAL':obligations.length?(missing.length?'UNRESOLVED':'FIELD'):linked.length?'MANUAL':decision?.disposition||'UNRESOLVED';
+    return {...clause,fieldIds:linked.map(f=>f.id),obligations,missingKinds:missing,issue,disposition,reason:issue||(obligations.length?(missing.length?`Missing response: ${missing.join(', ')}.`:''):linked.length?'Selected field does not establish a supported customer response.':decision?.reason||'')};
   });
+}
+export function assertExecutableSource(source,fields,decisions=[]){
+  const issue=fields.map(sourceFieldIssue).find(Boolean);if(issue)throw new Error(issue);
+  const coverage=sourceCoverage(source,fields,decisions);
+  if(coverage.some(c=>['UNRESOLVED','MANUAL'].includes(c.disposition)))throw new Error('Review every source obligation before publishing. Missing responses and manual steps cannot publish a connected form.');
+  if(fields.filter(f=>f.kind==='PHOTO').length!==1)throw new Error('This version supports exactly one required photograph and additional confirmations or text fields. Keep other evidence workflows manual.');
+  return coverage;
+}
+export function assertExecutableCampaign(policy){
+  if(!policy.sourceDigest)return; // Server-authored fictional fixtures; imported public notices carry a digest.
+  if(policy.sourcePolicyVersion!==SOURCE_POLICY_VERSION||!Array.isArray(policy.sourceRemedies))throw new Error('Review and republish the source instructions under the current policy before starting or binding another purchase. Existing claims keep their saved instructions.');
+  assertExecutableSource({remedies:policy.sourceRemedies},policy.fields||[],policy.coverage||[]);
 }
 // Assistant quotations must cover a complete source sentence, or a contiguous run
 // of complete sentences. A shorter fragment is expanded to the one complete

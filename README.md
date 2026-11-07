@@ -13,6 +13,39 @@ Try the [synthetic reconciliation example](https://recall-relay.dolepee.com/prac
 without an account, or complete a [guided simulated claim](https://recall-relay.dolepee.com/practice).
 Neither route moves funds or proves a PayPal payment.
 
+## Evaluation quick start
+
+Choose the route for the capability you want to inspect:
+
+- **Understand the product:** open the [read-only sample desk](https://recall-relay.dolepee.com/sample),
+  [synthetic reconciliation example](https://recall-relay.dolepee.com/practice/reconciliation)
+  or [guided simulated claim](https://recall-relay.dolepee.com/practice).
+  These use fictional records. They do not demonstrate live AI inference or a
+  PayPal transaction; the sample receipt is invented and the practice receipt is simulated.
+- **Inspect the AI integration:** open [Source setup](https://recall-relay.dolepee.com/setup)
+  in the connected workspace. Import a public CPSC notice, request an AI draft,
+  and compare its exact quotations with the original requirements. The merchant
+  must resolve missing fields and external instructions before publication.
+  The connected desk also offers a read-only AI advisory for a selected case.
+  AI cannot approve a refund, edit evidence or authorize payment.
+- **Verify the PayPal integration:** follow **Use the app** below in the
+  [Sandbox workspace](https://recall-relay.dolepee.com/desk), using your own
+  PayPal Sandbox buyer account and fictional evidence. This path creates and
+  captures a Sandbox purchase only through the explicit checkout actions. After
+  a separate merchant review and refund approval, a receipt is shown only when
+  authenticated PayPal readback matches the original capture and approved amount.
+
+If the operator supplied a private code, activate it at
+[Evaluation access](https://recall-relay.dolepee.com/evaluation) first, in the
+same browser. This reserves bounded capacity; it does not provide a PayPal
+account, remove quotas or grant payment authority. If AI is unavailable, the
+manual controls still work, but that is not a live AI demonstration.
+
+The automated suite uses provider and model doubles, including local workerd
+integration tests. Passing those tests is not evidence of a hosted PayPal
+transaction or successful live inference. Keep a recorded end-to-end Sandbox
+demonstration separate from the synthetic examples when presenting the project.
+
 ## Read-only sample desk
 
 `/sample` is the fastest way to inspect the product. It shows six fictional
@@ -182,6 +215,11 @@ python3 scripts/setup-ai.py
 cp .env.example .env
 ```
 
+`npm ci` installs the application and build/test tools, not model weights or a
+JavaScript inference runtime. The separate Python setup command installs the
+local MLX runtime and downloads its pinned model. Hosted Cloudflare inference
+uses the Workers AI binding and does not need that local model setup.
+
 In `.env`, set the client ID and secret for **your own PayPal Sandbox app**.
 Create/use a separate Sandbox personal buyer account for checkout. Obtain
 these from [PayPal Developer](https://developer.paypal.com/dashboard/).
@@ -223,33 +261,44 @@ The local server does not fall back to hosted inference.
 
 1. From the merchant desk, open **Prepare claim instructions**. Import a CPSC
    number such as `27-026`, inspect the complete notice, and review its remedy.
-2. Draft source-linked fields with AI or add an exact source
+   This notice is a source-review example, not a preconfigured one-click demo.
+2. Under **Source versions and external instructions**, resolve every
+   **External instructions not ingested** entry. Open **Attach a reviewed public
+   instruction excerpt**, choose the reference, read its public HTTPS website,
+   paste the relevant public instruction text, confirm it, and choose **Save
+   external source snapshot**. The saved `27-026` fixture has two such references;
+   a fresh notice may differ. Repeat for every unresolved reference before drafting.
+   These are labelled merchant-supplied excerpts, not independently fetched
+   verification. Attaching or replacing one clears the draft and review. If the
+   instructions cannot be obtained or supported, keep the setup blocked for manual
+   handling; do not invent an excerpt to make the demonstration proceed.
+3. Draft source-linked fields with AI or add an exact source
    sentence manually. Correct omissions and conditions before saving the
    reviewed instructions. Every remedy sentence gets a disposition: a field
    link, an information/manual note with a reason, or an unresolved marker.
    AI suggestions are not authoritative.
-3. Preview and publish a **sandbox scenario** with an explicit test SKU and lot.
+4. Preview and publish a **sandbox scenario** with an explicit test SKU and lot.
    Unresolved or manual coverage entries block publication of a connected
    form; only the supported original-payment remedy can use this settlement
    path.
-4. In the desk, use **Create sandbox purchase** for a $25.99 scenario item
+5. In the desk, use **Create sandbox purchase** for a $25.99 scenario item
    plus an unaffected $34 item. Approve the $59.99 purchase as the Sandbox
    buyer, then use **Verify approved purchase** for that same order. Do not
    create another order merely because approval or capture is pending. To
    evaluate an existing captured purchase instead, ask the operator to attach a
    **Provisioned purchases** grant to this workspace; without one, keep using
    the ordinary new-purchase path.
-5. Open the private customer link. Submit a disposable image, the test lot,
+6. Open the private customer link. Submit a disposable image, the test lot,
    purchase confirmation and the required scenario responses. The image must
    be a valid decoded JPEG or non-interlaced 8-bit PNG, at most 2 MB, 4
    megapixels and 4,096 pixels per side. Missing information can be saved and
    completed later.
-6. Return to the merchant desk, refresh and inspect the submitted evidence.
+7. Return to the merchant desk, refresh and inspect the submitted evidence.
    If it needs correction, ask for an update with a specific message and,
    optionally, a required replacement photo. The customer responds on the same
    private page. This does not send an email. After the update, confirm a fresh
    evidence review, then approve the exact **$25.99** item refund in its dialog.
-7. Refresh the customer's page. A receipt appears only after authenticated
+8. Refresh the customer's page. A receipt appears only after authenticated
    PayPal readback verifies refund status, amount, currency and original capture.
 
 The desktop merchant workspace uses AG Studio's Agent Framework, a custom

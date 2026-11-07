@@ -15,3 +15,15 @@ Importing an unchanged notice reopens its existing setup and preserves review. A
 A notice referring to external instructions blocks publication until the merchant attaches a reviewed public-text excerpt with its HTTPS URL. No URL is fetched by that attachment operation. The excerpt is explicitly merchant supplied, never described as independently verified. All attached obligations go through the same field and source review. Unsupported conditions, post-refund actions and multiple-photo workflows stay manual. Replacing an excerpt clears review and retains the earlier source snapshot in history.
 
 Source policy version 3 requires previously imported notices to be reviewed and republished before new connected purchases. Existing completed receipts and already-dispatched refund readback remain available. Old unexecuted claims with an earlier sourced policy remain manual.
+
+Source policy version 4 additionally sends detected `provided you` purchase
+conditions to manual handling, including conditions in sentences that ask for no
+form response. An INFORMATION decision cannot waive a detected condition.
+Offsite actions to obtain a claim number, register or complete a web prerequisite
+also require a reviewed external excerpt even when the sentence does not use the
+word “instructions.” Nested references remain unresolved. Publication coverage
+and advisory timing share the same bounded condition cues. These are conservative
+language checks, not proof that every condition or external dependency is found.
+Earlier sourced publications need fresh review and republication before new
+execution; completed receipts and already-attempted payment reconciliation retain
+their existing behavior.

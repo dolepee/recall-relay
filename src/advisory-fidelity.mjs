@@ -1,15 +1,16 @@
+import {sourceConditionQuote} from './source-conditions.mjs';
 // Conservative anchors for a bounded reader aid. These are not a general
 // semantic verifier; unsupported actor/sequence combinations are withheld.
 export function advisoryFidelityIssue(quote,value){
  const q=quote.toLowerCase(),e=value.explanation.toLowerCase();
  let actor='UNKNOWN';
- const subject=q.replace(/^(?:if|unless|when|provided that)\b[^,;]+[,;]\s*/,'');
+ const conditional=sourceConditionQuote(quote);
+ const subject=conditional&&quote.trimStart().startsWith(conditional)&&q.includes(',')?q.slice(q.indexOf(',')+1).trim():q;
  if(/^(?:consumers?|customers?|you)\b/.test(subject)||/^(?:upload|submit|provide|confirm|attest|stop|do not|never|unplug|cut|remove|contact|register|return)\b/.test(subject))actor='CUSTOMER';
  else if(/^(?:the )?(?:manufacturer|company|firm|we)\b/.test(q))actor='MANUFACTURER';
  else if(/^(?:the )?(?:merchant|retailer)\b/.test(q))actor='MERCHANT';
  else if(/^(?:paypal|the payment provider)\b/.test(q))actor='PROVIDER';
  if(value.actor!=='UNKNOWN'&&value.actor!==actor)return 'Actor lacks a supported source anchor.';
- const conditional=quote.match(/\b(?:if|unless|when|provided that|only if|for (?:consumers?|customers?) (?:who|with))\b[^,;.!?]*/i)?.[0]?.trim();
  const before=/\bbefore\b|prior to/.test(q),after=/\bafter\b|following|upon receipt|once (?:the |your )?(?:refund|payment)/.test(q),at=/\bat (?:the time of )?submission\b|\bwhen submitting\b/.test(q);
  const expected=conditional?'CONDITIONAL':before&&!after?'BEFORE_ACTION':after&&!before?'AFTER_ACTION':at?'AT_SUBMISSION':'UNSPECIFIED';
  if(value.timing!==expected)return 'Timing differs from the supported source sequence.';

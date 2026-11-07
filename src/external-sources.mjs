@@ -1,10 +1,11 @@
 import {sourceSentences} from './source-sentences.mjs';
+export const externalActionParts=quote=>quote.split(/;|\bbut\b|\s+(?:until|unless|before|after)\s+|\band\s+(?=(?:visit|go to|access|register|log in|sign in|contact|obtain|get|request|complete|send|submit|upload|provide)\b)/i);
 export function externalDependencies(source){
  const remedies=source.rootRemedies||source.remedies||[],dependencies=[];
  remedies.forEach((text,p)=>sourceSentences(text).forEach((quote,i)=>{
   // Assess each action, so a forbidden destination is not a required source.
   // A separate affirmative registration/upload still needs its own review.
-  const actions=quote.split(/;|\bbut\b|\band\s+(?=(?:visit|go to|access|register|log in|sign in|contact|obtain|get|request|complete|send|submit|upload|provide)\b)/i);
+  const actions=externalActionParts(quote);
   const referenced=actions.filter(part=>{
    const action=part.trim().replace(/^(?:consumers?|customers?|you)\s+/i,'');
    if(/^(?:(?:do|must|should|shall|can|may|need)\s+not|never|not\b|(?:are|is|will be)\s+not\s+(?:required|asked|expected)|do not need to)\b/i.test(action))return false;

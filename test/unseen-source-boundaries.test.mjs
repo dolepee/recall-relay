@@ -91,3 +91,12 @@ test('prohibited or waived external uploads require no destination snapshot, but
   const dependencies=externalDependencies({remedies:[quote]});assert.equal(dependencies.length,1);assert.equal(dependencies[0].url,'https://example.org/required');assert.equal(sourceInstructionProfile(quote).externalAction,true,'the affirmative registration stays manual even after an excerpt is reviewed');
  }
 });
+test('a prohibition retains an affirmative external prerequisite introduced by a timing connector',()=>{
+ for(const connector of ['until','unless','before','after']){
+  const quote=`Do not use the product ${connector} you complete the instructions on https://example.com/recall.`,source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive the affirmative prerequisite.'}];
+  const dependencies=externalDependencies(source);assert.equal(dependencies.length,1,quote);assert.equal(dependencies[0].status,'UNRESOLVED');
+  assert.throws(()=>assertExecutableSource(source,[field(photo)],decisions),/external instructions/);
+  assert.equal(sourceInstructionProfile(quote).externalAction,true,'reviewing a snapshot does not complete the outside action');
+ }
+ assert.equal(externalDependencies({remedies:['Do not upload a receipt to https://example.com/before-recall.']}).length,0,'a connector inside a URL is not an affirmative prerequisite');
+});

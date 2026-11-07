@@ -13,8 +13,8 @@ test('the homepage states the merchant job and the two real entry points',async(
     'Resolve recall claims. Refund the <em>right item.</em>',
     'Compare purchases with recall instructions. See what needs evidence or purchase checks, then review an affected item’s refund to its original PayPal payment.',
     'Guided claim',
-    'Synthetic example. No login or funds needed.',
-    'Try reconciliation',
+    'Real AI drafting and PayPal Sandbox APIs.',
+    'Try without a PayPal login',
     'Sandbox workspace',
     'How it works',
     'Evaluation',
@@ -86,7 +86,7 @@ test('desktop and mobile navigation agree on real destinations',async()=>{
   const hrefs=block=>[...block.matchAll(/href="([^"]+)"/g)].map(m=>m[1]);
   assert.deepEqual(hrefs(mobile),hrefs(desktop),'the two menus expose the same destinations in the same order');
   for(const target of hrefs(desktop)){
-    assert.ok(target==='#relay'||target==='/practice'||target==='/practice/reconciliation'||target==='/desk',`unexpected destination ${target}`);
+    assert.ok(target==='#relay'||target==='/practice'||target==='/practice/reconciliation'||target==='/desk'||target==='/setup?example=relay-home',`unexpected destination ${target}`);
   }
   assert.doesNotMatch(html,/href="#"/,'no placeholder links');
   assert.match(html,/id="relay"/);

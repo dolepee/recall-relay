@@ -6,7 +6,7 @@ import {trackFocusNavigation} from './focus-guard.mjs';
 // currently published. The campaign id is built from the recall number and the
 // current reviewed digest, so it does not identify the test product: the active
 // scenario's SKU and lot must match as well.
-export function campaignIdFor(recallNumber,digest){return `CPSC-${recallNumber}-${digest.slice(0,12)}`;}
+export function campaignIdFor(recallNumber,digest){return `${recallNumber.startsWith('EXAMPLE-')?'TEST':'CPSC'}-${recallNumber}-${digest.slice(0,12)}`;}
 export function setupCampaignId(row){return row?.review?campaignIdFor(row.source.recallNumber,row.review.digest):null;}
 export function publicationState(row,active,{sku,lot}={}){
   if(!row?.review)return {code:'NOT_REVIEWED',active:false,publishedBefore:false,sameFields:false,campaignId:null};

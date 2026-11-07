@@ -3,6 +3,7 @@ import {WorkspaceHistory} from './workspace-history.mjs';
 import {syncTransaction} from './transaction.mjs';
 import {classifyRemedyRoute} from './remedy-route.mjs';
 import {randomUUID,createHash} from 'node:crypto';
+import {preparedScenario} from './prepared-scenario.mjs';
 import {fetchRecallDraft} from './cpsc.mjs';
 import {views,casesForView} from './case-views.mjs';
 import {campaignIdFor} from './publication.mjs';
@@ -40,9 +41,11 @@ export class SourceWorkspace {
     if(active&&!page.some(r=>r.publishedCampaign?.id===active.id)){const row=this.db.prepare("SELECT data FROM source_setups WHERE json_extract(data,'$.publishedCampaign.id')=? ORDER BY rowid DESC LIMIT 1").get(active.id);if(row)page.push(JSON.parse(row.data));}
     return {ai:await this.availability(),activeCampaign:active,setups:page,total,hasMore:offset+20<total,nextOffset:offset+20};
   }
-  async refresh(id,revision){const row=this.get(id);if(row.revision!==revision)throw new Error('Source setup changed. Reload before checking for updates.');return this.import(row.source.recallNumber);}
-  async import(number){
-    const source=await this.loadSource(number),checkedAt=new Date().toISOString();
+  async refresh(id,revision){const row=this.get(id);if(row.revision!==revision)throw new Error('Source setup changed. Reload before checking for updates.');return row.source.originType==='MERCHANT_TEST_NOTICE'?this.example():this.import(row.source.recallNumber);}
+  example(){return this.importDraft(preparedScenario());}
+  async import(number){return this.importDraft(await this.loadSource(number));}
+  importDraft(source){
+    const checkedAt=new Date().toISOString();
     return syncTransaction(this.db,()=>{
       const rows=this.db.prepare('SELECT data FROM source_setups ORDER BY rowid DESC').all().map(r=>JSON.parse(r.data));
       const same=rows.find(r=>source.sourceDigest&&(r.rootSource?.sourceDigest||r.source.sourceDigest)===source.sourceDigest&&r.source.recallNumber===source.recallNumber);
@@ -106,7 +109,7 @@ export class SourceWorkspace {
     const coverage=assertExecutableSource(row.source,row.review.fields,row.review.coverage||[]);
     if((row.source.options?classifyRemedyRoute(row.source.remedies,row.source.options):row.source.route)!=='ORIGINAL_PAYMENT_CANDIDATE')throw new Error('This notice needs a manual remedy route. It cannot publish an original-payment sandbox scenario.');
     if(![sku,lot].every(x=>typeof x==='string'&&/^[A-Z0-9][A-Z0-9 -]{0,39}$/.test(x))||lot==='ALL')throw new Error('Provide explicit uppercase test SKU and lot identifiers, up to 40 characters.');
-    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,sourcePolicyVersion:SOURCE_POLICY_VERSION,sourceRemedies:row.source.remedies,sourceRootRemedies:row.source.rootRemedies,sourceExternalSnapshots:row.source.externalSnapshots,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};
+    const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:row.source.originType==='MERCHANT_TEST_NOTICE'?`Sandbox scenario · ${row.source.recallNumber}`:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,sourcePolicyVersion:SOURCE_POLICY_VERSION,sourceRemedies:row.source.remedies,sourceRootRemedies:row.source.rootRemedies,sourceExternalSnapshots:row.source.externalSnapshots,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};
     desk.setSetting('active-campaign',JSON.stringify(campaign));desk.setSetting('published','yes');
     return this.save({...row,revision:row.revision+1,publishedCampaign:{id:campaign.id,sku,lot,sourcePolicyVersion:SOURCE_POLICY_VERSION,publishedAt:new Date().toISOString()}});
   }

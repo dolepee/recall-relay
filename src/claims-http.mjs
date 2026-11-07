@@ -52,6 +52,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
           '/api/merchant/source-list':()=>sourceWorkspace.state(desk,{offset:input.offset}),
           '/api/merchant/source-history':()=>sourceWorkspace.historyFor(input.id),
           '/api/merchant/source-refresh':()=>sourceWorkspace.refresh(input.id,input.revision),
+          '/api/merchant/source-example':()=>sourceWorkspace.example(),
           '/api/merchant/source-import':()=>sourceWorkspace.import(input.recallNumber),
           '/api/merchant/source-suggest':()=>sourceWorkspace.suggest(input.id,input.revision),
           '/api/merchant/source-add':()=>sourceWorkspace.addField(input.id,input),

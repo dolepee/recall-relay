@@ -27,3 +27,11 @@ language checks, not proof that every condition or external dependency is found.
 Earlier sourced publications need fresh review and republication before new
 execution; completed receipts and already-attempted payment reconciliation retain
 their existing behavior.
+
+Source policy version 5 also keeps detected physical-return, manufacturer-contact,
+registration and email-submission handoffs manual, even when a sentence has no
+supported form field and is labelled Information. The portal does not perform
+those actions. This is a bounded lexical safeguard, not complete instruction
+interpretation; the merchant must review the full notice. Older unexecuted source
+campaigns require republication. Completed receipts and recovery/readback of
+already-attempted refunds retain their existing behavior.

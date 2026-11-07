@@ -27,3 +27,37 @@ test('a supplied label and a passive contact link do not by themselves create ne
 test('previously published version-three source policies require a fresh review before new execution',()=>{
  assert.throws(()=>assertExecutableCampaign({sourceDigest:'fixture',sourcePolicyVersion:3,sourceRemedies:[photo],fields:[field]}),/Review and republish/);
 });
+
+for(const quote of ['Consumers should return the recalled product to the store for a refund.','Consumers should contact the manufacturer for a refund.','Reply to the confirmation email with the required photograph attached.','Consumers should register for the recall before submitting a photograph.','Consumers should email a photograph of the product to recall@example.com.','Upload one photograph to recall@example.com.','Consumers will be asked to upload a photograph to recall@example.com.','Please return the recalled product to the store.','Ship the unit using the prepaid label.'])test('an external handoff cannot be waived as information: '+quote,()=>{
+ const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive the external handoff.'}];
+ assert.equal(sourceCoverage(source,[field],decisions)[1].disposition,'MANUAL');assert.throws(()=>assertExecutableSource(source,[field],decisions),/manual|handoff/);
+ if(/photograph|photo/i.test(quote))assert.throws(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]),/manual|handoff/);
+});
+test('stop-use advice and prohibitions do not create a required external handoff',()=>{
+ for(const quote of ['Consumers should stop using the product immediately.','Do not return the product to the store.','Do not email personal information to recall@example.com.','Consumers should not return the product to the store.','The manufacturer will contact the customer about the refund.'])assert.equal(sourceInstructionProfile(quote).externalAction,false);
+});
+test('version-four source publications need fresh review after external handoff checks change',()=>{
+ assert.throws(()=>assertExecutableCampaign({sourceDigest:'fixture',sourcePolicyVersion:4,sourceRemedies:[photo],fields:[field]}),/Review and republish/);
+});
+
+for(const quote of ['Consumers are not required to return the product to the store.','Consumers will receive a prepaid return label from the manufacturer.','Consumers will be provided with a return label.','Consumers do not need to register for the recall.'])test('informational or waived customer handoffs remain reviewable as information: '+quote,()=>{
+ const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Describes a waived step or receiving a label, not a customer handoff.'}];assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.equal(sourceCoverage(source,[field],decisions)[1].disposition,'INFORMATION');assert.doesNotThrow(()=>assertExecutableSource(source,[field],decisions));
+});
+
+for(const quote of ['Upload one photograph of the return label.','Upload one photograph of the e-mail receipt.','Upload one photograph of the registration card.'])test('a handoff noun in a photograph instruction is not itself an external action: '+quote,()=>{
+ assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]));
+});
+
+for(const separator of [';', ':', '—', '–'])test('a second affirmative handoff after '+separator+' cannot publish as a photo-only instruction',()=>{
+ const quote='Upload one photograph of the product label'+separator+' return the product to the store for a refund.';assert.equal(sourceInstructionProfile(quote).externalAction,true);assert.throws(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]),/handoff|manual/);
+});
+
+for(const separator of [';', ':', '—', '–'])test('explanatory return-address text after '+separator+' is not a physical handoff',()=>{
+ const quote='Upload one photograph of the product label'+separator+' return address must be legible.';assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]));
+});
+
+test('physical product handoffs retain common particles and adverbs without becoming photo-only forms',()=>{
+ for(const verb of ['return','ship','mail'])for(const modifier of ['','back ','immediately ','back immediately ','immediately back ','promptly ','directly '])for(const separator of ['; ', ', then ', ' and ', ' — ']){
+  const quote=`Upload one photograph of the product label${separator}${verb} ${modifier}the recalled product to the store for a refund.`;assert.equal(sourceInstructionProfile(quote).externalAction,true,quote);assert.throws(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]),/handoff|manual/,quote);
+ }
+});

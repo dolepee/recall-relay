@@ -35,7 +35,7 @@ function sentenceSpans(text){
 export function sourceClauses(source){
   return source.remedies.flatMap((text,p)=>sentenceSpans(text).map((span,i)=>({id:`clause-${p}-${i}`,quote:text.slice(span.start,span.end).trim()})));
 }
-export const SOURCE_POLICY_VERSION=4;
+export const SOURCE_POLICY_VERSION=5;
 // A bounded executable subset, not a general natural-language policy engine.
 // Drafts may retain richer quotations for review; only direct, unconditional,
 // pre-refund customer responses with one photo can become an executable form.
@@ -44,11 +44,29 @@ export function sourceInstructionProfile(quote){
   const issues=[];
   const direct=/^(?:(?:consumers?|customers?|you)\s+(?:(?:should|must|shall)\s+|(?:will be|are)\s+asked to\s+|need to\s+)|(?:the )?(?:firm|manufacturer|retailer|company) will ask (?:consumers?|customers?|you) to\s+)?(?:(?:fill out|complete) (?:an?|the) (?:online )?form and )?(?:upload|submit|send|email|e-mail|take|provide|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i;
   const conditional=hasSourceCondition(quote);
+  // These customer handoffs are not performed by this portal. Merely collecting
+  // a photograph cannot establish a physical return, registration or inbox reply.
+  // Negative advice does not itself ask the customer to perform a handoff.
+  const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?/i,'');
+  const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|fill out|complete|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
+  // Receiving a label/confirmation, or being told an action is not required,
+  // is information rather than an affirmative instruction to perform a handoff.
+  const actionStart='(?:^(?:please\\s+)?|(?:[,;:—–]\\s*|\\b(?:and|then)\\s+))';
+  const handoffPatterns=[
+    new RegExp(actionStart+'(?:return|ship|mail)\\s+(?:(?:back|immediately|promptly|directly)\\s+){0,2}(?:the|your|this|these|those|a|an|all|any|each|every|recalled|affected|it|them|products?|items?|units?|devices?|garments?|to)\\b','i'),
+    new RegExp(actionStart+'contact\\b[^.!?]{0,160}\\b(?:refund|remedy)\\b','i'),
+    new RegExp(actionStart+'(?:register|sign in|log in|(?:fill out|complete) (?:an?|the) (?:online )?registration form)\\b','i'),
+    new RegExp(actionStart+'reply\\b[^.!?]{0,160}\\b(?:e-?mail|confirmation)\\b','i'),
+    new RegExp(actionStart+'e-?mail\\b','i'),
+    /\b(?:send|submit|upload|provide)\b[^.!?]{0,240}\bto\s+[^\s@]+@[^\s@]+/i,
+  ];
+  const externalAction=affirmative&&handoffPatterns.some(pattern=>pattern.test(instruction));
+  if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(!direct.test(quote.trim())||conditional)issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');
   const photoCount=[...quote.matchAll(/\b(?:photos?|photographs?|pictures?|images?)\b/gi)].length===1&&!/\b(?:photos|photographs|pictures|images)\b|\b(?:two|three|four|multiple|separate|distinct|several|[2-9]|[1-9][0-9]+)\s+(?:(?:distinct|separate|required)\s+)?(?:photo|photograph|picture|image)\b|\b(?:both|each|every|all)\s+(?:sides?|views?|angles?)\b/i.test(quote)?1:null;
   if(kinds.includes('PHOTO')&&photoCount!==1)issues.push('The required photograph count is multiple or unclear. This form supports exactly one photograph; keep this instruction manual.');
-  return {actor:'CUSTOMER',conditional,applicability:issues.some(i=>i.startsWith('Conditional'))?'UNSUPPORTED':'UNCONDITIONAL',phase:issues.some(i=>i.startsWith('Post-refund'))?'UNSUPPORTED':'BEFORE_REFUND',photoCount,kinds,issues};
+  return {actor:'CUSTOMER',conditional,externalAction,applicability:issues.some(i=>i.startsWith('Conditional'))?'UNSUPPORTED':'UNCONDITIONAL',phase:issues.some(i=>i.startsWith('Post-refund'))?'UNSUPPORTED':'BEFORE_REFUND',photoCount,kinds,issues};
 }
 export function sourceFieldIssue(field){
   const problem=aiFieldProblem(field);if(problem)return problem;
@@ -63,7 +81,7 @@ export function sourceCoverage(source,fields,decisions=[]){
     const missing=obligations.filter(o=>!o.fieldIds.length).map(o=>o.kind);
     const decision=decisions.find(d=>d.id===clause.id);
     const phaseIssue=profile.issues.find(i=>i.startsWith('Post-refund'));
-    const issue=phaseIssue||(profile.conditional?profile.issues[0]:null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
+    const issue=phaseIssue||((profile.conditional||profile.externalAction)?profile.issues[0]:null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
     // An INFORMATION decision cannot waive a detected customer obligation.
     const disposition=issue?'MANUAL':obligations.length?(missing.length?'UNRESOLVED':'FIELD'):linked.length?'MANUAL':decision?.disposition||'UNRESOLVED';
     return {...clause,fieldIds:linked.map(f=>f.id),obligations,missingKinds:missing,issue,disposition,reason:issue||(obligations.length?(missing.length?`Missing response: ${missing.join(', ')}.`:''):linked.length?'Selected field does not establish a supported customer response.':decision?.reason||'')};

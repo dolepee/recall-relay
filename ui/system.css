@@ -36,7 +36,7 @@
 .rr-app h2{font-size:1.22rem}
 .rr-app h3{font-size:1rem}
 .rr-app p{margin:0;text-wrap:pretty}
-.rr-app a{color:var(--rr-action);text-decoration:underline;text-underline-offset:3px}
+.rr-app a:where(:not(.rr-btn)){color:var(--rr-action);text-decoration:underline;text-underline-offset:3px}
 .rr-app :focus-visible{outline:2px solid var(--rr-action);outline-offset:3px}
 .rr-app #main,.rr-app [tabindex="-1"]{scroll-margin-top:96px}
 

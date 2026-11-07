@@ -13,12 +13,13 @@ export const STUDIO_WIDGET_MIN_ROWS=Object.freeze({
   advisory:12,
 });
 export const STUDIO_WIDGET_LAYOUT={
-  queue:{xTrack:0,yTrack:0,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.queue},
-  review:{xTrack:5,yTrack:0,xSpan:14,ySpan:STUDIO_WIDGET_MIN_ROWS.review},
-  coverage:{xTrack:19,yTrack:0,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.coverage},
-  exceptions:{xTrack:19,yTrack:12,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.exceptions},
-  brief:{xTrack:19,yTrack:21,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.brief},
-  advisory:{xTrack:19,yTrack:35,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.advisory},
+  overview:{xTrack:0,yTrack:0,xSpan:24,ySpan:12},
+  queue:{xTrack:0,yTrack:12,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.queue},
+  review:{xTrack:5,yTrack:12,xSpan:14,ySpan:STUDIO_WIDGET_MIN_ROWS.review},
+  coverage:{xTrack:19,yTrack:12,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.coverage},
+  exceptions:{xTrack:19,yTrack:24,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.exceptions},
+  brief:{xTrack:19,yTrack:33,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.brief},
+  advisory:{xTrack:19,yTrack:47,xSpan:5,ySpan:STUDIO_WIDGET_MIN_ROWS.advisory},
 };
 
 const rowsFor=(id,contentHeights,rowHeight)=>Math.max(
@@ -39,7 +40,9 @@ export function fitStudioLayout({widgetLayout=STUDIO_WIDGET_LAYOUT,contentHeight
   const contextRows=coverageRows+exceptionRows+briefRows+advisoryRows;
   const rows=Math.max(reviewRows,contextRows,STUDIO_WORKSPACE_ROWS);
   const start=(id)=>widgetLayout[id]||{};
+  const overviewRows=Math.max(12,contentHeights.overview?Math.ceil((contentHeights.overview+2)/rowHeight):12);
   const layout={
+    overview:{...start('overview'),xTrack:0,xSpan:24,yTrack:0,ySpan:overviewRows},
     queue:{...start('queue'),yTrack:0,ySpan:rows},
     review:{...start('review'),yTrack:0,ySpan:rows},
     coverage:{...start('coverage'),yTrack:0,ySpan:coverageRows},
@@ -47,5 +50,6 @@ export function fitStudioLayout({widgetLayout=STUDIO_WIDGET_LAYOUT,contentHeight
     brief:{...start('brief'),yTrack:coverageRows+exceptionRows,ySpan:briefRows},
     advisory:{...start('advisory'),yTrack:coverageRows+exceptionRows+briefRows,ySpan:advisoryRows},
   };
-  return {layout,rows,height:rows*rowHeight+48};
+  for(const id of ['queue','review','coverage','exceptions','brief','advisory'])layout[id].yTrack+=overviewRows;
+  return {layout,rows:rows+overviewRows,height:(rows+overviewRows)*rowHeight+48};
 }

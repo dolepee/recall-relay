@@ -81,6 +81,10 @@ try{
   const bound=await action('capture',{id:checkout.value.id});assert.equal(bound.status,200,JSON.stringify(bound));
   const url=new URL(bound.value.claimUrl,origin),token=url.hash.slice(1),query=url.search;
   const caseInput={caseId:bound.value.id,revision:0};
+  assert.equal((await call('/api/merchant/claim-question',{cookie:bob,body:{...caseInput,question:'Summarize this claim'}})).status,400);
+  assert.equal((await call('/api/merchant/claim-question',{authorization:'Bearer '+token,body:{...caseInput,question:'Summarize this claim'}})).status,400);
+  const unavailableGuide=await action('claim-question',{...caseInput,question:'What is holding this claim up?'});
+  assert.equal(unavailableGuide.status,400);assert.match(unavailableGuide.value.error,/unavailable/i);
   const context=await action('case-context',{...caseInput,section:'brief'});
   assert.equal(context.status,200);assert.equal(context.value.readOnly,true);
   assert.equal(JSON.stringify(context.value).includes(token),false);

@@ -126,9 +126,18 @@ The connected desk keeps the deterministic **Recorded review brief** separate
 from the **AI advisory** panel. The advisory is requested for one case and
 revision, shows cited source clauses with actor, timing, condition and recorded
 gaps, and is labelled model-assisted rather than recorded fact. A stale revision
-hides the result. The Claim guide exposes the same three read-only reads
-(`get_case_brief`, `get_source_requirements`, `get_evidence_gaps`); none can
-approve, refund or change evidence.
+hides the result. The Claim guide retains the same three read-only reads
+(`get_case_brief`, `get_source_requirements`, `get_evidence_gaps`) and accepts
+natural questions through `answer_claim_question`. The answer service retrieves
+current normalized case facts, public source clauses and deterministic workspace
+amounts. It returns a short AI explanation with exact cited records; it cannot
+approve, refund or change evidence. Answers are discarded if workspace state
+changes during generation. Prior evidence changes are not reconstructed from the
+latest submission. The incident overview separates open review work, unresolved
+payment outcomes and provider-confirmed receipt amounts; its controls filter the
+claim queue. Imported ledger declarations never enter these totals. Missing
+binding/evidence rows can prepare a purchase-specific request draft for an
+external support channel; no message or claim is created automatically.
 
 ## Itemized checkout, retained history and recovery
 
@@ -208,9 +217,11 @@ Associate your custom domain in Pages before adding its external DNS CNAME.
 `test:cloud` exercises real workerd and SQLite persistence with an intercepted
 fake PayPal transport; it does not contact PayPal or prove a hosted payment.
 Hosted source drafting and view selection use Qwen3-30B through Cloudflare
-Workers AI; the read-only case advisory uses gpt-oss-120b. Only the public
-notice and the case-view question are sent to inference, not customer photos
-or payment credentials. Suggestions still require source and merchant review.
+Workers AI; the read-only case advisory and conversational Claim Guide use gpt-oss-120b.
+Source advisory sends public notice clauses. Conversational answers also send
+the merchant question, normalized workflow facts and aggregate Sandbox claim
+amounts, excluding photos, customer free-text responses, private links, capture
+identifiers and payment credentials. Suggestions still require source and merchant review.
 
 ## Install and run locally
 
@@ -318,8 +329,9 @@ stored claim state; the brief is not model output. Its content-fitted reading
 layout opens in review mode: panel heights follow their measured content, the
 page supplies scrolling, and manual **Arrange workspace** editing is not exposed
 in this mode. Open **Claim guide** when needed. Ask which customers owe
-information or which claims are ready for review. The model selects a closed
-view; counts and explanations come from stored states. It has no payment,
+information or which claims are ready for review. Natural questions retrieve current records and receive cited model explanations;
+exact amounts and quotations are rendered from server records. Only an explicit
+view request changes the grid filter. It has no payment,
 evidence-review or record-edit tool. Mobile uses the ordinary case controls. Claim-list responses omit full
 photographs; selecting a claim retrieves only that revision’s image through an
 authorized endpoint. Evidence confirmation stays disabled until it displays.

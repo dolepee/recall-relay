@@ -73,3 +73,16 @@ test('the real Studio Claim guide executes all three selected-case read tools',a
   assert.match(body,/not model interpretation/);
   assert.doesNotMatch(body,/Interpreted with/);
 });
+
+test('a natural-language question executes the cited answer tool through the actual Studio harness',async()=>{
+ const posts=[];
+ globalThis.fetch=async(path,options)=>{
+   assert.equal(path,'/api/merchant/claim-question');const input=JSON.parse(options.body);posts.push(input);
+   return new Response(JSON.stringify({readOnly:true,view:null,citations:[{id:'case-review',text:'Review not recorded.'}],message:'Claim RR-1 · revision 2\nAI explanation · check the cited records\nInspect the current evidence.\n[case-review] Review not recorded.',model:'test-double'}),{status:200});
+ };
+ await render(React.createElement(StudioWorkspace,{data,initialState,onView:()=>{},getCase:()=>item,ClaimReview:W,OrderCell:W,CoverageWidget:W,ExceptionsWidget:W,BriefWidget:W,AdvisoryWidget:W,guideOpen:true,onGuideClose:()=>{}}),()=>button('What is blocking this claim?'));
+ await act(async()=>{button('What is blocking this claim?').click();await tick();});
+ assert.ok(await settle(()=>document.body.textContent.includes('[case-review]')));
+ assert.equal(posts.length,1);assert.equal(posts[0].caseId,'claim-1');assert.equal(posts[0].revision,2);assert.match(posts[0].question,/holding up/);
+ assert.match(text(document.body),/AI explanation · check the cited records/);
+});

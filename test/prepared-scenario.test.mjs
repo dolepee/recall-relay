@@ -23,3 +23,7 @@ test('the complete fictional source fits the unchanged source policy and require
  assert.equal(ws.example().id,row.id);assert.equal((await ws.refresh(row.id,row.revision)).id,row.id);assert.equal(calls,1);
  }finally{db.close();}
 });
+
+test('the versioned public notice includes every complete canonical instruction',async()=>{
+ const html=await readFile('public/assets/relay-home-notice-v1.html','utf8');for(const quote of exampleNotice.remedies)assert.ok(html.includes(quote));assert.match(html,/Fictional test notice/);assert.match(html,/never damage or dispose of a real product/);
+});

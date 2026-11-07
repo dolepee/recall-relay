@@ -17,7 +17,7 @@ The claims desk then supports a Sandbox buyer-approved purchase, customer eviden
 merchant review and an explicitly approved partial refund with PayPal readback.
 Checkout requires a PayPal Sandbox buyer account; only test funds are used.
 The prepared review note is labelled and is not a recorded merchant review or AI result.
-Read the [complete fictional test notice](https://recall-relay.dolepee.com/assets/relay-home-notice.html).
+Read the [complete fictional test notice](https://recall-relay.dolepee.com/assets/relay-home-notice-v1.html).
 
 Try the [synthetic reconciliation example](https://recall-relay.dolepee.com/practice/reconciliation)
 without an account, or complete a [guided simulated claim](https://recall-relay.dolepee.com/practice).

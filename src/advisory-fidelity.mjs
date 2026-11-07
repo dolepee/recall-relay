@@ -8,7 +8,8 @@ export function advisoryFidelityIssue(quote,value){
  let subject=conditional&&quote.trimStart().startsWith(conditional)&&q.includes(',')?q.slice(q.indexOf(',')+1).trim():q;
  if(/^(?:before|after|following|upon receipt)\b[^,]+,\s*/i.test(subject))subject=subject.replace(/^(?:before|after|following|upon receipt)\b[^,]+,\s*/i,'');
  subject=subject.replace(/^please\s+/i,'');
- if(/^(?:consumers?|customers?|you)\b/.test(subject)||/^(?:upload|submit|provide|enter|supply|state|describe|identify|list|include|write|tell|photograph|confirm|attest|stop|do not|never|unplug|cut|remove|contact|register|return)\b/.test(subject))actor='CUSTOMER';
+ if(conditional&&/^(?:for\s+)?(?:consumers?|customers?)\s+(?:who|with|without)\b/i.test(conditional)&&/^they\b/.test(subject))actor='CUSTOMER';
+ else if(/^(?:consumers?|customers?|you)\b/.test(subject)||/^(?:upload|submit|provide|enter|supply|state|describe|identify|list|include|write|tell|photograph|confirm|attest|stop|do not|never|unplug|cut|remove|contact|register|return)\b/.test(subject))actor='CUSTOMER';
  else if(/^(?:the )?(?:manufacturer|company|firm|we)\b/.test(subject))actor='MANUFACTURER';
  else if(/^(?:the )?(?:merchant|retailer)\b/.test(subject))actor='MERCHANT';
  else if(/^(?:paypal|the payment provider)\b/.test(subject))actor='PROVIDER';

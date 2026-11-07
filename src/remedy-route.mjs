@@ -1,6 +1,7 @@
+import {sourceSentences} from './source-sentences.mjs';
 // Candidate routing only. It never proves merchant responsibility or payment authority.
 export function classifyRemedyRoute(remedies,options){
- const text=remedies.join('\n'),sentences=text.split(/(?<=[.!?])\s+(?=[A-Z])/);
+ const text=remedies.join('\n'),sentences=sourceSentences(text);
  const mentions=sentences.filter(s=>/original (?:form of )?payment|same form of payment/i.test(s));
  const negated=s=>/\b(?:not|never|cannot|can't|won't|instead of|rather than)\b/i.test(s);
  const original=mentions.some(s=>!negated(s)&&/\brefund/i.test(s));

@@ -53,13 +53,13 @@ export function ErrorText({error}) {
   return error ? <p role="alert" className="rr-error">{error}</p> : null;
 }
 
-export function StageTrack({current}) {
+export function StageTrack({current,complete=false}) {
   return (
     <ol className="rr-stages" aria-label="Claim stages">
       {STAGES.map((s, index) => {
-        const done = s.id < current;
+        const done = complete || s.id < current;
         return (
-          <li key={s.id} className="rr-stage" aria-current={s.id === current ? 'step' : undefined} data-done={done ? 'true' : 'false'}>
+          <li key={s.id} className="rr-stage" aria-current={!complete && s.id === current ? 'step' : undefined} data-done={done ? 'true' : 'false'}>
             <span className="rr-stage__mark" aria-hidden="true">{done ? '✓' : s.id}</span>
             <span className="rr-stage__label">{s.label}</span>
             {index < STAGES.length - 1 && <span className="rr-stage__line" aria-hidden="true" />}

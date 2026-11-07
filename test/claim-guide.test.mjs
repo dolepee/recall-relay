@@ -65,3 +65,7 @@ test('model advice cannot reopen completed evidence or suggest replacement refun
  }
  db.close();
 });
+test('financial summaries retain payment outcomes and receipts when the model fills its optional citations',async()=>{
+ const {desk,db}=make();const ai={generate:async()=>output({tool:'get_financial_summary',citations:['amount-ALL','amount-REVIEW','amount-READY','amount-WAITING','amount-MANUAL','amount-OPEN']}),status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'Summarize workspace amounts'});assert.equal(result.citations.length,6);assert.deepEqual(result.citations.slice(0,3).map(c=>c.id),['amount-OPEN','amount-PAYMENT','amount-COMPLETED']);db.close();
+});

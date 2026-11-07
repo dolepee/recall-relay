@@ -442,7 +442,7 @@ function ApproveStage({value,run,busy,error,stale,onRefresh}){
     <div className="rr-stack">
       <Card>
         <p className="rr-kicker">Merchant · approve refund</p>
-        <h2 id="claim-heading" tabIndex={-1}>Refund recorded</h2>
+        <h2 id="claim-heading" tabIndex={-1}>Simulated refund recorded</h2>
         <p className="rr-lede" style={{marginTop:10}}>The claim reached the end of the practice journey. This record is simulated; no payment provider was contacted and no funds moved.</p>
       </Card>
       <Receipt value={value} run={run} busy={busy}/>
@@ -521,7 +521,7 @@ function Receipt({value,run,busy}){
   const facts=refundFacts(value);
   return <section className="rr-receipt" aria-label="Simulated refund receipt">
     <p className="rr-kicker" style={{color:'#0B5B3A'}}>Simulated refund. No funds moved.</p>
-    <h2 style={{marginTop:8}}>{facts.completedAmount} recorded</h2>
+    <h2 style={{marginTop:8}}>{facts.completedAmount} simulated refund</h2>
     <p style={{marginTop:8,color:'#0B5B3A',fontSize:15}}>Recorded on this practice case only. No payment provider was contacted and the {facts.excluded} tray was not refunded.</p>
     <dl className="rr-amounts" style={{marginTop:14}}>
       <div><dt style={{color:'#0B5B3A'}}>Status</dt><dd>Simulated · completed</dd></div>
@@ -547,7 +547,7 @@ export default function Practice(){
     <AppShell note="Simulated. No funds move.">
       <Callout title="Want to find affected purchases first?"><p>Try a separate synthetic reconciliation example: inspect a mixed ledger, correct a missing lot for planning, and see why affected does not mean ready for refund.</p><a className="rr-btn rr-btn--secondary" href="/practice/reconciliation">Try reconciliation</a></Callout>
       <div ref={heading} tabIndex={-1} style={{outline:'none'}}>
-        <StageTrack current={progress}/>
+        <StageTrack current={progress} complete={Boolean(state?.case?.refund)}/>
         {current===1&&<div className="rr-page-head">
           <h1 style={{marginTop:18}}>See a recall claim through.</h1>
           <p className="rr-lede" style={{marginTop:8}}>One fictional claim, from customer evidence to merchant approval.</p>

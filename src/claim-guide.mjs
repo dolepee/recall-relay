@@ -48,7 +48,7 @@ export async function answerClaimQuestion(ai,desk,input){
     // The model selects the question's focus; financial assertions come from code.
     // An existing number in a different group cannot be recast as this group's total.
     result.answer='The cited records separate evidence and review work, unresolved payment outcomes and completed receipts. An incomplete subtotal is not a zero total. These records cover this workspace, not total business liability or an approved refund balance.';
-    result.citations=[...new Set([...result.citations.filter(id=>id.startsWith('amount-')), 'amount-OPEN','amount-PAYMENT','amount-COMPLETED'])].slice(0,6);
+    result.citations=[...new Set(['amount-OPEN','amount-PAYMENT','amount-COMPLETED',...result.citations.filter(id=>id.startsWith('amount-'))])].slice(0,6);
   }
   const lockedCase=snapshot.selected&&['COMPLETED','RESERVED','UNKNOWN','PENDING','FAILED','CANCELLED'].includes(snapshot.selected.statusCode)&&['get_case_brief','get_case_changes','get_evidence_gaps'].includes(result.tool);
   if(lockedCase){

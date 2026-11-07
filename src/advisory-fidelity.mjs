@@ -1,10 +1,11 @@
-import {sourceConditionQuote} from './source-conditions.mjs';
+import {sourceConditionQuote,hasSourceCondition} from './source-conditions.mjs';
 // Conservative anchors for a bounded reader aid. These are not a general
 // semantic verifier; unsupported actor/sequence combinations are withheld.
 export function advisoryFidelityIssue(quote,value){
  const q=quote.toLowerCase(),e=value.explanation.toLowerCase();
  let actor='UNKNOWN';
  const conditional=sourceConditionQuote(quote);
+ if(hasSourceCondition(quote)&&!conditional)return 'The customer qualifier boundary is ambiguous; read the complete source.';
  let subject=conditional&&quote.trimStart().startsWith(conditional)&&q.includes(',')?q.slice(q.indexOf(',')+1).trim():q;
  if(/^(?:before|after|following|upon receipt)\b[^,]+,\s*/i.test(subject))subject=subject.replace(/^(?:before|after|following|upon receipt)\b[^,]+,\s*/i,'');
  subject=subject.replace(/^please\s+/i,'');

@@ -64,7 +64,7 @@ export function sourceInstructionProfile(quote){
     new RegExp(actionStart+'e-?mail\\b','i'),
     /\b(?:send|submit|upload|provide)\b[^.!?]{0,240}\bto\s+[^\s@]+@[^\s@]+/i,
   ];
-  const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0);
+  const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0)||quote.split(/;|\bbut\b|\band\s+/i).some(part=>/^(?:please\s+)?(?:upload|send|submit|provide|register|log in|sign in)\b/i.test(part.trim())&&externalDependencies({remedies:[part]}).length>0);
   if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(!direct.test(quote.trim())||conditional)issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');

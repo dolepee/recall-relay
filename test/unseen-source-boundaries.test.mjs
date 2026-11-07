@@ -69,3 +69,25 @@ test('a waived value never cancels a different response and mixed waivers cannot
  assert.deepEqual(draft.requirements.map(f=>f.kind),['TEXT'],'a prohibited photograph is not revived by a later text request');
  assert.deepEqual(sourceInstructionProfile('Send a photograph to support@example.com.').kinds,['PHOTO'],'a destination is not a separate requested text value');
 });
+test('a modal inside a customer qualifier cannot certify an incomplete condition',()=>{
+ for(const quote of ['Consumers who need to replace the battery must provide the lot code.','Consumers who will replace the battery must provide the lot code.','Customers who may need to replace the battery must provide the lot code.']){
+  for(const condition of ['Consumers who','Consumers who need to replace the battery','Customers who may need to replace the battery']){
+   const answer={citationId:'c',actor:'CUSTOMER',timing:'CONDITIONAL',condition,explanation:quote};
+   // Conditions not literally present fail structural validation; literal ones
+   // must be withheld rather than certified from an ambiguous relative clause.
+   if(quote.includes(condition))assert.equal(validateAdvisory(JSON.stringify({clauses:[answer]}),{clauses:[{citationId:'c',quote}]})[0].interpretationAvailable,false);
+  }
+  const answer={citationId:'c',actor:'CUSTOMER',timing:'UNSPECIFIED',condition:null,explanation:quote};assert.equal(validateAdvisory(JSON.stringify({clauses:[answer]}),{clauses:[{citationId:'c',quote}]})[0].interpretationAvailable,false);
+  assert.equal(sourceInstructionProfile(quote).conditional,true);
+ }
+});
+test('prohibited or waived external uploads require no destination snapshot, but a separate positive step does',()=>{
+ for(const quote of ['Do not upload your receipt to https://example.com/recall.','Consumers should not upload the receipt to https://example.com/recall.','You are not required to register on the recall website.']){
+  const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'The source explicitly prohibits or waives this action.'}];
+  assert.equal(externalDependencies(source).length,0,quote);assert.doesNotThrow(()=>assertExecutableSource(source,[field(photo)],decisions));
+ }
+ for(const separator of ['; ', ' but ', ' and ']){
+  const quote='Do not upload to https://example.com/forbidden'+separator+'register at https://example.org/required.';
+  const dependencies=externalDependencies({remedies:[quote]});assert.equal(dependencies.length,1);assert.equal(dependencies[0].url,'https://example.org/required');assert.equal(sourceInstructionProfile(quote).externalAction,true,'the affirmative registration stays manual even after an excerpt is reviewed');
+ }
+});

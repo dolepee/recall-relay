@@ -5,6 +5,9 @@ const conditionCue=/\b(?:if|unless|when|where|whenever|wherever|provided that|(?
 export function sourceConditionQuote(quote){
  const match=conditionCue.exec(quote);if(!match)return null;
  const tail=quote.slice(match.index).split(/[,;.!?]/,1)[0].trim();
+ // A leading modal may belong to the relative predicate, not the main action.
+ // Keep execution manual and withhold annotations instead of accepting 'Consumers who'.
+ if(/^(?:for\s+)?(?:consumers?|customers?)\s+who\s+(?:will|must|should|shall|may|can|need to|are required to)\b/i.test(tail))return null;
  // A customer qualifier ends before the main obligation/outcome, not after it.
  return /^(?:for\s+)?(?:consumers?|customers?)\s+(?:who|with|without)\b/i.test(tail)?tail.split(/\s+(?:will|must|should|shall|need to|are required to)\b/i,1)[0].trim():tail;
 }

@@ -8,7 +8,8 @@ const CONFIRM_CUE=/\b(confirm|confirms|confirmed|confirmation|confirmations|atte
 const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|include|write|tell(?:\s+us)?)\b(?:(?!\b(?:photo|photos|photograph|photographs|picture|pictures|image|images)\b)[^.!?]){0,60}?\b(?:(?:serial|batch|lot|model|order|item|product)\s+)?(?:number|code|identifier|description|name|address|date|receipt|invoice|amount|price|quantity|size|color)\b/i;
 
 const accompanyingText=/\b(?:send|submit|upload|provide)\b[^.!?]{0,160}\b(?:along with|together with|and include)\s+(?:your |the )?(?:name|address|postcode|postal code|telephone number|phone number)\b/i;
-const textRequest=quote=>TEXT_CUE.test(quote)||accompanyingText.test(quote);
+// Dots in an e-mail destination do not end the request for a following value.
+const textRequest=quote=>TEXT_CUE.test(quote.replace(/[^\s@<>]+@[^\s@<>]+/g,'destination'))||accompanyingText.test(quote);
 
 // Applies to assistant output only. The notice may legitimately contain disposal
 // attestations, URLs, e-mail destinations or contact text; those are not rejected

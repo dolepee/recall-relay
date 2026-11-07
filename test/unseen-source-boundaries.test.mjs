@@ -54,6 +54,7 @@ test('changed sentence and condition policy requires renewed publication for ver
 test('a waived value never cancels a different response and mixed waivers cannot become required forms',()=>{
  for(const [quote,kinds] of [
   ['Consumers will be asked to send their order number (not required) and a photo of the product label.',['PHOTO','TEXT']],
+  ['Consumers will be asked to send to support@example.com their order number (not required) and a photo of the product label.',['PHOTO','TEXT']],
   ['Do not send the serial number; upload one photograph of the label.',['PHOTO']],
   ['Submit one photograph and provide your postal address (optional).',['PHOTO','TEXT']],
   ['Do not upload a photograph; enter the lot code.',['TEXT']],
@@ -66,4 +67,5 @@ test('a waived value never cancels a different response and mixed waivers cannot
  const prohibited='Do not upload a photograph; enter the lot code.';
  const source={remedies:[prohibited]},draft=validateSourceDraft(JSON.stringify({clauses:[{clauseId:'clause-0-0',kinds:['PHOTO','TEXT']}]}),source);
  assert.deepEqual(draft.requirements.map(f=>f.kind),['TEXT'],'a prohibited photograph is not revived by a later text request');
+ assert.deepEqual(sourceInstructionProfile('Send a photograph to support@example.com.').kinds,['PHOTO'],'a destination is not a separate requested text value');
 });

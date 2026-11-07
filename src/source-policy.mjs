@@ -47,7 +47,7 @@ export function sourceInstructionProfile(quote){
   // These customer handoffs are not performed by this portal. Merely collecting
   // a photograph cannot establish a physical return, registration or inbox reply.
   // Negative advice does not itself ask the customer to perform a handoff.
-  const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:should|must|shall|may|can|will)\s+)|(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+))?(?:immediately\s+)?/i,'');
+  const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?/i,'');
   const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
   // Receiving a label/confirmation, or being told an action is not required,
   // is information rather than an affirmative instruction to perform a handoff.

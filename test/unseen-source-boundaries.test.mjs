@@ -100,3 +100,11 @@ test('a prohibition retains an affirmative external prerequisite introduced by a
  }
  assert.equal(externalDependencies({remedies:['Do not upload a receipt to https://example.com/before-recall.']}).length,0,'a connector inside a URL is not an affirmative prerequisite');
 });
+test('a date or timing modifier cannot detach an affirmative upload from its destination',()=>{
+ for(const modifier of ['before September 15','after September 15','before the deadline','after the support call']){
+  const quote=`Complete the form and upload one photograph ${modifier} on the recall website.`,source={remedies:[quote]},fields=[field(quote)];
+  assert.equal(externalDependencies(source).length,1,quote);assert.equal(sourceInstructionProfile(quote).externalAction,true,quote);
+  assert.throws(()=>assertExecutableSource(source,fields),/external instructions/);
+ }
+ assert.equal(externalDependencies({remedies:['Do not upload a receipt before September 15 on the recall website.']}).length,0,'a forbidden upload with a date remains forbidden');
+});

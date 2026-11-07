@@ -1,5 +1,5 @@
 import {sourceSentences} from './source-sentences.mjs';
-export const externalActionParts=quote=>quote.split(/;|\bbut\b|\s+(?:until|unless|before|after)\s+|\band\s+(?=(?:visit|go to|access|register|log in|sign in|contact|obtain|get|request|complete|send|submit|upload|provide)\b)/i);
+export const externalActionParts=quote=>quote.split(/;|\bbut\b|\s+(?:until|unless|before|after)\s+(?=(?:(?:consumers?|customers?|you)\s+)?(?:(?:must|should|will|can|may|need to)\s+)?(?:visit|go to|access|register|log in|sign in|contact|obtain|get|request|complete|send|submit|upload|provide|read|follow)\b)|\band\s+(?=(?:visit|go to|access|register|log in|sign in|contact|obtain|get|request|complete|send|submit|upload|provide)\b)/i);
 export function externalDependencies(source){
  const remedies=source.rootRemedies||source.remedies||[],dependencies=[];
  remedies.forEach((text,p)=>sourceSentences(text).forEach((quote,i)=>{

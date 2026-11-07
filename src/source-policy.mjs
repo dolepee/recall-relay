@@ -47,9 +47,11 @@ export function sourceInstructionProfile(quote){
   // These customer handoffs are not performed by this portal. Merely collecting
   // a photograph cannot establish a physical return, registration or inbox reply.
   // Negative advice does not itself ask the customer to perform a handoff.
-  const negative=/^(?:(?:consumers?|customers?|you)\s+(?:(?:should|must)\s+)?)?(?:do not|not|must not|never)\b/i.test(quote.trim());
-  const customerHandoff=/^(?:please\s+)?(?:return|contact|register|reply|e-?mail|send|submit|sign in|log in)\b|^(?:consumers?|customers?|you)\b/i.test(quote.trim());
-  const externalAction=!negative&&customerHandoff&&(/(?:^(?:please\s+)?return\b|\b(?:consumers?|customers?|you)\b[^.!?]{0,240}\breturn\b)/i.test(quote)||/\bcontact\b[^.!?]{0,160}\b(?:refund|remedy)\b/i.test(quote)||/\b(?:register|registration|sign in|log in)\b/i.test(quote)||/\breply\b[^.!?]{0,160}\b(?:e-?mail|confirmation)\b/i.test(quote)||/\b(?:e-?mail|send|submit)\b[^.!?]{0,240}[^\s@]+@[^\s@]+/i.test(quote));
+  const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:should|must|shall|may|can|will)\s+)|(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+))?(?:immediately\s+)?/i,'');
+  const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
+  // Receiving a label/confirmation, or being told an action is not required,
+  // is information rather than an affirmative instruction to perform a handoff.
+  const externalAction=affirmative&&(/\b(?:return|ship|mail)\b/i.test(instruction)||/\bcontact\b[^.!?]{0,160}\b(?:refund|remedy)\b/i.test(instruction)||/\b(?:register|registration|sign in|log in)\b/i.test(instruction)||/\breply\b[^.!?]{0,160}\b(?:e-?mail|confirmation)\b/i.test(instruction)||/\b(?:e-?mail|send|submit|upload|provide)\b[^.!?]{0,240}[^\s@]+@[^\s@]+/i.test(instruction));
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(!direct.test(quote.trim())||conditional)issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');

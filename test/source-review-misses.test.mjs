@@ -28,13 +28,18 @@ test('previously published version-three source policies require a fresh review 
  assert.throws(()=>assertExecutableCampaign({sourceDigest:'fixture',sourcePolicyVersion:3,sourceRemedies:[photo],fields:[field]}),/Review and republish/);
 });
 
-for(const quote of ['Consumers should return the recalled product to the store for a refund.','Consumers should contact the manufacturer for a refund.','Reply to the confirmation email with the required photograph attached.','Consumers should register for the recall before submitting a photograph.','Consumers should email a photograph of the product to recall@example.com.'])test('an external handoff cannot be waived as information: '+quote,()=>{
+for(const quote of ['Consumers should return the recalled product to the store for a refund.','Consumers should contact the manufacturer for a refund.','Reply to the confirmation email with the required photograph attached.','Consumers should register for the recall before submitting a photograph.','Consumers should email a photograph of the product to recall@example.com.','Upload one photograph to recall@example.com.','Please return the recalled product to the store.','Ship the unit using the prepaid label.'])test('an external handoff cannot be waived as information: '+quote,()=>{
  const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive the external handoff.'}];
  assert.equal(sourceCoverage(source,[field],decisions)[1].disposition,'MANUAL');assert.throws(()=>assertExecutableSource(source,[field],decisions),/manual|handoff/);
+ if(/photograph|photo/i.test(quote))assert.throws(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]),/manual|handoff/);
 });
 test('stop-use advice and prohibitions do not create a required external handoff',()=>{
  for(const quote of ['Consumers should stop using the product immediately.','Do not return the product to the store.','Do not email personal information to recall@example.com.','Consumers should not return the product to the store.','The manufacturer will contact the customer about the refund.'])assert.equal(sourceInstructionProfile(quote).externalAction,false);
 });
 test('version-four source publications need fresh review after external handoff checks change',()=>{
  assert.throws(()=>assertExecutableCampaign({sourceDigest:'fixture',sourcePolicyVersion:4,sourceRemedies:[photo],fields:[field]}),/Review and republish/);
+});
+
+for(const quote of ['Consumers are not required to return the product to the store.','Consumers will receive a prepaid return label from the manufacturer.','Consumers will be provided with a return label.','Consumers do not need to register for the recall.'])test('informational or waived customer handoffs remain reviewable as information: '+quote,()=>{
+ const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Describes a waived step or receiving a label, not a customer handoff.'}];assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.equal(sourceCoverage(source,[field],decisions)[1].disposition,'INFORMATION');assert.doesNotThrow(()=>assertExecutableSource(source,[field],decisions));
 });

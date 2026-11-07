@@ -51,7 +51,7 @@ export function sourceInstructionProfile(quote){
   const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|fill out|complete|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
   // Receiving a label/confirmation, or being told an action is not required,
   // is information rather than an affirmative instruction to perform a handoff.
-  const actionStart='(?:^(?:please\\s+)?|(?:,\\s*|\\b(?:and|then)\\s+))';
+  const actionStart='(?:^(?:please\\s+)?|(?:[,;:—–]\\s*|\\b(?:and|then)\\s+))';
   const handoffPatterns=[
     new RegExp(actionStart+'(?:return|ship|mail)\\b','i'),
     new RegExp(actionStart+'contact\\b[^.!?]{0,160}\\b(?:refund|remedy)\\b','i'),

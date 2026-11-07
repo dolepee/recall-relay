@@ -48,10 +48,19 @@ export function sourceInstructionProfile(quote){
   // a photograph cannot establish a physical return, registration or inbox reply.
   // Negative advice does not itself ask the customer to perform a handoff.
   const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?/i,'');
-  const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
+  const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|fill out|complete|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
   // Receiving a label/confirmation, or being told an action is not required,
   // is information rather than an affirmative instruction to perform a handoff.
-  const externalAction=affirmative&&(/\b(?:return|ship|mail)\b/i.test(instruction)||/\bcontact\b[^.!?]{0,160}\b(?:refund|remedy)\b/i.test(instruction)||/\b(?:register|registration|sign in|log in)\b/i.test(instruction)||/\breply\b[^.!?]{0,160}\b(?:e-?mail|confirmation)\b/i.test(instruction)||/\b(?:e-?mail|send|submit|upload|provide)\b[^.!?]{0,240}[^\s@]+@[^\s@]+/i.test(instruction));
+  const actionStart='(?:^(?:please\\s+)?|(?:,\\s*|\\b(?:and|then)\\s+))';
+  const handoffPatterns=[
+    new RegExp(actionStart+'(?:return|ship|mail)\\b','i'),
+    new RegExp(actionStart+'contact\\b[^.!?]{0,160}\\b(?:refund|remedy)\\b','i'),
+    new RegExp(actionStart+'(?:register|sign in|log in|(?:fill out|complete) (?:an?|the) (?:online )?registration form)\\b','i'),
+    new RegExp(actionStart+'reply\\b[^.!?]{0,160}\\b(?:e-?mail|confirmation)\\b','i'),
+    new RegExp(actionStart+'e-?mail\\b','i'),
+    /\b(?:send|submit|upload|provide)\b[^.!?]{0,240}\bto\s+[^\s@]+@[^\s@]+/i,
+  ];
+  const externalAction=affirmative&&handoffPatterns.some(pattern=>pattern.test(instruction));
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(!direct.test(quote.trim())||conditional)issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');

@@ -43,3 +43,7 @@ test('version-four source publications need fresh review after external handoff 
 for(const quote of ['Consumers are not required to return the product to the store.','Consumers will receive a prepaid return label from the manufacturer.','Consumers will be provided with a return label.','Consumers do not need to register for the recall.'])test('informational or waived customer handoffs remain reviewable as information: '+quote,()=>{
  const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Describes a waived step or receiving a label, not a customer handoff.'}];assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.equal(sourceCoverage(source,[field],decisions)[1].disposition,'INFORMATION');assert.doesNotThrow(()=>assertExecutableSource(source,[field],decisions));
 });
+
+for(const quote of ['Upload one photograph of the return label.','Upload one photograph of the e-mail receipt.','Upload one photograph of the registration card.'])test('a handoff noun in a photograph instruction is not itself an external action: '+quote,()=>{
+ assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]));
+});

@@ -35,3 +35,7 @@ test('unsupported mutation requests receive a server-owned refusal with no view 
  const {desk,db}=make();const ai={generate:async()=>JSON.stringify({tool:'UNSUPPORTED',view:null,answer:'Cannot pay',citations:[]}),status:()=>({model:'double'})};
  const result=await answerClaimQuestion(ai,desk,{question:'Pay everyone'});assert.equal(result.view,null);assert.equal(result.readOnly,true);assert.match(result.answer,/require the merchant controls/);db.close();
 });
+import {validateView} from '../src/source-workspace.mjs';
+test('the legacy assistant endpoint does not return the new filter to already-open older clients',()=>{
+ assert.throws(()=>validateView('{"view":"OPEN"}'),/supported view/);assert.equal(validateView('REVIEW'),'REVIEW');
+});

@@ -2,7 +2,7 @@ import {hasSourceCondition} from './source-conditions.mjs';
 import {externalDependencies} from './external-sources.mjs';
 function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}
 const KINDS=['PHOTO','CONFIRMATION','TEXT'];
-const PHOTO_CUE=/\b(photo|photograph|photographs|photos|picture|pictures|image|images)\b/i;
+const PHOTO_CUE=/\b(photo|photograph|photographing|photographs|photos|picture|pictures|image|images)\b/i;
 const CONFIRM_CUE=/\b(confirm|confirms|confirmed|confirmation|confirmations|attest|attests|attested|attestation|attestations|certify|certifies|certification|certifications|verify|verifies|declare|declares|declaration|declarations)\b/i;
 const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|include|write|tell(?:\s+us)?)\b(?:(?!\b(?:photo|photos|photograph|photographs|picture|pictures|image|images)\b)[^.!?]){0,60}?\b(?:(?:serial|batch|lot|model|order|item|product)\s+)?(?:number|code|identifier|description|name|address|date|receipt|invoice|amount|price|quantity|size|color)\b/i;
 
@@ -11,7 +11,10 @@ const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|includ
 // by keyword. A field fails only when its declared response type does not match
 // what the quoted instruction actually asks the customer to do.
 export function aiFieldProblem({kind,quote}){
-  if(/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(quote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
+  const responseQuote=((kind==='TEXT'&&TEXT_CUE.test(quote))||(kind==='CONFIRMATION'&&CONFIRM_CUE.test(quote)))?quote.replace(/\b(?:a |an |the )?(?:photo|photograph|picture|image)s?\s+(?:is|are)\s+not (?:required|necessary)\b|\bno (?:photo|photograph|picture|image)s? (?:is|are) (?:required|necessary)\b/gi,''):quote;
+  if(/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(responseQuote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
+  const explicitPhoto=/\b(?:upload|submit|send|e-?mail|take|provide)\b/i.test(quote)||/(?:^|[;,:]\s*|\b(?:consumers?|customers?|you)\s+(?:(?:should|must|shall|may|can)\s+|(?:will be|are)\s+asked to\s+|need to\s+)?)photograph\s+/i.test(quote)||/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote);
+  if(kind==='PHOTO'&&!explicitPhoto&&/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm)\s+(?:receives?|has received|received)\b[^.!?]{0,120}\b(?:photo|photograph|image|proof|evidence)\b/i.test(quote)&&/\b(?:consumers?|customers?|you)\s+(?:will|may|can|should)\s+receive\b/i.test(quote))return 'Business receipt of evidence and a later refund do not request another customer response.';
   if(/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm|we)\s+(?:will|shall|must|may|can)\s+(?:confirm|verify|provide|send|issue|take|supply)\b/i.test(quote))return 'This sentence describes an action by the business. Review the responsible actor before creating a customer field.';
   if(kind==='CONFIRMATION'&&/\b(?:you|consumers?|customers?)\s+(?:will|may|should|can)\s+(?:be sent|receive)\b/i.test(quote))return 'Receiving a confirmation is not a customer attestation request.';
   if(kind==='PHOTO'&&!PHOTO_CUE.test(quote))return 'A photograph field needs a request for a photograph or image.';
@@ -35,7 +38,7 @@ function sentenceSpans(text){
 export function sourceClauses(source){
   return source.remedies.flatMap((text,p)=>sentenceSpans(text).map((span,i)=>({id:`clause-${p}-${i}`,quote:text.slice(span.start,span.end).trim()})));
 }
-export const SOURCE_POLICY_VERSION=5;
+export const SOURCE_POLICY_VERSION=6;
 // A bounded executable subset, not a general natural-language policy engine.
 // Drafts may retain richer quotations for review; only direct, unconditional,
 // pre-refund customer responses with one photo can become an executable form.

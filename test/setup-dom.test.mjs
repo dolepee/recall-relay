@@ -69,7 +69,7 @@ for(const republish of [false,true])for(const phase of ['activate','refresh'])fo
 }
 for(const phase of ['action','refresh'])for(const returnToA of [false,true]){
  const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No payment calls permitted');}});
- const ai={status:()=>({available:true,model:'INJECTED TEST DOUBLE'}),generate:async(_prompt,source)=>JSON.stringify({requirements:[{kind:'PHOTO',quote:source.remedies[0]},{kind:'TEXT',quote:source.remedies[1]}]})};
+ const ai={status:()=>({available:true,model:'INJECTED TEST DOUBLE'}),generate:async(_prompt,input)=>JSON.stringify({clauses:input.clauses.map((c,i)=>({clauseId:c.clauseId,kinds:[i===0?'PHOTO':'TEXT']}))})};
  const ws=new SourceWorkspace(desk.db,{ai,loadSource:async n=>({recallNumber:n,title:`Synthetic notice ${n}`,products:[{name:`Synthetic ${n}`}],description:'Local DOM fixture',retrievedAt:'2026-10-24T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:n.padEnd(64,'a'),remedies:[`Upload a photograph for notice ${n}.`,`Provide the printed serial number for notice ${n}.`],requirements:[]})});
  const prepare=async n=>{let r=await ws.import(n);r=ws.addField(r.id,{revision:r.revision,kind:'PHOTO',quote:r.source.remedies[0]});return ws.review(r.id,{revision:r.revision,fieldIds:r.suggestion.requirements.map(f=>f.id),confirmed:true});};
  const a=await prepare('27026'),b=await prepare('27027');

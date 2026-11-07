@@ -9,7 +9,7 @@ import {readFile} from 'node:fs/promises';
 
 test('the complete fictional source fits the unchanged source policy and requires human publication',async()=>{
  const db=new DatabaseSync(':memory:');let calls=0;const kinds=['PHOTO','TEXT','CONFIRMATION'];
- const ai={status:()=>({available:true,model:'scripted-test-double'}),generate:async()=>{calls++;return JSON.stringify({requirements:exampleNotice.remedies.slice(0,3).map((quote,i)=>({kind:kinds[i],quote}))});}};
+ const ai={status:()=>({available:true,model:'scripted-test-double'}),generate:async(_system,input)=>{calls++;return JSON.stringify({clauses:input.clauses.map((c,i)=>({clauseId:c.clauseId,kinds:i<3?[kinds[i]]:[]}))});}};
  const ws=new SourceWorkspace(db,{loadSource:()=>{throw Error('Must not fetch CPSC');},ai});const settings=new Map();const desk={setSetting:(k,v)=>settings.set(k,v)};
  try{
  let row=ws.example();assert.equal(row.source.originType,'MERCHANT_TEST_NOTICE');assert.equal(row.suggestion,null);assert.equal(settings.size,0);assert.equal(calls,0);

@@ -35,3 +35,12 @@ those actions. This is a bounded lexical safeguard, not complete instruction
 interpretation; the merchant must review the full notice. Older unexecuted source
 campaigns require republication. Completed receipts and recovery/readback of
 already-attempted refunds retain their existing behavior.
+
+Source policy version6 recognises a photo being taken/photographing as a draft
+candidate and keeps a photo waiver from cancelling a separate written or
+confirmation request. Optional/conditional and outside steps still require
+manual handling under the existing executable subset. Source drafting classifies
+server-issued sentence IDs and the server restores complete quotations; missing,
+duplicate or unknown IDs reject the draft. It never publishes or approves a
+refund. Old saved fields remain visible; new sourced execution requires renewed
+review under the current policy.

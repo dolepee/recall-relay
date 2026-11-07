@@ -5,13 +5,15 @@ export function advisoryFidelityIssue(quote,value){
  const q=quote.toLowerCase(),e=value.explanation.toLowerCase();
  let actor='UNKNOWN';
  const conditional=sourceConditionQuote(quote);
- const subject=conditional&&quote.trimStart().startsWith(conditional)&&q.includes(',')?q.slice(q.indexOf(',')+1).trim():q;
- if(/^(?:consumers?|customers?|you)\b/.test(subject)||/^(?:upload|submit|provide|confirm|attest|stop|do not|never|unplug|cut|remove|contact|register|return)\b/.test(subject))actor='CUSTOMER';
- else if(/^(?:the )?(?:manufacturer|company|firm|we)\b/.test(q))actor='MANUFACTURER';
- else if(/^(?:the )?(?:merchant|retailer)\b/.test(q))actor='MERCHANT';
- else if(/^(?:paypal|the payment provider)\b/.test(q))actor='PROVIDER';
+ let subject=conditional&&quote.trimStart().startsWith(conditional)&&q.includes(',')?q.slice(q.indexOf(',')+1).trim():q;
+ if(/^(?:before|after|following|upon receipt)\b[^,]+,\s*/i.test(subject))subject=subject.replace(/^(?:before|after|following|upon receipt)\b[^,]+,\s*/i,'');
+ subject=subject.replace(/^please\s+/i,'');
+ if(/^(?:consumers?|customers?|you)\b/.test(subject)||/^(?:upload|submit|provide|enter|supply|state|describe|identify|list|include|write|tell|photograph|confirm|attest|stop|do not|never|unplug|cut|remove|contact|register|return)\b/.test(subject))actor='CUSTOMER';
+ else if(/^(?:the )?(?:manufacturer|company|firm|we)\b/.test(subject))actor='MANUFACTURER';
+ else if(/^(?:the )?(?:merchant|retailer)\b/.test(subject))actor='MERCHANT';
+ else if(/^(?:paypal|the payment provider)\b/.test(subject))actor='PROVIDER';
  if(value.actor!=='UNKNOWN'&&value.actor!==actor)return 'Actor lacks a supported source anchor.';
- const before=/\bbefore\b|prior to/.test(q),after=/\bafter\b|following|upon receipt|once (?:the |your )?(?:refund|payment)/.test(q),at=/\bat (?:the time of )?submission\b|\bwhen submitting\b/.test(q);
+ const before=/\bbefore\b|prior to/.test(q),after=/\bafter\b|following|upon receipt|once (?:the |your )?(?:refund|payment)|\bonce\b[^.!?]{0,80}\b(?:receives?|received|arrives?|arrived|completed)\b/.test(q),at=/\bat (?:the time of )?submission\b|\bwhen submitting\b/.test(q);
  const expected=conditional?'CONDITIONAL':before&&!after?'BEFORE_ACTION':after&&!before?'AFTER_ACTION':at?'AT_SUBMISSION':'UNSPECIFIED';
  if(value.timing!==expected)return 'Timing differs from the supported source sequence.';
  if(conditional){if(value.condition?.replace(/[,;.!?]+$/,'').toLowerCase()!==conditional.toLowerCase())return 'A complete applicability condition was not preserved.';}

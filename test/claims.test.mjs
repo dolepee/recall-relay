@@ -28,7 +28,7 @@ function access(item){return item.claimUrl.split('#')[1];}
 function ready(desk,item){const a=access(item);desk.submit(a,{revision:0,lot:'LOT-A',acknowledged:true,photo});return desk.review(item.id,{revision:1,confirmed:true});}
 async function publishScenario(desk,{route='ORIGINAL_PAYMENT_CANDIDATE'}={}){
   const quotes=['Upload a photograph of the product label.','Confirm the required step described in the original notice.'];
-  const ws=new SourceWorkspace(desk.db,{loadSource:async()=>({title:'Test source',recallNumber:'27026',products:[{name:'Scenario product'}],sourceUrl:'https://www.cpsc.gov/Recalls/2026/Test',sourceDigest:'b'.repeat(64),route,remedies:quotes}),ai:{status:()=>({model:'test-double'}),generate:async()=>JSON.stringify({requirements:[{kind:'PHOTO',quote:quotes[0]},{kind:'CONFIRMATION',quote:quotes[1]}]})}});
+  const ws=new SourceWorkspace(desk.db,{loadSource:async()=>({title:'Test source',recallNumber:'27026',products:[{name:'Scenario product'}],sourceUrl:'https://www.cpsc.gov/Recalls/2026/Test',sourceDigest:'b'.repeat(64),route,remedies:quotes}),ai:{status:()=>({model:'test-double'}),generate:async(_prompt,input)=>JSON.stringify({clauses:input.clauses.map((c,i)=>({clauseId:c.clauseId,kinds:[i===0?'PHOTO':'CONFIRMATION']}))})}});
   const row=await ws.import('27026');const suggested=await ws.suggest(row.id,1);const reviewed=ws.review(row.id,{revision:2,fieldIds:suggested.suggestion.requirements.map(f=>f.id),confirmed:true});
   return {ws,reviewed,activate:()=>ws.activate(row.id,{revision:reviewed.revision,sku:'NEW-ITEM',lot:'LOT-B',confirmed:true},desk)};
 }
@@ -323,7 +323,7 @@ test('republishing an earlier setup switches new purchases to it and leaves exis
   const s=setup();try{
     const build=async(n,sku,lot)=>{
       const quotes=[`Upload a photograph of the label for notice ${n}.`,`Confirm the printed serial number for notice ${n}.`];
-      const ws=new SourceWorkspace(s.desk.db,{loadSource:async()=>({title:`Notice ${n}`,recallNumber:n,products:[{name:`Product ${n}`}],route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://www.cpsc.gov/Recalls/2026/Test',sourceDigest:String(n).padEnd(64,'c').slice(0,64),remedies:quotes}),ai:{status:()=>({model:'test-double'}),generate:async()=>JSON.stringify({requirements:[{kind:'PHOTO',quote:quotes[0]},{kind:'CONFIRMATION',quote:quotes[1]}]})}});
+      const ws=new SourceWorkspace(s.desk.db,{loadSource:async()=>({title:`Notice ${n}`,recallNumber:n,products:[{name:`Product ${n}`}],route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://www.cpsc.gov/Recalls/2026/Test',sourceDigest:String(n).padEnd(64,'c').slice(0,64),remedies:quotes}),ai:{status:()=>({model:'test-double'}),generate:async(_prompt,input)=>JSON.stringify({clauses:input.clauses.map((c,i)=>({clauseId:c.clauseId,kinds:[i===0?'PHOTO':'CONFIRMATION']}))})}});
       let row=await ws.import(n);row=await ws.suggest(row.id,row.revision);
       row=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});
       return {ws,row,activate:()=>ws.activate(row.id,{revision:ws.get(row.id).revision,sku,lot,confirmed:true},s.desk)};

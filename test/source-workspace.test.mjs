@@ -1,10 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {SourceWorkspace,sourcePrompt,validateSourceSuggestion,validateManualField,validateView,assistCases} from '../src/source-workspace.mjs';
+import {SourceWorkspace as ActualSourceWorkspace,sourcePrompt,validateSourceSuggestion,validateManualField,validateView,assistCases} from '../src/source-workspace.mjs';
 import {ClaimDesk} from '../src/claims.mjs';
 import {campaignIdFor} from '../src/publication.mjs';
 
+// Transport fixtures below are authored as source quotations for readability.
+// The fake model classifies their corresponding sentence IDs, like production.
+class SourceWorkspace extends ActualSourceWorkspace {
+ constructor(db,options){const ai=options.ai;super(db,{...options,ai:{...ai,generate:async(system,input,...rest)=>{
+  const raw=await ai.generate(system,input,...rest);if(!input.clauses)return raw;
+  let value;try{value=JSON.parse(raw);}catch{return raw;}
+  if(!value.requirements)return raw;
+  const mapped=value.requirements.map(r=>({...r,matches:input.clauses.filter(c=>c.quote.includes(r.quote))}));if(mapped.some(r=>r.matches.length!==1))return raw;
+  return JSON.stringify({clauses:input.clauses.map(c=>({clauseId:c.clauseId,kinds:mapped.filter(r=>r.matches[0].clauseId===c.clauseId).map(r=>r.kind)}))});
+ }}});}
+}
 const quote='Upload a photo of the label and confirm the product serial number.';
 const source={title:'Public notice',remedies:[quote],sourceUrl:'https://www.cpsc.gov/Recalls/2026/Example',sourceDigest:'a'.repeat(64)};
 const raw=JSON.stringify({requirements:[{kind:'PHOTO',quote}]});
@@ -100,13 +111,13 @@ test('regeneration retains unchanged field identities without reusing replaced f
     row=await ws.suggest(row.id,row.revision);const original=row.suggestion.requirements[0];
     response=JSON.stringify({requirements:[{kind:'CONFIRMATION',quote:other},{kind:'PHOTO',quote}]});
     row=await ws.suggest(row.id,row.revision);
-    assert.deepEqual(row.suggestion.requirements[1],original);
-    assert.notEqual(row.suggestion.requirements[0].id,original.id);
-    const added=row.suggestion.requirements[0];
+    assert.deepEqual(row.suggestion.requirements.find(f=>f.quote===quote),original);
+    assert.notEqual(row.suggestion.requirements.find(f=>f.quote===other).id,original.id);
+    const added=row.suggestion.requirements.find(f=>f.quote===other);
     response=JSON.stringify({requirements:[{kind:'TEXT',quote:identifier},{kind:'CONFIRMATION',quote:other}]});
     row=await ws.suggest(row.id,row.revision);
-    assert.deepEqual(row.suggestion.requirements[1],added);
-    assert.notEqual(row.suggestion.requirements[0].id,original.id);
+    assert.deepEqual(row.suggestion.requirements.find(f=>f.quote===other),added);
+    assert.notEqual(row.suggestion.requirements.find(f=>f.quote===identifier).id,original.id);
     assert.equal(new Set(row.suggestion.requirements.map(f=>f.id)).size,2);
   }finally{db.close();}
 });

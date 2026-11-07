@@ -5,9 +5,19 @@ and resolve an eligible refund to the original PayPal payment. Reviewed notice
 instructions and the exact customer evidence revision stay linked to settlement.
 The customer returns to the same private page for a confirmed receipt.
 
-This build uses fictional merchandise and **PayPal Sandbox**. Public CPSC
-notices supply scenarios; importing one does not create a manufacturer
+This build uses fictional merchandise and **PayPal Sandbox**. A complete merchant-authored
+fictional test notice supplies the supported connected example. Public CPSC imports remain
+separate and may require manual handling; importing one does not create a manufacturer
 relationship or register a real recall claim.
+
+Start the [connected AI + PayPal Sandbox workflow](https://recall-relay.dolepee.com/setup?example=relay-home):
+load the Relay Home test notice, request a live AI draft, review the quoted fields,
+and explicitly publish the scenario. Loading the notice starts no payment action.
+The claims desk then supports a Sandbox buyer-approved purchase, customer evidence,
+merchant review and an explicitly approved partial refund with PayPal readback.
+Checkout requires a PayPal Sandbox buyer account; only test funds are used.
+The prepared review note is labelled and is not a recorded merchant review or AI result.
+Read the [complete fictional test notice](https://recall-relay.dolepee.com/assets/relay-home-notice.html).
 
 Try the [synthetic reconciliation example](https://recall-relay.dolepee.com/practice/reconciliation)
 without an account, or complete a [guided simulated claim](https://recall-relay.dolepee.com/practice).

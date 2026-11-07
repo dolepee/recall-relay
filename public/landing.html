@@ -55,6 +55,8 @@ h3{font-size:1.15rem}
 .nav a:hover{color:var(--ink);background:var(--canvas)}
 .btn{display:inline-flex;min-height:48px;align-items:center;justify-content:center;gap:8px;padding:0 20px;border-radius:8px;border:1px solid transparent;background:var(--action);color:#fff;font:600 15px/1.2 var(--font);text-decoration:none;cursor:pointer}
 .btn:hover{background:var(--action-hover)}
+.btn.secondary{background:var(--surface);color:var(--action);border-color:var(--border);padding-top:12px;padding-bottom:12px}
+.btn.secondary:hover{background:var(--canvas)}
 .nav .btn{margin-left:8px;padding:0 18px;color:#fff}
 .mobile-menu{display:none;position:relative;margin-left:auto}
 .mobile-menu summary{list-style:none;min-height:44px;display:inline-flex;align-items:center;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:650;cursor:pointer}
@@ -188,14 +190,14 @@ h3{font-size:1.15rem}
     <nav class="nav" aria-label="Product navigation">
       <a href="#relay">How it works</a>
       <a href="/desk">Sandbox workspace</a>
-      <a class="btn" href="/practice/reconciliation">Try reconciliation</a>
+      <a class="btn" href="/setup?example=relay-home">Try AI + PayPal Sandbox</a>
     </nav>
     <details class="mobile-menu">
       <summary>Menu</summary>
       <nav aria-label="Product navigation">
         <a href="#relay">How it works</a>
         <a href="/desk">Sandbox workspace</a>
-        <a href="/practice/reconciliation">Try reconciliation</a>
+        <a href="/setup?example=relay-home">Try AI + PayPal Sandbox</a>
       </nav>
     </details>
   </div>
@@ -208,9 +210,9 @@ h3{font-size:1.15rem}
         <h1 id="hero-title">Resolve recall claims. Refund the <em>right item.</em></h1>
         <p class="hero-lede">Compare purchases with recall instructions. See what needs evidence or purchase checks, then review an affected item’s refund to its original PayPal payment.</p>
         <div class="hero-cta">
-          <a class="btn" href="/practice/reconciliation">Try reconciliation <span aria-hidden="true">→</span></a>
-        </div>
-        <p class="cta-note">Synthetic example. No login or funds needed.</p>
+          <a class="btn" href="/setup?example=relay-home">Try AI + PayPal Sandbox <span aria-hidden="true">→</span></a>
+        <a class="btn secondary" href="/practice/reconciliation">Try without a PayPal login</a></div>
+        <p class="cta-note">Real AI drafting and PayPal Sandbox APIs. Fictional test merchandise; checkout needs a Sandbox buyer login.</p>
       </div>
       <aside class="example" aria-labelledby="example-title">
         <div class="example-head">
@@ -260,11 +262,11 @@ h3{font-size:1.15rem}
         </div>
       </div>
       <div class="faq">
-        <div><h3>Practice or Sandbox?</h3><p class="section-lede">Start with fictional reconciliation or a guided claim. Use the Sandbox workspace for the connected merchant flow.</p></div>
+        <div><h3>Practice or Sandbox?</h3><p class="section-lede">Start with the connected test notice for live AI drafting and PayPal Sandbox. The separate practice routes simulate the workflow without a PayPal login.</p></div>
         <div class="faq-list">
           <details><summary>What is reconciliation?</summary><p>Try a synthetic purchase ledger without logging in. Apply a planning assumption to a missing lot, inspect blocked duplicates and open a fictional linked claim. No PayPal or live AI call is made, and no funds move.</p></details>
           <details><summary>What is the guided claim?</summary><p>A fictional claim with a sample label, a separate cup and tray allocation, and a simulated receipt. No PayPal account is needed and no funds move.</p></details>
-          <details><summary>What is the Sandbox workspace?</summary><p>The merchant workspace for a verified Sandbox purchase. It uses test funds and fictional merchandise; payment actions still require the existing authorization and review.</p></details>
+          <details><summary>What is the Sandbox workspace?</summary><p>Load a complete fictional test notice, generate source-linked fields with live AI, and review each instruction before publication. Then open the merchant workspace for a verified Sandbox purchase. It uses test funds and fictional merchandise; payment actions still require the existing authorization and review.</p></details>
           <details><summary>Does approval move money?</summary><p>Not in practice. In the Sandbox, a refund is a test-fund provider action and is only shown as complete after the provider confirms it.</p></details>
           <details><summary>Where does the money return?</summary><p>To the original PayPal payment, for the affected item only. The excluded tray is not included.</p></details>
         </div>
@@ -274,8 +276,8 @@ h3{font-size:1.15rem}
 
   <section class="end" aria-labelledby="end-title">
     <div class="shell end-inner">
-      <div><h2 id="end-title">Start with the affected item.</h2><p>Try a fictional purchase ledger first, then explore the guided claim or Sandbox workspace.</p></div>
-      <div><a class="btn" href="/practice/reconciliation">Try reconciliation <span aria-hidden="true">→</span></a><p>Simulated. No funds move.</p></div>
+      <div><h2 id="end-title">Start with the affected item.</h2><p>Load the supported fictional notice, review the AI draft, then continue to the connected claims desk.</p></div>
+      <div><a class="btn" href="/setup?example=relay-home">Try AI + PayPal Sandbox <span aria-hidden="true">→</span></a><p>PayPal Sandbox uses test funds. Merchant approval required.</p></div>
     </div>
   </section>
 </main>

@@ -73,6 +73,7 @@ try{
   const invited=await call('/api/merchant/state',{cookie:invitation.cookie});assert.equal(invited.status,200);assert.equal(invited.value.cases.length,0);
   const alice=(await call('/api/merchant/state')).cookie,bob=(await call('/api/merchant/state')).cookie;
   const action=(path,body)=>call('/api/merchant/'+path,{cookie:alice,body});
+  const example=await action('source-example',{});assert.equal(example.status,200,JSON.stringify(example));assert.equal(example.value.source.originType,'MERCHANT_TEST_NOTICE');
   const imported=await action('source-import',{recallNumber:'27026'});assert.equal(imported.status,200,JSON.stringify(imported));
   assert.equal((await action('publish',{confirmed:true})).status,200);
   assert.equal((await call('/api/merchant/state',{cookie:bob})).value.published,false);

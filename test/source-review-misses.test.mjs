@@ -27,3 +27,14 @@ test('a supplied label and a passive contact link do not by themselves create ne
 test('previously published version-three source policies require a fresh review before new execution',()=>{
  assert.throws(()=>assertExecutableCampaign({sourceDigest:'fixture',sourcePolicyVersion:3,sourceRemedies:[photo],fields:[field]}),/Review and republish/);
 });
+
+for(const quote of ['Consumers should return the recalled product to the store for a refund.','Consumers should contact the manufacturer for a refund.','Reply to the confirmation email with the required photograph attached.','Consumers should register for the recall before submitting a photograph.','Consumers should email a photograph of the product to recall@example.com.'])test('an external handoff cannot be waived as information: '+quote,()=>{
+ const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive the external handoff.'}];
+ assert.equal(sourceCoverage(source,[field],decisions)[1].disposition,'MANUAL');assert.throws(()=>assertExecutableSource(source,[field],decisions),/manual|handoff/);
+});
+test('stop-use advice and prohibitions do not create a required external handoff',()=>{
+ for(const quote of ['Consumers should stop using the product immediately.','Do not return the product to the store.','Do not email personal information to recall@example.com.','Consumers should not return the product to the store.','The manufacturer will contact the customer about the refund.'])assert.equal(sourceInstructionProfile(quote).externalAction,false);
+});
+test('version-four source publications need fresh review after external handoff checks change',()=>{
+ assert.throws(()=>assertExecutableCampaign({sourceDigest:'fixture',sourcePolicyVersion:4,sourceRemedies:[photo],fields:[field]}),/Review and republish/);
+});

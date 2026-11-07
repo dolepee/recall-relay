@@ -108,3 +108,10 @@ test('a date or timing modifier cannot detach an affirmative upload from its des
  }
  assert.equal(externalDependencies({remedies:['Do not upload a receipt before September 15 on the recall website.']}).length,0,'a forbidden upload with a date remains forbidden');
 });
+test('completed and grammatically uncertain prerequisites retain external references conservatively',()=>{
+ for(const prerequisite of ['you have completed the instructions','you will have completed the instructions','the instructions have been completed','you have followed the instructions','you finish reading the instructions']){
+  const quote=`Do not use the product until ${prerequisite} on https://example.com/recall.`,source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive a completed-action prerequisite.'}];
+  assert.equal(externalDependencies(source).length,1,quote);assert.equal(sourceInstructionProfile(quote).externalAction,true,quote);
+  assert.throws(()=>assertExecutableSource(source,[field(photo)],decisions),/external instructions/);
+ }
+});

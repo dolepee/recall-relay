@@ -1,44 +1,45 @@
+import {sourceSentenceSpans as sentenceSpans} from './source-sentences.mjs';
 import {hasSourceCondition} from './source-conditions.mjs';
-import {externalDependencies} from './external-sources.mjs';
+import {externalDependencies,externalActionParts} from './external-sources.mjs';
 function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}
 const KINDS=['PHOTO','CONFIRMATION','TEXT'];
 const PHOTO_CUE=/\b(photo|photograph|photographing|photographs|photos|picture|pictures|image|images)\b/i;
 const CONFIRM_CUE=/\b(confirm|confirms|confirmed|confirmation|confirmations|attest|attests|attested|attestation|attestations|certify|certifies|certification|certifications|verify|verifies|declare|declares|declaration|declarations)\b/i;
 const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|include|write|tell(?:\s+us)?)\b(?:(?!\b(?:photo|photos|photograph|photographs|picture|pictures|image|images)\b)[^.!?]){0,60}?\b(?:(?:serial|batch|lot|model|order|item|product)\s+)?(?:number|code|identifier|description|name|address|date|receipt|invoice|amount|price|quantity|size|color)\b/i;
 
+const accompanyingText=/\b(?:send|submit|upload|provide)\b[^.!?]{0,160}\b(?:along with|together with|and include)\s+(?:your |the )?(?:name|address|postcode|postal code|telephone number|phone number)\b/i;
+// Dots in an e-mail destination do not end the request for a following value.
+const textRequest=quote=>TEXT_CUE.test(quote.replace(/[^\s@<>]+@[^\s@<>]+/g,'destination'))||accompanyingText.test(quote);
+
 // Applies to assistant output only. The notice may legitimately contain disposal
 // attestations, URLs, e-mail destinations or contact text; those are not rejected
 // by keyword. A field fails only when its declared response type does not match
 // what the quoted instruction actually asks the customer to do.
 export function aiFieldProblem({kind,quote}){
-  const responseQuote=((kind==='TEXT'&&TEXT_CUE.test(quote))||(kind==='CONFIRMATION'&&CONFIRM_CUE.test(quote)))?quote.replace(/\b(?:a |an |the )?(?:photo|photograph|picture|image)s?\s+(?:is|are)\s+not (?:required|necessary)\b|\bno (?:photo|photograph|picture|image)s? (?:is|are) (?:required|necessary)\b/gi,''):quote;
+  // Scope response typing to the relevant part of a mixed sentence. The full
+  // quotation remains attached, and publication keeps mixed waivers manual.
+  const typedQuote=quote.replace(/\((?:not (?:required|necessary)|optional)\)/gi,'');
+  const parts=typedQuote.split(/;|\bbut\b/i);
+  const relevant=parts.filter(part=>kind==='PHOTO'?PHOTO_CUE.test(part):kind==='TEXT'?textRequest(part):CONFIRM_CUE.test(part));
+  const candidate=relevant.length?relevant.join('; '):typedQuote;
+  const responseQuote=((kind==='TEXT'&&textRequest(candidate))||(kind==='CONFIRMATION'&&CONFIRM_CUE.test(candidate)))?candidate.replace(/\b(?:a |an |the )?(?:photo|photograph|picture|image)s?\s+(?:is|are)\s+not (?:required|necessary)\b|\bno (?:photo|photograph|picture|image)s? (?:is|are) (?:required|necessary)\b/gi,''):candidate;
   if(/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(responseQuote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
   const explicitPhoto=/\b(?:upload|submit|send|e-?mail|take|provide)\b/i.test(quote)||/(?:^|[;,:]\s*|\b(?:consumers?|customers?|you)\s+(?:(?:should|must|shall|may|can)\s+|(?:will be|are)\s+asked to\s+|need to\s+)?)photograph\s+/i.test(quote)||/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote);
   if(kind==='PHOTO'&&!explicitPhoto&&/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm)\s+(?:receives?|has received|received)\b[^.!?]{0,120}\b(?:photo|photograph|image|proof|evidence)\b/i.test(quote)&&/\b(?:consumers?|customers?|you)\s+(?:will|may|can|should)\s+receive\b/i.test(quote))return 'Business receipt of evidence and a later refund do not request another customer response.';
   if(/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm|we)\s+(?:will|shall|must|may|can)\s+(?:confirm|verify|provide|send|issue|take|supply)\b/i.test(quote))return 'This sentence describes an action by the business. Review the responsible actor before creating a customer field.';
   if(kind==='CONFIRMATION'&&/\b(?:you|consumers?|customers?)\s+(?:will|may|should|can)\s+(?:be sent|receive)\b/i.test(quote))return 'Receiving a confirmation is not a customer attestation request.';
   if(kind==='PHOTO'&&!PHOTO_CUE.test(quote))return 'A photograph field needs a request for a photograph or image.';
-  if(kind==='CONFIRMATION'&&!CONFIRM_CUE.test(quote))return 'A confirmation field needs an explicit confirm, attest, certify, verify or declare request, including its noun form.';
-  if(kind==='TEXT'&&!TEXT_CUE.test(quote))return 'A written field needs an explicit request for a value, identifier or description, not a photograph.';
+  if(kind==='CONFIRMATION'&&!CONFIRM_CUE.test(responseQuote))return 'A confirmation field needs an explicit confirm, attest, certify, verify or declare request, including its noun form.';
+  if(kind==='TEXT'&&!textRequest(responseQuote))return 'A written field needs an explicit request for a value, identifier or description, not a photograph.';
   return null;
 }
 
-const sentenceBreak=/(?<=[.!?])\s+(?=[A-Z])/g;
 const normalize=s=>s.replace(/\s+/g,' ').trim();
-function sentenceSpans(text){
-  const spans=[];let start=0;let match;sentenceBreak.lastIndex=0;
-  while((match=sentenceBreak.exec(text))){
-    if(text.slice(start,match.index).trim())spans.push({start,end:match.index});
-    start=match.index+match[0].length;
-  }
-  if(text.slice(start).trim())spans.push({start,end:text.length});
-  return spans;
-}
 // Every remedy sentence remains visible, including sentences the model omits.
 export function sourceClauses(source){
   return source.remedies.flatMap((text,p)=>sentenceSpans(text).map((span,i)=>({id:`clause-${p}-${i}`,quote:text.slice(span.start,span.end).trim()})));
 }
-export const SOURCE_POLICY_VERSION=6;
+export const SOURCE_POLICY_VERSION=7;
 // A bounded executable subset, not a general natural-language policy engine.
 // Drafts may retain richer quotations for review; only direct, unconditional,
 // pre-refund customer responses with one photo can become an executable form.
@@ -63,7 +64,8 @@ export function sourceInstructionProfile(quote){
     new RegExp(actionStart+'e-?mail\\b','i'),
     /\b(?:send|submit|upload|provide)\b[^.!?]{0,240}\bto\s+[^\s@]+@[^\s@]+/i,
   ];
-  const externalAction=affirmative&&handoffPatterns.some(pattern=>pattern.test(instruction));
+  const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0)||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
+  if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(!direct.test(quote.trim())||conditional)issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');

@@ -1,3 +1,4 @@
+import {sourceSentences} from './source-sentences.mjs';
 import {classifyRemedyRoute} from './remedy-route.mjs';
 import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
@@ -33,7 +34,7 @@ export function recallDraft(record, { retrievedAt = new Date().toISOString() } =
     recallDate:text(record.RecallDate),lastPublished:text(record.LastPublishDate),
   };
   // These are source excerpts, not generated disposal instructions or verified evidence.
-  const requirements = remedies.flatMap((value,index) => value.split(/(?<=[.!?])\s+(?=[A-Z])/)
+  const requirements = remedies.flatMap((value,index) => sourceSentences(value)
     .map(quote=>({field:`Remedies[${index}].Name`,quote,sourceUrl:source.href})));
   return {
     kind:'SOURCE_REVIEW_DRAFT',recallNumber:number,sourceUrl:source.href,retrievedAt,

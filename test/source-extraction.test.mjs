@@ -41,3 +41,10 @@ test('a business receiving a photo and the customer receiving a refund is not an
  const followup='Once the firm receives a photo, consumers will receive a refund after they send a photograph of the label.';
  const explicit=validateSourceDraft(JSON.stringify({clauses:[{clauseId:'clause-0-0',kinds:['PHOTO']}]}),{...s,remedies:[followup]});assert.equal(explicit.requirements.length,1);assert.ok(sourceFieldIssue(explicit.requirements[0]),'a later/multiple-photo workflow stays manual');
 });
+
+test('explicit photograph requests are retained beside business receipt information',()=>{
+ for(const quote of ['Consumers should photograph the label; once the firm receives the photo, consumers will receive a refund.','Photograph the label; once the firm receives the photo, consumers will receive a refund.','A photograph of the label is required; once the firm receives the photo, consumers will receive a refund.']){
+  const result=validateSourceDraft(JSON.stringify({clauses:[{clauseId:'clause-0-0',kinds:['PHOTO']}]}),{remedies:[quote],sourceUrl:'https://example.invalid',sourceDigest:'x'});assert.equal(result.requirements.length,1,quote);assert.ok(sourceFieldIssue(result.requirements[0]),'mixed receipt/timing and photo-count workflows remain manual');
+ }
+ const quote='Once the firm receives the photograph, consumers will receive a refund.';const result=validateSourceDraft(JSON.stringify({clauses:[{clauseId:'clause-0-0',kinds:['PHOTO']}]}),{remedies:[quote],sourceUrl:'https://example.invalid',sourceDigest:'x'});assert.equal(result.requirements.length,0);
+});

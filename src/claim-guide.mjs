@@ -21,7 +21,7 @@ function evidenceFor(desk,input){
     evidence.push({id:'case-review',text:`Photograph recorded: ${context.facts.photoPresent?'yes':'no'} (not authenticity). Lot matches: ${context.facts.lotMatches===null?'unknown':context.facts.lotMatches?'yes':'no'}. Review revision: ${context.facts.reviewRevision??'not recorded'}. Correction state: ${context.facts.correctionState||'none'}. Only latest evidence is available; earlier photograph/text changes are not reconstructed.`});
     if(item.status.code!=='COMPLETED')for(const [i,gap] of context.gaps.entries())evidence.push({id:`gap-${i+1}`,text:gap});
     if(!context.gaps.length||item.status.code==='COMPLETED')evidence.push({id:'case-gaps',text:item.status.code==='COMPLETED'?'Settlement complete. No further review or refund action.':'No recorded evidence gap. Human review and payment controls remain authoritative.'});
-    for(const c of context.clauses.slice(0,8))evidence.push({id:`source-${c.citationId}`,text:c.quote});
+    for(const c of context.clauses)evidence.push({id:`source-${c.citationId}`,text:c.quote});
   }
   // Fingerprint the full state on the server. Evidence/payment transitions need not
   // increment the customer revision; never return an answer from the older state.
@@ -30,7 +30,7 @@ function evidenceFor(desk,input){
 export async function answerClaimQuestion(ai,desk,input){
   if(!input||Object.keys(input).some(k=>!['question','caseId','revision'].includes(k))||typeof input.question!=='string'||!input.question.trim()||input.question.length>1500||input.caseId!==undefined&&(typeof input.caseId!=='string'||!Number.isSafeInteger(input.revision)))throw new Error('Ask a question under 1,500 characters about the current claim or workspace.');
   const snapshot=evidenceFor(desk,input);
-  if(JSON.stringify(snapshot.evidence).length>6500)throw new Error('This case is too long for a concise answer. Read its recorded brief and full source directly.');
+  if(JSON.stringify(snapshot.evidence).length>6500)throw new Error('The complete source and case records exceed the guide context limit. No partial source was sent or interpreted. Read the recorded brief and full notice directly.');
   const raw=await ai.generate(guidePrompt,{question:input.question,evidence:snapshot.evidence},{advisory:true,maxTokens:1200});
   let result;try{result=JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}catch{throw new Error('The guide could not produce a cited answer. Use the recorded brief or try again.');}
   // Unsupported requests always receive a server-owned refusal, even when the

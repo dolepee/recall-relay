@@ -39,3 +39,14 @@ import {validateView} from '../src/source-workspace.mjs';
 test('the legacy assistant endpoint does not return the new filter to already-open older clients',()=>{
  assert.throws(()=>validateView('{"view":"OPEN"}'),/supported view/);assert.equal(validateView('REVIEW'),'REVIEW');
 });
+test('source questions include the ninth and later reviewed clauses without silent truncation',async()=>{
+ const {desk,db}=make();const campaign=desk.campaignFor();campaign.coverage=Array.from({length:12},(_,i)=>({id:`clause-${i+1}`,quote:i===8?'Only purchases before the cutoff qualify.':`Public instruction ${i+1}.`,disposition:'INFORMATION'}));desk.campaignFor=()=>campaign;
+ let sent;const ai={generate:async(_prompt,input)=>{sent=input;return output({tool:'get_source_requirements',answer:'Read the complete cited condition before considering the claim.',citations:['source-clause-9']});},status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'What source conditions apply?',caseId:'a',revision:3});
+ assert.equal(sent.evidence.filter(e=>e.id.startsWith('source-')).length,12);assert.equal(result.citations[0].text,'Only purchases before the cutoff qualify.');db.close();
+});
+test('an oversized complete source refuses inference instead of sending an incomplete selection',async()=>{
+ const {desk,db}=make();const campaign=desk.campaignFor();campaign.coverage=Array.from({length:12},(_,i)=>({id:`clause-${i}`,quote:'Public instruction. '.repeat(40),disposition:'INFORMATION'}));desk.campaignFor=()=>campaign;
+ let calls=0;const ai={generate:async()=>{calls++;return output();},status:()=>({model:'double'})};
+ await assert.rejects(answerClaimQuestion(ai,desk,{question:'What source conditions apply?',caseId:'a',revision:3}),/No partial source was sent/);assert.equal(calls,0);db.close();
+});

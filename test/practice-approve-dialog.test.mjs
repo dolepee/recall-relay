@@ -18,8 +18,9 @@ dom.window.Element.prototype.getBoundingClientRect=function(){return {x:0,y:0,to
 await mkdir('.cache',{recursive:true});
 const bundleDir=await mkdtemp(resolve('.cache/practice-approve-'));
 after(async()=>{dom.window.close();await rm(bundleDir,{recursive:true,force:true});});
-await build({entryPoints:['ui/practice.jsx'],outdir:bundleDir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
+await build({entryPoints:['ui/practice.jsx','ui/system.jsx'],outdir:bundleDir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
 const {ApproveStage}=await import(pathToFileURL(`${bundleDir}/practice.js`).href);
+const {StageTrack}=await import(pathToFileURL(`${bundleDir}/system.js`).href);
 const React=await import('react');const {act}=React;const {createRoot}=await import('react-dom/client');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 const mounted=[];
@@ -44,4 +45,16 @@ test('the refund dialog labels the decision and submits only once',async()=>{
   assert.equal(calls,1,'a rapid double click submits one refund');
   await act(async()=>{release();await tick();});
   await act(async()=>root.unmount());container.remove();
+});
+
+ test('completed practice labels the simulated receipt and completes every progress step',async()=>{
+  const container=document.createElement('div');document.body.appendChild(container);const root=createRoot(container);
+  mounted.push(async()=>act(async()=>root.unmount()));
+  const completed={...value,case:{...value.case,locked:true,refund:{cents:2599,reference:'SIMULATED-TEST'}}};
+  await act(async()=>{root.render(React.createElement(React.Fragment,null,React.createElement(StageTrack,{current:3,complete:true}),React.createElement(ApproveStage,{value:completed,run:async()=>{},busy:false,error:'',stale:false,onRefresh:()=>{}})));await tick();});
+  assert.equal(text(document.querySelector('#claim-heading')),'Simulated refund recorded');
+  assert.match(text(container),/\$25\.99 simulated refund/);
+  assert.equal(document.querySelectorAll('.rr-stage[data-done="true"]').length,3);
+  assert.equal(document.querySelector('[aria-current="step"]'),null);
+  assert.match(text(container),/No provider was contacted|no provider was contacted|No funds moved|no funds moved/);
 });

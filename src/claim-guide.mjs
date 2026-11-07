@@ -11,7 +11,7 @@ const formatMoney=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'U
 function evidenceFor(desk,input){
   const state=desk.merchantState(),overview=incidentOverview(state.cases),evidence=[];
   evidence.push({id:'workspace',text:`${overview.claimCount} saved claims. ${overview.basis}`});
-  for(const g of overview.groups)evidence.push({id:`amount-${g.view}`,text:`${g.label}: ${g.count} claims; recorded amount ${formatMoney(g.amountCents)}${g.unknownAmounts?`; ${g.unknownAmounts} amounts unknown`:''}.`});
+  for(const g of overview.groups)evidence.push({id:`amount-${g.view}`,text:`${g.label}: ${g.count} claims; ${g.unknownAmounts?`INCOMPLETE subtotal: ${formatMoney(g.amountCents)} known; ${g.unknownAmounts} amounts unknown. A complete total cannot be established.`:`recorded amount ${formatMoney(g.amountCents)}.`}`});
   let context=null;
   if(input.caseId){
     const item=state.cases.find(c=>c.id===input.caseId);
@@ -25,7 +25,7 @@ function evidenceFor(desk,input){
   }
   // Fingerprint the full state on the server. Evidence/payment transitions need not
   // increment the customer revision; never return an answer from the older state.
-  return {evidence,contextDigest:hash(state),selected:context?{caseId:input.caseId,revision:input.revision,order:state.cases.find(c=>c.id===input.caseId)?.order||input.caseId}:null};
+  return {evidence,contextDigest:hash(state),selected:context?{caseId:input.caseId,revision:input.revision,order:state.cases.find(c=>c.id===input.caseId)?.order||input.caseId,statusCode:state.cases.find(c=>c.id===input.caseId)?.status.code}:null};
 }
 export async function answerClaimQuestion(ai,desk,input){
   if(!input||Object.keys(input).some(k=>!['question','caseId','revision'].includes(k))||typeof input.question!=='string'||!input.question.trim()||input.question.length>1500||input.caseId!==undefined&&(typeof input.caseId!=='string'||!Number.isSafeInteger(input.revision)))throw new Error('Ask a question under 1,500 characters about the current claim or workspace.');
@@ -44,6 +44,17 @@ export async function answerClaimQuestion(ai,desk,input){
     result.answer='The cited record shows the latest correction and review state. Earlier submissions are not reconstructed here, so the guide cannot say exactly which photo or response changed. Inspect the current evidence and correction record.';
     result.citations=['case-review'];
   }
+  if(result.tool==='get_financial_summary'){
+    // The model selects the question's focus; financial assertions come from code.
+    // An existing number in a different group cannot be recast as this group's total.
+    result.answer='The cited records separate evidence and review work, unresolved payment outcomes and completed receipts. An incomplete subtotal is not a zero total. These records cover this workspace, not total business liability or an approved refund balance.';
+    result.citations=[...new Set(['amount-OPEN','amount-PAYMENT','amount-COMPLETED',...result.citations.filter(id=>id.startsWith('amount-'))])].slice(0,6);
+  }
+  const lockedCase=snapshot.selected&&['COMPLETED','RESERVED','UNKNOWN','PENDING','FAILED','CANCELLED'].includes(snapshot.selected.statusCode)&&['get_case_brief','get_case_changes','get_evidence_gaps'].includes(result.tool);
+  if(lockedCase){
+    result.answer=snapshot.selected.statusCode==='COMPLETED'?'This claim is complete. Its recorded receipt is the result; no further evidence review or refund action is available.':'This claim already has a recorded payment attempt. Use its status and recovery controls to reconcile that attempt. A new evidence review or replacement refund is not available here.';
+    result.citations=['case-state','case-review'];
+  }
   const citations=result.citations.map(id=>snapshot.evidence.find(e=>e.id===id));
-  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':'AI explanation · check the cited records'}\n${result.answer.trim()}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
+  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${lockedCase?'Recorded case boundary':result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':result.tool==='get_financial_summary'?'Recorded financial summary':'AI explanation · check the cited records'}\n${result.answer.trim()}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
 }

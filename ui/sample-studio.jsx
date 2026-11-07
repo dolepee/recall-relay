@@ -1,7 +1,7 @@
-import React,{useMemo} from 'react';
+import React,{useContext,useMemo} from 'react';
 import {AgStudio,createWidgets} from 'ag-studio-react';
 import {merchantStudioTheme} from './studio-theme.mjs';
-import {SampleOrderCell,SampleCasePanel,SourceRequirementsWidget,PaymentExceptionsWidget,AmountSummaryWidget} from './sample-widgets.jsx';
+import {SampleContext,SampleOrderCell,SampleCasePanel,SourceRequirementsWidget,PaymentExceptionsWidget,AmountSummaryWidget} from './sample-widgets.jsx';
 import {sampleRows} from './sample-data.mjs';
 
 const widgetTypes=[
@@ -12,8 +12,9 @@ const widgetTypes=[
 ];
 
 export default function SampleStudio(){
+  const {visibleCases}=useContext(SampleContext);
   const widgets=useMemo(()=>createWidgets({additionalTypes:widgetTypes,overrides:[{id:'grid',options:{createCellRenderer:field=>field.fieldId==='sample.order'?SampleOrderCell:undefined}}]}),[]);
-  const data=useMemo(()=>({sources:[{id:'sample',data:sampleRows}]}),[]);
+  const data=useMemo(()=>({sources:[{id:'sample',data:sampleRows.filter(row=>visibleCases.some(c=>c.order===row.order))}]}),[visibleCases]);
   const initialState=useMemo(()=>({pages:[{id:'sample',widgets:{
     queue:{type:'grid',dataMapping:{cols:[{id:'sample.order'},{id:'sample.status'}]},format:{title:{text:'Sample claim queue',enabled:true},style:{theme:{rowHeight:74},columnAutoSize:false,columnWidth:130}}},
     review:{type:'sample-case',dataMapping:{}},

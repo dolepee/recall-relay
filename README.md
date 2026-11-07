@@ -134,7 +134,9 @@ amounts. It returns a short AI explanation with exact cited records; it cannot
 approve, refund or change evidence. Answers are discarded if workspace state
 changes during generation. Prior evidence changes are not reconstructed from the
 latest submission. The incident overview separates open review work, unresolved
-payment outcomes and provider-confirmed receipt amounts; its controls filter the
+payment outcomes and provider-confirmed receipt amounts. Unknown amounts show
+an incomplete subtotal instead of a zero total; financial summary assertions
+are rendered from recorded groups rather than free model prose; its controls filter the
 claim queue. Imported ledger declarations never enter these totals. Missing
 binding/evidence rows can prepare a purchase-specific request draft for an
 external support channel; no message or claim is created automatically.
@@ -332,7 +334,7 @@ in this mode. Open **Claim guide** when needed. Ask which customers owe
 information or which claims are ready for review. Natural questions retrieve current records and receive cited model explanations;
 exact amounts and quotations are rendered from server records. Only an explicit
 view request changes the grid filter. It has no payment,
-evidence-review or record-edit tool. Mobile uses the ordinary case controls. Claim-list responses omit full
+evidence-review or record-edit tool. Mobile uses the ordinary case controls and the same cited Claim Guide service without loading Studio. Claim-list responses omit full
 photographs; selecting a claim retrieves only that revision’s image through an
 authorized endpoint. Evidence confirmation stays disabled until it displays.
 

@@ -13,6 +13,7 @@ const dom=new JSDOM('<!doctype html><html><body><div id="root"></div></body></ht
 dom.window.matchMedia=query=>({matches:true,media:query,onchange:null,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){},dispatchEvent(){return false;}});
 for(const name of ['window','document','HTMLElement','HTMLInputElement','HTMLTextAreaElement','Node','MutationObserver','Event','KeyboardEvent','MouseEvent','ResizeObserver'])globalThis[name]=name==='window'?dom.window:dom.window[name];
 Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
+globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);globalThis.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);
 globalThis.location=dom.window.location;globalThis.history=dom.window.history;
 globalThis.getComputedStyle=(element)=>dom.window.getComputedStyle(element);globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 class ResizeObserverStub{observe(){}unobserve(){}disconnect(){}}
@@ -22,7 +23,13 @@ dom.window.Element.prototype.getBoundingClientRect=function(){return {x:0,y:0,to
 await mkdir('.cache',{recursive:true});
 const bundleDir=await mkdtemp(resolve('.cache/studio-read-'));
 after(async()=>{dom.window.close();await rm(bundleDir,{recursive:true,force:true});});
-await build({entryPoints:['ui/studio-workspace.jsx'],outdir:bundleDir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
+await build({entryPoints:['ui/studio-workspace.jsx','ui/claim-question.mjs','ui/sample-desk.jsx','ui/incident-overview.jsx'],outdir:bundleDir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
+const {readClaimAnswer}=await import(pathToFileURL(`${bundleDir}/claim-question.js`).href);
+const originalSampleMedia=dom.window.matchMedia;
+dom.window.matchMedia=query=>({...originalSampleMedia(query),matches:false});
+const {default:SampleDesk}=await import(pathToFileURL(`${bundleDir}/sample-desk.js`).href);
+dom.window.matchMedia=originalSampleMedia;
+const {IncidentOverview}=await import(pathToFileURL(`${bundleDir}/incident-overview.js`).href);
 const {default:StudioWorkspace}=await import(pathToFileURL(`${bundleDir}/studio-workspace.js`).href);
 const React=await import('react');const {act}=React;const {createRoot}=await import('react-dom/client');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -78,11 +85,34 @@ test('a natural-language question executes the cited answer tool through the act
  const posts=[];
  globalThis.fetch=async(path,options)=>{
    assert.equal(path,'/api/merchant/claim-question');const input=JSON.parse(options.body);posts.push(input);
-   return new Response(JSON.stringify({readOnly:true,view:null,citations:[{id:'case-review',text:'Review not recorded.'}],message:'Claim RR-1 · revision 2\nAI explanation · check the cited records\nInspect the current evidence.\n[case-review] Review not recorded.',model:'test-double'}),{status:200});
+   return new Response(JSON.stringify({readOnly:true,selected:{caseId:'claim-1',revision:2},view:null,citations:[{id:'case-review',text:'Review not recorded.'}],message:'Claim RR-1 · revision 2\nAI explanation · check the cited records\nInspect the current evidence.\n[case-review] Review not recorded.',model:'test-double'}),{status:200});
  };
  await render(React.createElement(StudioWorkspace,{data,initialState,onView:()=>{},getCase:()=>item,ClaimReview:W,OrderCell:W,CoverageWidget:W,ExceptionsWidget:W,BriefWidget:W,AdvisoryWidget:W,guideOpen:true,onGuideClose:()=>{}}),()=>button('What is blocking this claim?'));
  await act(async()=>{button('What is blocking this claim?').click();await tick();});
  assert.ok(await settle(()=>document.body.textContent.includes('[case-review]')));
  assert.equal(posts.length,1);assert.equal(posts[0].caseId,'claim-1');assert.equal(posts[0].revision,2);assert.match(posts[0].question,/holding up/);
  assert.match(text(document.body),/AI explanation · check the cited records/);
+});
+test('the shared desktop/mobile answer reader discards a review change without a revision change',async()=>{
+ let current={...item,review:null},release;
+ globalThis.fetch=async()=>await new Promise(resolve=>{release=resolve;});
+ const answer=readClaimAnswer('What is blocking this claim?',()=>current);
+ current={...current,review:{revision:2,reviewedAt:'now'}};
+ release(new Response(JSON.stringify({readOnly:true,selected:{caseId:item.id,revision:2},message:'Old answer',citations:[]}),{status:200}));
+ await assert.rejects(answer,/selected claim changed/);
+ globalThis.fetch=async()=>new Response(JSON.stringify({readOnly:true,selected:{caseId:'other',revision:2},message:'Wrong claim',citations:[]}),{status:200});
+ await assert.rejects(readClaimAnswer('Summarize',()=>current),/different case revision/);
+});
+test('the sample overview filters fictional claims without contacting the API or exposing a real payment claim',async()=>{
+ let calls=0;globalThis.fetch=async()=>{calls++;throw new Error('Sample must not call the API');};
+ await render(React.createElement(SampleDesk),()=>button('Needs manual review0')||[...document.querySelectorAll('button')].some(b=>/Needs manual review/.test(text(b))));
+ await step();
+ assert.match(text(document.body),/Fictional receipt states; no funds moved/);assert.doesNotMatch(text(document.querySelector('[aria-label="Incident overview"]')),/Completed receipts recorded by PayPal/);
+ const filter=[...document.querySelectorAll('button')].find(b=>/Needs manual review/.test(text(b)));assert.ok(filter);
+ await act(async()=>{filter.click();await tick();});
+ assert.ok(await settle(()=>document.body.textContent.includes('No sample claim in this view')));assert.equal(calls,0);
+});
+test('an unknown amount is visibly incomplete rather than presented as a zero total',async()=>{
+ await render(React.createElement(IncidentOverview,{cases:[{id:'unknown',amountCents:null,status:{code:'MANUAL'}}],onView:()=>{}}),()=>document.querySelector('[aria-label="Incident overview"]'));
+ const overview=text(document.querySelector('[aria-label="Incident overview"]'));assert.match(overview,/Awaiting resolutionIncomplete/);assert.match(overview,/\$0.00 known · 1 amounts unknown/);
 });

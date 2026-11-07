@@ -14,12 +14,12 @@ test('the homepage states the merchant job and the two real entry points',async(
     'Compare purchases with recall instructions. See what needs evidence or purchase checks, then review an affected item’s refund to its original PayPal payment.',
     'Guided claim',
     'Real AI drafting and PayPal Sandbox APIs.',
-    'Try without a PayPal login',
+    'Practice a complete claim',
     'Sandbox workspace',
     'How it works',
     'Evaluation',
   ]) assert.ok(html.includes(copy),copy);
-  assert.match(html,/href="\/practice"/);
+  assert.match(html,/<a class="btn secondary" href="\/practice">Practice a complete claim<\/a>/);
   assert.match(html,/href="\/desk"/);
   assert.match(html,/href="\/sample"/);
   assert.match(html,/id="relay"/);

@@ -50,3 +50,22 @@ test('an oversized complete source refuses inference instead of sending an incom
  let calls=0;const ai={generate:async()=>{calls++;return output();},status:()=>({model:'double'})};
  await assert.rejects(answerClaimQuestion(ai,desk,{question:'What source conditions apply?',caseId:'a',revision:3}),/No partial source was sent/);assert.equal(calls,0);db.close();
 });
+test('financial answers never turn another group amount or unknown balance into a zero liability claim',async()=>{
+ const {desk,db}=make();desk.merchantState=()=>({cases:[{id:'unknown',amountCents:null,status:{code:'MANUAL',reason:'Amount unavailable.'}},{id:'paid',amountCents:2500,status:{code:'COMPLETED'},receipt:{amountCents:2500}}]});
+ const ai={generate:async()=>output({tool:'get_financial_summary',answer:'There are no unresolved amounts. All liability is settled.',citations:['amount-OPEN']}),status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'How much remains unresolved?'});
+ assert.doesNotMatch(result.answer,/All liability is settled/);assert.match(result.answer,/incomplete subtotal is not a zero total/);assert.match(result.citations.find(c=>c.id==='amount-OPEN').text,/INCOMPLETE subtotal: \$0.00 known; 1 amounts unknown/);db.close();
+});
+test('model advice cannot reopen completed evidence or suggest replacement refunds for payment-locked cases',async()=>{
+ const {desk,db}=make();
+ for(const code of ['COMPLETED','RESERVED','UNKNOWN','PENDING','FAILED','CANCELLED']){
+  desk.merchantState=()=>({cases:[{id:'a',order:'RR-A',revision:3,amountCents:3875,status:{code,reason:'Recorded provider state.'},...(code==='COMPLETED'?{receipt:{amountCents:3875}}:{payment:{cents:3875,state:code}})}]});
+  const ai={generate:async()=>output({answer:'Inspect the current label and approve another refund now.'}),status:()=>({model:'double'})};
+  const result=await answerClaimQuestion(ai,desk,{question:'What should I do next?',caseId:'a',revision:3});assert.doesNotMatch(result.answer,/approve another refund/);assert.match(result.message,/Recorded case boundary/);assert.match(result.answer,code==='COMPLETED'?/no further evidence review or refund action/:/reconcile that attempt/);
+ }
+ db.close();
+});
+test('financial summaries retain payment outcomes and receipts when the model fills its optional citations',async()=>{
+ const {desk,db}=make();const ai={generate:async()=>output({tool:'get_financial_summary',citations:['amount-ALL','amount-REVIEW','amount-READY','amount-WAITING','amount-MANUAL','amount-OPEN']}),status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'Summarize workspace amounts'});assert.equal(result.citations.length,6);assert.deepEqual(result.citations.slice(0,3).map(c=>c.id),['amount-OPEN','amount-PAYMENT','amount-COMPLETED']);db.close();
+});

@@ -13,7 +13,7 @@ test('indexed extraction preserves full destination/route/preparation text and e
 });
 test('unknown, omitted, duplicated or malformed sentence classifications cannot save a draft',()=>{
  const valid=JSON.parse(classify([[],[],[],[]]));for(const mutate of [v=>v.clauses.pop(),v=>v.clauses[0].clauseId='invented',v=>v.clauses[1].clauseId=v.clauses[0].clauseId,v=>v.clauses[0].kinds=['PAY'],v=>v.clauses[0].kinds=['PHOTO','PHOTO'],v=>v.clauses[0].quote='shortened',v=>v.approved=true]){const v=structuredClone(valid);mutate(v);assert.throws(()=>validateSourceDraft(JSON.stringify(v),source));}
- assert.throws(()=>validateSourceDraft(JSON.stringify({requirements:[]}),source));
+ assert.throws(()=>validateSourceDraft(JSON.stringify({requirements:[]}),source));assert.throws(()=>validateSourceDraft(' '.repeat(18001),source));assert.throws(()=>validateSourceDraft(null,source));
 });
 test('schema transport accepts a structured provider object and retains admission/size enforcement',async()=>{
  let admitted=0;const schema=advisorySchema([{citationId:'c'}]),raw={clauses:[{citationId:'c',actor:'CUSTOMER',timing:'UNSPECIFIED',condition:null,explanation:'Upload one photograph of the label.'}]};

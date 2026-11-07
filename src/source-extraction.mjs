@@ -4,6 +4,7 @@ export function sourceDraftInput(source){
  return {title:source.title,clauses:clauses.map(({id,quote})=>({clauseId:id,quote}))};
 }
 export function validateSourceDraft(raw,source){
+ if(typeof raw!=='string'||raw.length>18000)throw new Error('The assistant did not return a usable draft. Review the source manually.');
  let value;try{value=JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}catch{throw new Error('The assistant did not return a usable draft. Review the source manually.');}
  const clauses=sourceDraftInput(source).clauses;
  if(!value||Object.keys(value).join()!=='clauses'||!Array.isArray(value.clauses)||value.clauses.length!==clauses.length)throw new Error('The assistant must classify every source sentence. No draft was saved.');

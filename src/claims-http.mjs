@@ -1,5 +1,6 @@
 import {reconciliationAdvice} from './recall-reconciliation.mjs';
 import {caseContext,caseAdvisory} from './case-advisory.mjs';
+import {answerClaimQuestion} from './claim-guide.mjs';
 import {assistCases} from './source-workspace.mjs';
 
 export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
@@ -58,6 +59,7 @@ export function claimRoutes(desk, { json, body, origin, sourceWorkspace, ai }) {
           '/api/merchant/source-add':()=>sourceWorkspace.addField(input.id,input),
           '/api/merchant/source-review':()=>sourceWorkspace.review(input.id,input),
           '/api/merchant/source-activate':()=>sourceWorkspace.activate(input.id,input,desk),
+          '/api/merchant/claim-question':()=>answerClaimQuestion(ai,desk,input),
           '/api/merchant/assist':()=>assistCases(ai,desk,input.question),
         };
         if(!actions[path]){json(res,404,{error:'Unknown action.'});return true;}

@@ -26,7 +26,7 @@ function intrinsicContentHeight(node){
   return height;
 }
 
-export default function StudioWorkspace({data,initialState,height,onView,getCase,ClaimReview,OrderCell,CoverageWidget,ExceptionsWidget,BriefWidget,AdvisoryWidget,guideOpen,onGuideClose}){
+export default function StudioWorkspace({data,initialState,height,onView,getCase,ClaimReview,OrderCell,CoverageWidget,ExceptionsWidget,BriefWidget,AdvisoryWidget,OverviewWidget,guideOpen,onGuideClose}){
   const [harness,setHarness]=useState(null);
   const [workspaceHeight,setWorkspaceHeight]=useState(()=>height||STUDIO_WORKSPACE_HEIGHT);
   const studioApi=useRef(null),fitTimer=useRef(0),workspaceRef=useRef(null);
@@ -39,7 +39,7 @@ export default function StudioWorkspace({data,initialState,height,onView,getCase
   const fitContent=useCallback(()=>{
     const api=studioApi.current,root=workspaceRef.current;
     if(!api||!root)return;
-    const selectors={review:'#claim-review',coverage:'[aria-label="Source coverage"]',exceptions:'[aria-label="Exceptions and amounts"]',brief:'[aria-label="Recorded review brief"]',advisory:'[aria-label="AI advisory"]'};
+    const selectors={overview:'[aria-label="Incident overview"]',review:'#claim-review',coverage:'[aria-label="Source coverage"]',exceptions:'[aria-label="Exceptions and amounts"]',brief:'[aria-label="Recorded review brief"]',advisory:'[aria-label="AI advisory"]'};
     const contentHeights={};
     for(const [id,selector] of Object.entries(selectors)){
       const node=root.querySelector(selector);
@@ -77,6 +77,6 @@ export default function StudioWorkspace({data,initialState,height,onView,getCase
 
   const ready=useCallback(({api})=>{studioApi.current=api;setHarness(caseAssistant(onView,()=>getCaseRef.current?.())({api}));(typeof requestAnimationFrame==='function'?requestAnimationFrame:callback=>setTimeout(callback,0))(()=>fitContent());},[onView,fitContent]);
   useEffect(()=>()=>harness?.dispose?.(),[harness]);
-  const widgets=useMemo(()=>createWidgets({additionalTypes:[{id:'connected-case',label:'Customer claim',defaultSize:{width:9,height:24},minSize:{width:7,height:20},form:p=>p.createDefaults({}),comp:ClaimReview},{id:'connected-coverage',label:'Source coverage',defaultSize:{width:8,height:10},minSize:{width:6,height:7},form:p=>p.createDefaults({}),comp:CoverageWidget},{id:'connected-exceptions',label:'Exceptions and amounts',defaultSize:{width:8,height:7},minSize:{width:6,height:5},form:p=>p.createDefaults({}),comp:ExceptionsWidget},{id:'connected-brief',label:'Recorded review brief',defaultSize:{width:8,height:7},minSize:{width:6,height:5},form:p=>p.createDefaults({}),comp:BriefWidget},{id:'connected-advisory',label:'AI advisory',defaultSize:{width:8,height:9},minSize:{width:6,height:7},form:p=>p.createDefaults({}),comp:AdvisoryWidget}],overrides:[{id:'grid',options:{createCellRenderer:field=>field.fieldId==='claims.order'?OrderCell:undefined}}]}),[ClaimReview,OrderCell,CoverageWidget,ExceptionsWidget,BriefWidget,AdvisoryWidget]);
+  const widgets=useMemo(()=>createWidgets({additionalTypes:[...(OverviewWidget?[{id:'connected-overview',label:'Incident overview',defaultSize:{width:24,height:12},minSize:{width:12,height:12},form:p=>p.createDefaults({}),comp:OverviewWidget}]:[]),{id:'connected-case',label:'Customer claim',defaultSize:{width:9,height:24},minSize:{width:7,height:20},form:p=>p.createDefaults({}),comp:ClaimReview},{id:'connected-coverage',label:'Source coverage',defaultSize:{width:8,height:10},minSize:{width:6,height:7},form:p=>p.createDefaults({}),comp:CoverageWidget},{id:'connected-exceptions',label:'Exceptions and amounts',defaultSize:{width:8,height:7},minSize:{width:6,height:5},form:p=>p.createDefaults({}),comp:ExceptionsWidget},{id:'connected-brief',label:'Recorded review brief',defaultSize:{width:8,height:7},minSize:{width:6,height:5},form:p=>p.createDefaults({}),comp:BriefWidget},{id:'connected-advisory',label:'AI advisory',defaultSize:{width:8,height:9},minSize:{width:6,height:7},form:p=>p.createDefaults({}),comp:AdvisoryWidget}],overrides:[{id:'grid',options:{createCellRenderer:field=>field.fieldId==='claims.order'?OrderCell:undefined}}]}),[ClaimReview,OrderCell,CoverageWidget,ExceptionsWidget,BriefWidget,AdvisoryWidget,OverviewWidget]);
   return <div ref={workspaceRef} className="rr-workspace grid min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white" style={{height:`${workspaceHeight}px`,maxHeight:'none',gridTemplateColumns:guideOpen?'minmax(0,1fr) 18rem':'minmax(0,1fr)'}}><div className="min-h-0 min-w-0"><AgStudio style={{height:'100%',width:'100%'}} data={data} widgets={widgets} theme={theme} initialState={initialState} mode="view" panels={{edit:{left:[],right:[]},view:{left:[],right:[]}}} onStudioReady={ready} onErrorRaised={event=>console.error('Studio:',event.errorDetails?.join('; ')||'Workspace error')}/></div><ClaimGuide harness={harness} open={guideOpen} onClose={onGuideClose}/></div>;
 }

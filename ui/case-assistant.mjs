@@ -66,7 +66,7 @@ export async function* runCaseReadIntent({intent,item,getCase,tool,threadId,runI
 
 export function caseAssistant(onView,getCase=()=>null){
   return ({api})=>createAiHarness(api,()=>{
-    const viewTool=api.defineAiTool({name:'show_claim_view',description:'Change only the visible case list. No record or payment mutation.',params:s=>s.object({view:s.enum(['ALL','REVIEW','READY','WAITING','MANUAL','PAYMENT','COMPLETED'])}),execute:({view},ctx)=>{onView(view);return ctx.success('Case view changed.',{view});}});
+    const viewTool=api.defineAiTool({name:'show_claim_view',description:'Change only the visible case list. No record or payment mutation.',params:s=>s.object({view:s.enum(['ALL','OPEN','REVIEW','READY','WAITING','MANUAL','PAYMENT','COMPLETED'])}),execute:({view},ctx)=>{onView(view);return ctx.success('Case view changed.',{view});}});
     const readTool=(name,section,description)=>api.defineAiTool({name,description,params:s=>s.object({}),execute:async(_args,ctx)=>{
       const item=getCase();
       if(!item?.id||!Number.isSafeInteger(item.revision))return ctx.error('Select a saved claim before reading its recorded context.');
@@ -81,9 +81,21 @@ export function caseAssistant(onView,getCase=()=>null){
     const gapsTool=readTool('get_evidence_gaps','gaps','Read the recorded evidence gaps for the selected claim. No photograph, customer free text, credential, capture id or payment action.');
     const briefTool=readTool('get_case_brief','brief','Read the recorded case facts for the selected claim. No photograph, customer free text, credential, capture id or payment action.');
     const readTools={brief:briefTool,source:sourceTool,gaps:gapsTool};
+    const questionTool=api.defineAiTool({name:'answer_claim_question',description:'Answer a natural-language question using current, cited case records or workspace totals. Read-only; no evidence or payment action.',params:s=>s.object({question:s.string()}),execute:async({question},ctx)=>{
+      const item=getCase(),fingerprint=caseFingerprint(item);
+      try{
+        const response=await fetch('/api/merchant/claim-question',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,...(item?{caseId:item.id,revision:item.revision}:{})}),signal:ctx.signal});
+        const value=await response.json();if(!response.ok)throw new Error(value.error||'The guide is unavailable.');
+        if(caseFingerprint(getCase())!==fingerprint)throw new Error('The selected claim changed while answering. Ask again for the current claim.');
+        if(value.readOnly!==true||typeof value.message!=='string'||!Array.isArray(value.citations))throw new Error('The guide did not return cited records.');
+        return ctx.success('Current cited records read.',value);
+      }catch(error){return ctx.error(error.message||'The guide could not answer.');}
+    }});
     return {
     primary:'case-guide',
     promptStarters:[
+      {label:'What is blocking this claim?',prompt:'What is holding up this claim, and what should I do next?'},
+      {label:'Workspace amounts',prompt:'How much is waiting for resolution versus confirmed refunds?'},
       {label:'Read case brief',prompt:'Read the recorded case brief.'},
       {label:'Read source requirements',prompt:'Read the recorded source requirements.'},
       {label:'Read evidence gaps',prompt:'Read the recorded evidence gaps.'},
@@ -93,7 +105,7 @@ export function caseAssistant(onView,getCase=()=>null){
     ],
     agents:[{
       id:'case-guide',name:'Claim guide',description:'Find claims and explain recorded blockers. No payment authority.',
-      tools:()=>[viewTool,sourceTool,gapsTool,briefTool],
+      tools:()=>[viewTool,sourceTool,gapsTool,briefTool,questionTool],
       async *run(input,ctx){
         const {threadId,runId}=input;
         yield {type:'RUN_STARTED',threadId,runId};
@@ -104,8 +116,14 @@ export function caseAssistant(onView,getCase=()=>null){
             yield* runCaseReadIntent({intent,item:getCase(),getCase,tool:readTools[intent.section],threadId,runId,signal:ctx.signal});
             return;
           }
-          const response=await fetch('/api/merchant/assist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question}),signal:ctx.signal});
-          const result=await response.json();if(!response.ok)throw new Error(result.error||'The assistant is unavailable.');
+          const questionCallId=crypto.randomUUID();
+          yield {type:'TOOL_CALL_START',toolCallId:questionCallId,toolCallName:questionTool.name};
+          yield {type:'TOOL_CALL_ARGS',toolCallId:questionCallId,delta:JSON.stringify({question})};
+          yield {type:'TOOL_CALL_END',toolCallId:questionCallId};
+          const answer=await questionTool.execute({toolCallId:questionCallId,name:questionTool.name,args:{question}},{signal:ctx.signal||new AbortController().signal,run:{threadId,runId},success:(response,data)=>({success:true,response,data}),error:messages=>({success:false,issues:(Array.isArray(messages)?messages:[messages]).map(message=>({message}))})});
+          if(!answer.success)throw new Error(answer.issues.map(i=>i.message).join(' '));
+          yield {type:'TOOL_CALL_RESULT',toolCallId:questionCallId,messageId:crypto.randomUUID(),content:JSON.stringify(answer)};
+          const result=answer.data;
           if(ctx.signal?.aborted)return;
           if(result.view){
             const toolCallId=crypto.randomUUID();

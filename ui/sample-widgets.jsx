@@ -13,6 +13,7 @@ export function SampleOrderCell({value}){const {selected,selectCase,caseForOrder
 
 export function SampleCasePanel({headingRef}){
   const {selected,caseForOrder}=useSampleCase(),item=caseForOrder(selected);
+  if(!item)return <section id="sample-review" className="p-5"><h2 ref={headingRef} tabIndex={-1} id="sample-review-heading" className="font-semibold">No sample claim in this view</h2><p role="status" className="mt-2 text-sm">Choose another overview category to inspect a fictional claim.</p></section>;
   return <section id="sample-review" aria-labelledby="sample-review-heading" className="h-full overflow-auto p-4 sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold  text-slate-500">Selected sample claim</p><h2 ref={headingRef} id="sample-review-heading" tabIndex={-1} className="mt-2 scroll-mt-24 text-xl font-semibold text-balance focus-visible:outline-2 focus-visible:outline-teal-700">{item.source.product}</h2><p className="mt-1 text-sm text-slate-500">{item.order} · revision {item.revision}</p></div><SampleStatus code={item.status.code}/></div>
     <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-700">{item.status.reason}</p>
@@ -28,6 +29,7 @@ export function SampleCasePanel({headingRef}){
 
 export function SourceRequirementsWidget(){
   const {selected,caseForOrder}=useSampleCase(),item=caseForOrder(selected);
+  if(!item)return null;
   return <section aria-label="Source-linked requirements" className="h-full overflow-auto p-4">
     <h2 className="text-base font-semibold">Source-linked requirements</h2>
     <p className="mt-1 text-xs leading-5 text-slate-500">{item.source.label}</p>
@@ -35,7 +37,8 @@ export function SourceRequirementsWidget(){
 }
 
 export function PaymentExceptionsWidget(){
-  const {selected,caseForOrder}=useSampleCase(),item=caseForOrder(selected),p=item.payment;
+  const {selected,caseForOrder}=useSampleCase(),item=caseForOrder(selected);
+  if(!item)return null;const p=item.payment;
   const paymentCode=p.state==='FAILED'?'FAILED':p.state==='READY'?'READY_FOR_APPROVAL':undefined;
   return <section aria-label="Payment exception and amount" className="h-full overflow-auto p-4">
     <h2 className="text-base font-semibold">Payment state</h2>
@@ -48,6 +51,7 @@ export function PaymentExceptionsWidget(){
 
 export function AmountSummaryWidget(){
   const {selected,caseForOrder}=useSampleCase(),item=caseForOrder(selected);
+  if(!item)return null;
   return <section aria-label="Sample amounts" className="h-full overflow-auto p-4">
     <h2 className="text-base font-semibold">Amounts</h2>
     <dl className="mt-2 space-y-1.5 text-sm"><div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Affected item</dt><dd className="font-semibold tabular-nums">{money(item.amountCents)}</dd></div><div className="flex flex-wrap justify-between gap-2"><dt className="text-slate-500">Unaffected item</dt><dd className="tabular-nums">{money(item.unaffectedCents)}</dd></div><div className="flex flex-wrap justify-between gap-2 border-t border-slate-200 pt-2"><dt className="text-slate-500">Original capture</dt><dd className="font-semibold tabular-nums">{money(item.originalCents)}</dd></div></dl>

@@ -1,3 +1,4 @@
+import {readClaimAnswer} from './claim-question.mjs';
 import {AgStudioAiModule,AgStudioModuleRegistry,createAiHarness} from 'ag-studio';
 import {caseFingerprint,readCaseContext} from './advisory-panel.jsx';
 AgStudioModuleRegistry.registerModules([AgStudioAiModule]);
@@ -82,12 +83,8 @@ export function caseAssistant(onView,getCase=()=>null){
     const briefTool=readTool('get_case_brief','brief','Read the recorded case facts for the selected claim. No photograph, customer free text, credential, capture id or payment action.');
     const readTools={brief:briefTool,source:sourceTool,gaps:gapsTool};
     const questionTool=api.defineAiTool({name:'answer_claim_question',description:'Answer a natural-language question using current, cited case records or workspace totals. Read-only; no evidence or payment action.',params:s=>s.object({question:s.string()}),execute:async({question},ctx)=>{
-      const item=getCase(),fingerprint=caseFingerprint(item);
       try{
-        const response=await fetch('/api/merchant/claim-question',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,...(item?{caseId:item.id,revision:item.revision}:{})}),signal:ctx.signal});
-        const value=await response.json();if(!response.ok)throw new Error(value.error||'The guide is unavailable.');
-        if(caseFingerprint(getCase())!==fingerprint)throw new Error('The selected claim changed while answering. Ask again for the current claim.');
-        if(value.readOnly!==true||typeof value.message!=='string'||!Array.isArray(value.citations))throw new Error('The guide did not return cited records.');
+        const value=await readClaimAnswer(question,getCase,ctx.signal);
         return ctx.success('Current cited records read.',value);
       }catch(error){return ctx.error(error.message||'The guide could not answer.');}
     }});

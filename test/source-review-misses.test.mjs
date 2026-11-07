@@ -51,3 +51,7 @@ for(const quote of ['Upload one photograph of the return label.','Upload one pho
 for(const separator of [';', ':', '—', '–'])test('a second affirmative handoff after '+separator+' cannot publish as a photo-only instruction',()=>{
  const quote='Upload one photograph of the product label'+separator+' return the product to the store for a refund.';assert.equal(sourceInstructionProfile(quote).externalAction,true);assert.throws(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]),/handoff|manual/);
 });
+
+for(const separator of [';', ':', '—', '–'])test('explanatory return-address text after '+separator+' is not a physical handoff',()=>{
+ const quote='Upload one photograph of the product label'+separator+' return address must be legible.';assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]));
+});

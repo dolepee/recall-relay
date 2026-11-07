@@ -55,3 +55,9 @@ for(const separator of [';', ':', '—', '–'])test('a second affirmative hando
 for(const separator of [';', ':', '—', '–'])test('explanatory return-address text after '+separator+' is not a physical handoff',()=>{
  const quote='Upload one photograph of the product label'+separator+' return address must be legible.';assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]));
 });
+
+test('physical product handoffs retain common particles and adverbs without becoming photo-only forms',()=>{
+ for(const verb of ['return','ship','mail'])for(const modifier of ['','back ','immediately ','back immediately ','immediately back ','promptly ','directly '])for(const separator of ['; ', ', then ', ' and ', ' — ']){
+  const quote=`Upload one photograph of the product label${separator}${verb} ${modifier}the recalled product to the store for a refund.`;assert.equal(sourceInstructionProfile(quote).externalAction,true,quote);assert.throws(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]),/handoff|manual/,quote);
+ }
+});

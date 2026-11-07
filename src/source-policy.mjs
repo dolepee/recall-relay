@@ -53,7 +53,7 @@ export function sourceInstructionProfile(quote){
   // is information rather than an affirmative instruction to perform a handoff.
   const actionStart='(?:^(?:please\\s+)?|(?:[,;:—–]\\s*|\\b(?:and|then)\\s+))';
   const handoffPatterns=[
-    new RegExp(actionStart+'(?:return|ship|mail)\\s+(?:the|your|this|these|those|a|an|all|any|each|every|recalled|affected|it|them|products?|items?|units?|devices?|garments?|to)\\b','i'),
+    new RegExp(actionStart+'(?:return|ship|mail)\\s+(?:(?:back|immediately|promptly|directly)\\s+){0,2}(?:the|your|this|these|those|a|an|all|any|each|every|recalled|affected|it|them|products?|items?|units?|devices?|garments?|to)\\b','i'),
     new RegExp(actionStart+'contact\\b[^.!?]{0,160}\\b(?:refund|remedy)\\b','i'),
     new RegExp(actionStart+'(?:register|sign in|log in|(?:fill out|complete) (?:an?|the) (?:online )?registration form)\\b','i'),
     new RegExp(actionStart+'reply\\b[^.!?]{0,160}\\b(?:e-?mail|confirmation)\\b','i'),

@@ -21,6 +21,7 @@ export const DEFAULT_BUDGET_LIMITS=Object.freeze({
   evaluationReserveEnabled:false,
   evaluationWorkspacesPerDay:20,
   evaluationAIperDay:20,
+  evaluationAIperBurst:2,
   evaluationPracticePerDay:40,
   aiPerWorkspacePerDay:20,
   aiGlobalPerDay:80,
@@ -116,10 +117,11 @@ export class UsageBudgetCore {
   aiSpec(workspaceId){
     const limits=this.limits();
     const evaluation=limits.evaluationReserveEnabled&&this.storage.sql.exec('SELECT id FROM evaluation_workspaces WHERE id=?',workspaceId).toArray().length===1;
+    const evaluationBurst=Math.min(limits.aiGlobalPerBurst,limits.evaluationAIperBurst);
     const reserved=limits.evaluationReserveEnabled?[{scope:evaluation?'ai-evaluation':'ai-public',limit:evaluation?limits.evaluationAIperDay:Math.max(0,limits.aiGlobalPerDay-limits.evaluationAIperDay)}]:[];
     return {
       daily:[...reserved,{scope:'ai-workspace-'+workspaceId,limit:limits.aiPerWorkspacePerDay},{scope:'ai-total',limit:limits.aiGlobalPerDay}],
-      burst:[{scope:BURST_PREFIX+'workspace-'+workspaceId,limit:limits.aiPerWorkspacePerBurst},...(limits.evaluationReserveEnabled?[{scope:BURST_PREFIX+(evaluation?'evaluation':'public'),limit:evaluation?1:Math.max(0,limits.aiGlobalPerBurst-1)}]:[]),{scope:BURST_PREFIX+'total',limit:limits.aiGlobalPerBurst}],
+      burst:[{scope:BURST_PREFIX+'workspace-'+workspaceId,limit:limits.aiPerWorkspacePerBurst},...(limits.evaluationReserveEnabled?[{scope:BURST_PREFIX+(evaluation?'evaluation':'public'),limit:evaluation?evaluationBurst:Math.max(0,limits.aiGlobalPerBurst-evaluationBurst)}]:[]),{scope:BURST_PREFIX+'total',limit:limits.aiGlobalPerBurst}],
     };
   }
   admitAI(workspaceId){const {daily,burst}=this.aiSpec(workspaceId);return this.admit(daily,burst);}

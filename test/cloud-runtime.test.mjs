@@ -73,7 +73,7 @@ test('hosted AI consumes its budget before inference and reports only actual pro
 });
 
 test('budget defaults keep every published ceiling and add only adjustable burst pacing',()=>{
-  assert.deepEqual({...DEFAULT_BUDGET_LIMITS},{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
+  assert.deepEqual({...DEFAULT_BUDGET_LIMITS},{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationAIperBurst:2,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
   assert.equal(utcDay(DAY1),DAY1_KEY);assert.equal(utcDay(NaN),null);
   assert.equal(dayResetInstant(DAY1_KEY),'2026-10-25T00:00:00.000Z');
   assert.equal(burstBucket(DAY1,60),Math.floor(DAY1/60000));
@@ -242,7 +242,7 @@ test('reserved evaluation allowance survives exhaustion of public workspace and 
  const {core,sqlite,seed,count}=budgetFixture({limits:{evaluationReserveEnabled:true}});try{
  seed(DAY1_KEY,'workspaces-public',180);seed(DAY1_KEY,'workspaces',180);assert.equal(core.openWorkspace('public').opened,false);assert.equal(core.openWorkspace('judge',true).opened,true);
  seed(DAY1_KEY,'ai-public',60);seed(DAY1_KEY,'ai-total',60);assert.equal(core.admitAI('public').admitted,false);assert.equal(core.admitAI('judge').admitted,true);assert.equal(count(DAY1_KEY,'ai-total'),61);
- seed(DAY1_KEY,'ai-evaluation',19);assert.equal(core.admitAI('judge').admitted,false);assert.equal(count(DAY1_KEY,'ai-total'),61);
+ seed(DAY1_KEY,'ai-evaluation',19);assert.equal(core.admitAI('judge').admitted,false);assert.equal(core.admitAI('judge').reason,'daily');assert.equal(count(DAY1_KEY,'ai-evaluation'),20);assert.equal(count(DAY1_KEY,'ai-total'),61);
  seed(DAY1_KEY,'practice-public',360);seed(DAY1_KEY,'practice-sessions',360);assert.equal(core.admitPractice('public-practice').opened,false);assert.equal(core.admitPractice('judge-practice',undefined,true).opened,true);
  }finally{sqlite.close();}
 });
@@ -263,4 +263,19 @@ test('hosted drafting uses supported Qwen3.8 with thinking disabled and advisory
  assert.equal(calls[1].input.chat_template_kwargs,undefined);
  assert.equal(calls[1].input.reasoning_effort,undefined);
  assert.equal(calls[1].input.max_tokens,3500);
+});
+
+test('two evaluation workspaces can draft in one minute while public and total ceilings stay bounded',()=>{
+ const {core,sqlite,count}=budgetFixture({limits:{evaluationReserveEnabled:true}});
+ try{
+  for(const id of ['judge-a','judge-b','judge-c'])assert.equal(core.openWorkspace(id,true).opened,true);
+  for(const id of ['public-a','public-b','public-c'])assert.equal(core.admitAI(id).admitted,true);
+  assert.equal(core.admitAI('public-d').admitted,false,'public pacing preserves evaluation slots');
+  assert.equal(core.admitAI('judge-a').admitted,true);
+  assert.equal(core.admitAI('judge-b').admitted,true,'another evaluator must not be blocked by the first');
+  assert.equal(count(DAY1_KEY,'ai-total'),5);
+  assert.equal(core.aiAllowance('judge-c').reason,'burst');
+  assert.equal(core.admitAI('judge-c').admitted,false);
+  assert.equal(count(DAY1_KEY,'ai-total'),5,'refusal does not consume a daily unit');
+ }finally{sqlite.close();}
 });

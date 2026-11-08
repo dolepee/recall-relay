@@ -7,5 +7,5 @@ const claims=[{id:'FICTIONAL-CLAIM',revision:0,createdAt:stamp,campaign:exampleS
 export function examplePlan(corrected=false){
  const corrections=corrected?[{rowKey:'1:0',lot:'LOT-A',reason:'Fictional planning assumption only. Customer lot evidence is still missing.'}]:[];
  const result=projectReconciliation({ledger,corrections},exampleScope,claims,stamp);
- return {...result,synthetic:true,id:corrected?'EXAMPLE-CORRECTED':'EXAMPLE-ORIGINAL',lines:result.lines.map(r=>({...r,evidence:r.evidence?{...r.evidence,provenance:'SYNTHETIC_FIXTURE'}:null}))};
+ return {...result,synthetic:true,id:corrected?'EXAMPLE-CORRECTED':'EXAMPLE-ORIGINAL',lines:result.lines.map(r=>({...r,...(r.readiness==='LINKED_CLAIM'?{reasons:['Fictional linked record only. The summary is informational and does not provide current evidence, review or payment status.']}:{}),evidence:r.evidence?{...r.evidence,provenance:'SYNTHETIC_FIXTURE'}:null}))};
 }

@@ -8,6 +8,7 @@
 // cloud/integration.mjs (assistant disabled) is untouched and remains the default `npm run test:cloud`;
 // this file is a separate entry (`npm run test:cloud:ai`) with its own built entry point.
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
@@ -23,6 +24,7 @@ const A=new Proxy(assert,{get(target,key){
   return (...args)=>{assertions++;return value.apply(target,args);};
 }});
 
+const evaluationCode='j'.repeat(43);
 const origin='https://recall-relay.test',state=await mkdtemp(join(tmpdir(),'recall-ai-test-'));
 const DAY1=Date.UTC(2026,9,24,12,0,0),DAY1_KEY='2026-10-24',DAY2_KEY='2026-10-25',DAY2=Date.UTC(2026,9,25,0,0,30);
 const recallFixture=JSON.parse(await readFile(new URL('../test/fixtures/cpsc-20261021.json',import.meta.url),'utf8'));
@@ -71,7 +73,7 @@ async function fakeNetwork(request){
 const options=()=>convertV4MiniflareOptions({
   name:'recall-relay-ai-test',scriptPath:resolve('cloud-dist/ai/integration-ai-worker.js'),modules:true,
   compatibilityDate:'2026-10-23',compatibilityFlags:['nodejs_compat'],
-  bindings:{PUBLIC_ORIGINS:[origin],AI_ENABLED:true,PAYPAL_SANDBOX_CLIENT_ID:'test-application',PAYPAL_SANDBOX_CLIENT_SECRET:'disposable-test-secret'},
+  bindings:{PUBLIC_ORIGINS:[origin],AI_ENABLED:true,EVALUATION_ACCESS_HASH:createHash('sha256').update(evaluationCode).digest('hex'),PAYPAL_SANDBOX_CLIENT_ID:'test-application',PAYPAL_SANDBOX_CLIENT_SECRET:'disposable-test-secret'},
   durableObjects:{WORKSPACES:{className:'RecallWorkspace',useSQLite:true},BUDGET:{className:'UsageBudget',useSQLite:true},CAPTURE_OWNERS:{className:'CaptureOwnership',useSQLite:true}},
   resourcePersistencePath:state,outboundService:fakeNetwork,
 });
@@ -99,8 +101,8 @@ try{
     A.equal((await control('limits',{value:limits})).status,200);
     A.equal((await control('clear')).status,200);
   }
-  async function desk(){
-    const created=await call('/api/merchant/state');
+  async function desk(evaluation=false){
+    const created=await call('/api/merchant/state',{cookie:evaluation?'rr_evaluation='+evaluationCode:''});
     A.equal(created.status,200,JSON.stringify(created));
     return {cookie:created.cookie,id:workspaceHash(created.cookie.slice('rr_workspace='.length))};
   }
@@ -273,7 +275,7 @@ try{
   // 7. The daily ceilings bind dispatched attempts: the last unit of both ceilings is spent by a real
   // generation, and the next attempt is refused before the provider is ever contacted.
   await area('the daily ceilings bound dispatched attempts',async()=>{
-    A.deepEqual(DEFAULT_BUDGET_LIMITS,{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
+    A.deepEqual(DEFAULT_BUDGET_LIMITS,{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationAIperBurst:2,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
     await configure({limits:null});
     const d=await desk();
     const perWorkspace=DEFAULT_BUDGET_LIMITS.aiPerWorkspacePerDay,global=DEFAULT_BUDGET_LIMITS.aiGlobalPerDay;
@@ -365,6 +367,27 @@ try{
     A.equal(reconciled.status,200,JSON.stringify(reconciled));
     A.equal(reconciled.value.payment.state,'COMPLETED');
     A.equal(inferenceCalls,before); // not one of the actions above reached the assistant
+  });
+
+  await area('two evaluation workspaces share a burst without increasing the global ceiling',async()=>{
+    await configure({limits:{evaluationReserveEnabled:true}});
+    const publicDesks=await Promise.all([desk(),desk(),desk(),desk()]);
+    const judges=await Promise.all([desk(true),desk(true),desk(true)]);
+    const before=inferenceCalls;
+    scripted(...Array.from({length:5},()=>({...usableView,delayMs:10})));
+    const admitted=await Promise.all([...publicDesks.slice(0,3),...judges.slice(0,2)].map(d=>assist(d)));
+    A.deepEqual(admitted.map(r=>r.status),[200,200,200,200,200]);
+    A.equal(inferenceCalls-before,5);
+    const rows=await counters();
+    A.equal(rows[`${DAY1_KEY}|ai-total`],5);
+    A.equal(rows[`${DAY1_KEY}|ai-public`],3);
+    A.equal(rows[`${DAY1_KEY}|ai-evaluation`],2);
+    for(const d of [publicDesks[3],judges[2]]){
+      const result=await assist(d);
+      A.equal(result.status,400);A.equal(result.value.reason,'burst');
+    }
+    A.equal(inferenceCalls-before,5);
+    A.deepEqual(await counters(),rows,'refused requests consume no daily capacity');
   });
 
   A.equal(unexpected,0);

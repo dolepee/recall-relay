@@ -6,10 +6,10 @@ const {EvaluationAccess}=await import(pathToFileURL(dir+'/app.mjs'));const React
 test('entering an evaluation code and clicking activation submits once and shows success or a recoverable error',async()=>{
  for(const success of [false,true]){
  const root=createRoot(document.getElementById('root'));let calls=[];globalThis.fetch=async(path,options)=>{calls.push({path,...options});return new Response(JSON.stringify(success?{accepted:true}:{error:'Invalid evaluation code.'}),{status:success?200:403});};
- await act(async()=>root.render(React.createElement(EvaluationAccess)));const field=document.querySelector('input'),button=[...document.querySelectorAll('button')].find(b=>b.textContent==='Activate evaluation allowance');assert.equal(button.disabled,true);
+ await act(async()=>root.render(React.createElement(EvaluationAccess)));assert.equal(document.title,'Evaluation access · Recall Relay');const field=document.querySelector('input'),button=[...document.querySelectorAll('button')].find(b=>b.textContent==='Activate evaluation allowance');assert.equal(button.disabled,true);
  await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(field,'a'.repeat(43));field.dispatchEvent(new Event('input',{bubbles:true}));});assert.equal(button.disabled,false);
  await act(async()=>{button.click();await new Promise(r=>setTimeout(r,0));});assert.equal(calls.length,1);assert.equal(calls[0].path,'/api/evaluation/access');assert.deepEqual(JSON.parse(calls[0].body),{code:'a'.repeat(43)});
- if(success){assert.match(document.querySelector('[role=status]').textContent,/activated/);assert.equal(document.querySelector('input'),null);}else{assert.match(document.body.textContent,/Invalid evaluation code/);assert.equal(button.disabled,false);}
+ if(success){assert.match(document.querySelector('[role=status]').textContent,/activated/);assert.equal(document.querySelector('input'),null);assert.equal(document.activeElement,document.querySelector('[role=status]'));}else{assert.match(document.body.textContent,/Invalid evaluation code/);assert.equal(button.disabled,false);assert.equal(document.activeElement,field);assert.equal(field.getAttribute('aria-invalid'),'true');assert.equal(field.getAttribute('aria-describedby'),'evaluation-access-error');}
  await act(async()=>root.unmount());
  }
 });

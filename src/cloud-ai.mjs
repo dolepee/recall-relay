@@ -1,10 +1,10 @@
 export const advisoryModel='@cf/openai/gpt-oss-120b';
-export const hostedModel='@cf/qwen/qwen3-30b-a3b-fp8';
+export const hostedModel='@cf/qwen/qwen3.8-27b';
 export const inferenceTimeoutMs=45000;
 export class HostedAI {
   constructor(binding,reserve,enabled,{allowance,timeoutMs=inferenceTimeoutMs}={}){this.binding=binding;this.reserve=reserve;this.enabled=enabled;this.allowance=allowance;this.timeoutMs=Number.isFinite(timeoutMs)&&timeoutMs>0?Math.min(timeoutMs,inferenceTimeoutMs):inferenceTimeoutMs;}
   advisoryStatus(){return {...this.status(),model:'gpt-oss-120b · Cloudflare Workers AI'};}
-  status(){return {available:!!this.binding&&this.enabled,model:'Qwen3-30B · Cloudflare Workers AI',scope:'Server inference; suggestions require merchant review.'};}
+  status(){return {available:!!this.binding&&this.enabled,model:'Qwen3.8-27B · Cloudflare Workers AI',scope:'Server inference; suggestions require merchant review.'};}
   // Availability is reported from the counters, not from configuration alone, so the interface cannot
   // offer a control whose allowance is already gone.
   async availability(){
@@ -27,7 +27,7 @@ export class HostedAI {
     const timeoutError=new Error('The AI request took too long. No suggestion was applied. Review the quoted source manually, or try again later.');
     // The deadline bounds our response, not provider execution or billing. Keep the
     // admission consumed and never apply a late result or retry automatically.
-    try{result=await Promise.race([this.binding.run(advisory?advisoryModel:hostedModel,{messages:[{role:'system',content:system},{role:'user',content:advisory?data:data+'\n/no_think'}],max_tokens:Math.min(advisory?3500:900,Math.max(1,maxTokens)),temperature:0,stream:false,response_format:responseSchema?{type:'json_schema',json_schema:responseSchema}:{type:'json_object'}}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(timeoutError),this.timeoutMs);})]);}
+    try{result=await Promise.race([this.binding.run(advisory?advisoryModel:hostedModel,{messages:[{role:'system',content:system},{role:'user',content:data}],max_tokens:Math.min(advisory?3500:900,Math.max(1,maxTokens)),temperature:0,stream:false,...(!advisory?{reasoning_effort:'low',chat_template_kwargs:{enable_thinking:false}}:{}),response_format:responseSchema?{type:'json_schema',json_schema:responseSchema}:{type:'json_object'}}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(timeoutError),this.timeoutMs);})]);}
     catch(error){if(error===timeoutError)throw error;throw new Error('The AI service could not complete this request. No suggestion or payment was applied. Review the quoted source manually, or try again later.');}
     finally{clearTimeout(timer);}
     let text=[result?.choices?.[0]?.message?.content,result?.response,responseSchema&&result?.response&&typeof result.response==='object'?JSON.stringify(result.response):undefined,Array.isArray(result?.output)?result.output.flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):undefined].find(value=>typeof value==='string');

@@ -20,7 +20,7 @@ correction or payment state during inference returns `STALE_CONTEXT`. Advice is
 not persisted into claims, review records or payment reservations.
 
 Hosted advisory uses gpt-oss-120b through the existing Workers AI binding and
-admission budget. Source drafting and view selection retain Qwen3-30B. The local
+admission budget. Source drafting and view selection retain Qwen3.8-27B. The local
 adapter uses its configured local model; hosted evaluation results do not establish
 local-model quality. Manual review remains available when inference is unavailable.
 

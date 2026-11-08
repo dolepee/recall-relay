@@ -246,3 +246,21 @@ test('reserved evaluation allowance survives exhaustion of public workspace and 
  seed(DAY1_KEY,'practice-public',360);seed(DAY1_KEY,'practice-sessions',360);assert.equal(core.admitPractice('public-practice').opened,false);assert.equal(core.admitPractice('judge-practice',undefined,true).opened,true);
  }finally{sqlite.close();}
 });
+
+// Hosted drafting must not silently fall back to a retired model or consume its
+// bounded answer budget on reasoning; case advisory keeps its separate contract.
+test('hosted drafting uses supported Qwen3.8 with thinking disabled and advisory stays isolated',async()=>{
+ const calls=[],ai=new HostedAI({async run(model,input){calls.push({model,input});return {choices:[{message:{content:'{"ok":true}'}}]};}},async()=>{},true);
+ await ai.generate('Extract source fields',{clauses:[]});
+ assert.equal(calls[0].model,'@cf/qwen/qwen3.8-27b');
+ assert.deepEqual(calls[0].input.chat_template_kwargs,{enable_thinking:false});
+ assert.equal(calls[0].input.messages[1].content,'{"clauses":[]}');
+ assert.equal(calls[0].input.max_tokens,900);
+ assert.equal(calls[0].input.reasoning_effort,'low');
+ assert.match(ai.status().model,/Qwen3\.8/);
+ await ai.generate('Read-only advice',{clauses:[]},{advisory:true,maxTokens:3500});
+ assert.equal(calls[1].model,'@cf/openai/gpt-oss-120b');
+ assert.equal(calls[1].input.chat_template_kwargs,undefined);
+ assert.equal(calls[1].input.reasoning_effort,undefined);
+ assert.equal(calls[1].input.max_tokens,3500);
+});

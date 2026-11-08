@@ -218,8 +218,12 @@ resource names and `PUBLIC_ORIGINS` for your deployment before publishing.
 Associate your custom domain in Pages before adding its external DNS CNAME.
 `test:cloud` exercises real workerd and SQLite persistence with an intercepted
 fake PayPal transport; it does not contact PayPal or prove a hosted payment.
-Hosted source drafting and view selection use Qwen3-30B through Cloudflare
+Hosted source drafting and view selection use Qwen3.8-27B through Cloudflare
 Workers AI; the read-only case advisory and conversational Claim Guide use gpt-oss-120b.
+Drafting uses low reasoning effort with thinking disabled to preserve its bounded answer allowance.
+A provider/model failure applies no suggestion and leaves manual source review available;
+there is no automatic fallback to a retired model. Recheck the Workers AI model catalog
+and deprecation notices before changing a model or planning an availability window.
 Source advisory sends public notice clauses. Conversational answers also send
 the merchant question, normalized workflow facts and aggregate Sandbox claim
 amounts, excluding photos, customer free-text responses, private links, capture

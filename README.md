@@ -5,6 +5,12 @@ and resolve an eligible refund to the original PayPal payment. Reviewed notice
 instructions and the exact customer evidence revision stay linked to settlement.
 The customer returns to the same private page for a confirmed receipt.
 
+The outcome is a traceable path from recall-to-purchase reconciliation to a
+reviewed refund: separate affected, excluded and unknown purchase lines, open an
+exactly linked existing claim, resolve evidence gaps, review the current revision,
+and explicitly approve only the affected item amount. Reconciliation declarations
+and planning totals alone cannot establish refundability or authorize settlement.
+
 This build uses fictional merchandise and **PayPal Sandbox**. A complete merchant-authored
 fictional test notice supplies the supported connected example. Public CPSC imports remain
 separate and may require manual handling; importing one does not create a manufacturer
@@ -24,6 +30,12 @@ without an account, or complete a [guided simulated claim](https://recall-relay.
 Neither route moves funds or proves a PayPal payment.
 
 ## Evaluation quick start
+
+Use a normal browser; the hosted app needs no local installation or model.
+Start with the public routes below. Connected work is isolated to that browser
+session, so keep the same browser and its cookies when returning to the desk.
+Never share a private customer link or merchant session. Use fictional responses
+and disposable test images only.
 
 Choose the route for the capability you want to inspect:
 
@@ -50,6 +62,12 @@ If the operator supplied a private code, activate it at
 same browser. This reserves bounded capacity; it does not provide a PayPal
 account, remove quotas or grant payment authority. If AI is unavailable, the
 manual controls still work, but that is not a live AI demonstration.
+
+Hosted access is bounded, not guaranteed: when configured, invited evaluation
+reserves two model generations per minute and 20 per day across the evaluation
+pool, within the total service budget. Further requests may wait until the displayed
+reset; the per-workspace limit still applies. The private code is supplied separately
+by the operator, never in this README. See [capacity details](docs/evaluation-access.md).
 
 The automated suite uses provider and model doubles, including local workerd
 integration tests. Passing those tests is not evidence of a hosted PayPal
@@ -376,12 +394,55 @@ authorized endpoint. Evidence confirmation stays disabled until it displays.
 - Local merchant launch links and hosted browser sessions use different
   authentication boundaries. Neither is production multi-merchant onboarding.
 
-The connected local interface completed a fresh Sandbox purchase, capture,
-source-specific evidence review, partial refund and matching customer/merchant
-receipt on 22 October 2026. Transaction confirmations were performed by the
-operator. Automated tests use injected provider doubles; they are distinct
-from that real Sandbox run. There is no independent adoption or measured
-time-saving claim.
+## Hosted Sandbox evidence: 8 November 2026
+
+An operator-observed run through the hosted application completed on revision
+[`7865695`](https://github.com/dolepee/recall-relay/commit/7865695ddceb14a14930608f842cd8b1cdd68b61):
+
+- The complete merchant-authored **fictional Relay Home notice** was drafted with
+  an actual hosted Qwen3.8-27B call, then explicitly reviewed and published.
+- The buyer approved a **USD $72.75 PayPal Sandbox purchase**, comprising a
+  **$38.75 affected item** and a **$34.00 excluded tray**. Capture was verified.
+- After initial evidence review, a correction request cleared that review.
+  Different fictional evidence was submitted and required a fresh merchant review.
+- An explicitly approved **$38.75 partial refund** reached **COMPLETED**.
+  Authenticated PayPal readback confirmed its link to the original capture and
+  amount. The **$34.00 tray stayed excluded**; the customer receipt persisted
+  after reload.
+
+This is one actual hosted Sandbox workflow using test funds, not a real recall,
+real customer purchase or production refund. The source notice, merchandise and
+evidence were fictional; PayPal Sandbox capture/refund and hosted model inference
+were real service calls. The later frontend-only reconciliation navigation release
+[`1abefc1`](https://github.com/dolepee/recall-relay/commit/1abefc15c533c3f39f02c208cae4b7a67a004cdb)
+retained the same backend. The payment proof belongs to `7865695`, not a new
+transaction on that later release.
+
+The automated suite uses provider/model doubles and does not reproduce this hosted
+payment proof. One observed attempt does not establish provider-wide exactly-once
+execution, general AI accuracy, independent human usefulness, customer adoption or
+measured time savings. Private access codes, customer links, payment identifiers,
+credentials and raw evidence are intentionally not published.
+
+## What AI and AG Studio contribute
+
+**AI** proposes source-linked evidence fields from notice text and answers merchant
+questions using retrieved records and citations. Hosted source drafting and view
+selection use Qwen3.8-27B; case advisory and Claim Guide use gpt-oss-120b. Exact
+quotations and deterministic checks constrain suggestions, but cannot prove that
+every requirement was understood. The merchant reviews the full notice and the
+current evidence. AI does not authenticate photographs, decide recall eligibility,
+confirm an evidence review or authorize a payment. Recorded review briefs and
+financial totals come from stored state, not model-generated facts.
+
+**AG Studio** supplies the desktop Agent Framework and coordinated review panels:
+source coverage, claim evidence, scope/readiness and amounts. A custom runner and
+read-only tools connect those panels to the selected claim and cited Claim Guide;
+an explicit view request can filter the queue. Studio is the workspace layer, not
+the settlement authority. Server-side ownership, allocation, evidence-revision
+checks, explicit merchant approval and authenticated PayPal readback govern the
+refund. Mobile uses ordinary controls and the same cited guide without loading
+Studio. The evaluation watermark remains; commercial rights are separate.
 
 `/training` retains a separate fictional non-settling workspace, and it is
 **local only**. The hosted build does not route to or link to it. Its invented

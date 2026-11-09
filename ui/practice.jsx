@@ -165,16 +165,18 @@ export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
   }
   async function submit(event){
     event.preventDefault();
-    if(!canSubmit)return;
+    if(busy||reading||localError||!canSubmit)return;
     await run('submit',{caseId:c.id,attempt:value.attempt,revision:c.revision,lot,acknowledged:ack,extra,correctionResponse:response,...(photo===undefined?{}:{photo})});
   }
   const fields=(value.scenario.requirements||[]).filter(f=>f.kind!=='PHOTO');
   const confirmations=fields.filter(f=>f.kind==='CONFIRMATION');
   const descriptions=fields.filter(f=>f.kind!=='CONFIRMATION');
   const missing=[];
-  if(!photo&&!c.photo)missing.push('photo');
+  const replacementRequired=c.correction?.state==='REQUESTED'&&c.correction.replacePhoto;
+  if(replacementRequired?(!photo||photo===c.photo):(!photo&&!c.photo))missing.push(replacementRequired?'replacement photo':'photo');
   if(!lot.trim())missing.push('lot code');
   if(!ack)missing.push('purchase confirmation');
+  if(confirmations.some(field=>extra[field.id]!==true))missing.push('required confirmations');
   if(descriptions.some(field=>!String(extra[field.id]||'').trim()))missing.push('defect description');
   if(c.correction?.state==='REQUESTED'&&response.trim().length<3)missing.push('correction response');
   const canSubmit=missing.length===0;
@@ -261,7 +263,7 @@ export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
           <ErrorText error={localError||error}/>
           {stale&&<Button variant="secondary" type="button" onClick={onRefresh}>Refresh practice case</Button>}
           <div className="rr-actions">
-            <Button type="submit" disabled={busy||reading||!canSubmit}>{submitLabel}</Button>
+            <Button type="submit" disabled={busy||reading||!!localError||!canSubmit}>{submitLabel}</Button>
             <p className="rr-muted">{canSubmit?`Saving creates revision ${c.revision+1} and clears any earlier review.`:`Still needed: ${missing.join(', ')}.`}</p>
           </div>
         </form>

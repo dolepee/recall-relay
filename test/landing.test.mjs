@@ -91,3 +91,8 @@ test('desktop and mobile navigation agree on real destinations',async()=>{
   assert.match(html,/id="relay"/);
   assert.match(html,/#relay\{scroll-margin-top:88px\}/,'the anchor clears the sticky header');
 });
+
+
+test('purchase reconciliation remains discoverable from the homepage',async()=>{
+ const html=await read();assert.match(html,/<a href="\/practice\/reconciliation">Try the synthetic ledger<\/a>/);
+});

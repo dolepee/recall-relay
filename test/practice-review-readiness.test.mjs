@@ -79,13 +79,13 @@ test('a customer at the submission limit can start fresh with incomplete or corr
 
 
 test('saving customer evidence moves focus to the handoff heading',async()=>{
-  const initial={...value({missing:['Photograph required'],submission:null,revision:0}),role:'customer'};
+  const initial={...value({missing:['Photograph required'],submission:{lot:'LOT-A',acknowledged:true,hasPhoto:true,extra:{'practice-defect':'The handle has a crack.'}},revision:1}),role:'customer'};
   const submitted={...value(),role:'customer'};
   const original=globalThis.fetch;
   globalThis.fetch=async(url,options)=>({ok:true,json:async()=>options?.method==='POST'?submitted:initial});
   try{
     await render(React.createElement(Practice));
-    await act(async()=>{button('Submit for review').click();await tick();});
+    await act(async()=>{button('Save a new revision').click();await tick();});
     assert.equal(text(document.activeElement),'Evidence submitted.');
   }finally{globalThis.fetch=original;}
 });

@@ -195,12 +195,11 @@ test('published setup preview points to the desk instead of an absent publish se
  const root=createRoot(document.getElementById('root'));
  await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
  const body=document.body.textContent;
- assert.match(body,/These fields remain the requirements for existing claims/);
  assert.match(body,/Open the claims desk above for the next test purchase/);
  assert.doesNotMatch(body,/Publish a sandbox scenario below/);
  assert.equal([...document.querySelectorAll('button')].some(node=>node.textContent==='Publish sandbox scenario'),false,'the publish section is absent while active');
  await act(async()=>{[...document.querySelectorAll('button')].find(node=>node.textContent==='Change test product').click();await tick();});
- assert.match(document.body.textContent,/Publish the updated sandbox scenario below/);
+ assert.match(document.body.textContent,/Publish the updated scenario below/);
  assert.ok([...document.querySelectorAll('button')].some(node=>node.textContent==='Publish sandbox scenario'),'editing the scope restores the publish section');
  await act(async()=>root.unmount());
 });

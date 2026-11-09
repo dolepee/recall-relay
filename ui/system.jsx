@@ -29,10 +29,11 @@ export function Badge({tone = 'neutral', children}) {
   return <span className={['rr-badge', tone !== 'neutral' ? `rr-badge--${tone}` : ''].filter(Boolean).join(' ')}>{children}</span>;
 }
 
-export function Callout({tone = 'info', title, children, actions}) {
+export function Callout({tone = 'info', title, titleLevel = 3, children, actions}) {
+  const Heading = `h${titleLevel}`;
   return (
     <div className={['rr-callout', `rr-callout--${tone}`].join(' ')}>
-      {title && <h3>{title}</h3>}
+      {title && <Heading>{title}</Heading>}
       <div className="rr-stack" style={{gap: 6}}>{children}</div>
       {actions && <div className="rr-actions">{actions}</div>}
     </div>

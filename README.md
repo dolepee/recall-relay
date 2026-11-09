@@ -86,8 +86,6 @@ labelled as an invented sample and no funds move.
 
 ![Read-only sample desk](docs/sample-desk.png)
 
-![Sample receipt](docs/sample-receipt.png)
-
 ![Read-only sample desk, mobile](docs/sample-mobile.png)
 
 ## Importing existing purchases

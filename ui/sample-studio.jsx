@@ -16,7 +16,7 @@ export default function SampleStudio(){
   const widgets=useMemo(()=>createWidgets({additionalTypes:widgetTypes,overrides:[{id:'grid',options:{createCellRenderer:field=>field.fieldId==='sample.order'?SampleOrderCell:undefined}}]}),[]);
   const data=useMemo(()=>({sources:[{id:'sample',data:sampleRows.filter(row=>visibleCases.some(c=>c.order===row.order))}]}),[visibleCases]);
   const initialState=useMemo(()=>({pages:[{id:'sample',widgets:{
-    queue:{type:'grid',dataMapping:{cols:[{id:'sample.order'},{id:'sample.status'}]},format:{title:{text:'Sample claim queue',enabled:true},style:{theme:{rowHeight:74},columnAutoSize:false,columnWidth:130}}},
+    queue:{type:'grid',dataMapping:{cols:[{id:'sample.order'},{id:'sample.status'}]},format:{title:{text:'Sample claim queue',enabled:true},style:{theme:{rowHeight:92},columnAutoSize:false,columnWidth:200}}},
     review:{type:'sample-case',dataMapping:{}},
     source:{type:'sample-source',dataMapping:{}},
     payment:{type:'sample-payment',dataMapping:{}},
@@ -28,5 +28,5 @@ export default function SampleStudio(){
     payment:{xTrack:15,yTrack:12,xSpan:9,ySpan:6},
     amount:{xTrack:15,yTrack:18,xSpan:9,ySpan:6},
   },layout:{minWidth:280,columns:24,rowHeight:24,pagePadding:0,widgetPadding:0,widgetBorderEnabled:true,widgetBorderColor:'#DEE5EE',widgetBorderRadius:12}}],selectedPageId:'sample'}),[]);
-  return <div className="rr-workspace rr-sample-studio grid min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white" style={{gridTemplateColumns:'minmax(0,1fr)',height:900}}><div className="min-h-0 min-w-0"><AgStudio style={{height:'100%',width:'100%'}} data={data} widgets={widgets} theme={merchantStudioTheme} initialState={initialState} mode="view" panels={{edit:{left:[],right:[]},view:{left:[],right:[]}}} onErrorRaised={event=>console.error('Sample Studio:',event.errorDetails?.join('; ')||'Workspace error')}/></div></div>;
+  return <div className="rr-workspace rr-sample-studio grid min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white" style={{gridTemplateColumns:'minmax(0,1fr)',height:'clamp(540px, calc(100dvh - 15rem), 640px)'}}><div className="min-h-0 min-w-0"><AgStudio style={{height:'100%',width:'100%'}} data={data} widgets={widgets} theme={merchantStudioTheme} initialState={initialState} mode="view" panels={{edit:{left:[],right:[]},view:{left:[],right:[]}}} onErrorRaised={event=>console.error('Sample Studio:',event.errorDetails?.join('; ')||'Workspace error')}/></div></div>;
 }

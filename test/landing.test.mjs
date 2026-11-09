@@ -11,9 +11,9 @@ test('the homepage states the merchant job and the two real entry points',async(
   for(const copy of [
     'Recall resolution for merchants',
     'Resolve recall claims. Refund the <em>right item.</em>',
-    'Compare purchases with recall instructions. See what needs evidence or purchase checks, then review an affected item’s refund to its original PayPal payment.',
+    'Turn a recall notice into clear customer steps, then refund only the affected item to the original PayPal payment.',
     'Guided claim',
-    'Real AI drafting and PayPal Sandbox APIs.',
+    'Practice is simulated. The connected path uses PayPal Sandbox and a test-buyer login.',
     'Practice a complete claim',
     'Sandbox workspace',
     'How it works',
@@ -42,8 +42,7 @@ test('the illustrative allocation explains the affected item, exclusion and dest
     '$59.99',
     'Proposed refund',
     'To the original PayPal payment',
-    'Only the affected cup is included in the refund.',
-    'You review and approve the refund.',
+    'Only the cup is refunded; you review and approve.',
   ]) assert.ok(html.includes(copy),copy);
   const example=html.slice(html.indexOf('<aside class="example"'),html.indexOf('</aside>',html.indexOf('<aside class="example"')));
   assert.ok(example.length>0);
@@ -55,18 +54,18 @@ test('the instructions cover the three stages, the decision ingredients and the 
   for(const copy of [
     'One clear path from notice to refund.',
     'Find affected purchases',
-    'Review the notice and compare purchase lines. Keep affected scope separate from missing evidence or purchase checks.',
+    'Compare the notice with each purchase line.',
     'Review evidence',
-    'Inspect the current submission and request an update if needed.',
+    'Review the current evidence and request only what is missing.',
     'Approve refund',
-    'Confirm the affected amount and check the provider result.',
+    'Refund the affected amount and confirm PayPal’s result.',
     'Everything needed for the decision.',
     'Source requirement',
     'Current evidence',
     'Refund confirmation',
     'Practice or Sandbox?',
-    'No PayPal account is needed and no funds move.',
-    'test funds and fictional merchandise',
+    'Practice is simulated. The connected path uses live AI drafting and PayPal test funds.',
+    'PayPal Sandbox and a test-buyer login.',
   ]) assert.ok(html.includes(copy),copy);
 });
 
@@ -91,4 +90,9 @@ test('desktop and mobile navigation agree on real destinations',async()=>{
   assert.doesNotMatch(html,/href="#"/,'no placeholder links');
   assert.match(html,/id="relay"/);
   assert.match(html,/#relay\{scroll-margin-top:88px\}/,'the anchor clears the sticky header');
+});
+
+
+test('purchase reconciliation remains discoverable from the homepage',async()=>{
+ const html=await read();assert.match(html,/<a href="\/practice\/reconciliation">Try the synthetic ledger<\/a>/);
 });

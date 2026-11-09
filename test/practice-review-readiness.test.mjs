@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import test,{after,afterEach} from 'node:test';
-import {mkdir,mkdtemp,rm} from 'node:fs/promises';
+import {mkdir,mkdtemp,rm,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {JSDOM} from 'jsdom';
@@ -79,13 +79,40 @@ test('a customer at the submission limit can start fresh with incomplete or corr
 
 
 test('saving customer evidence moves focus to the handoff heading',async()=>{
-  const initial={...value({missing:['Photograph required'],submission:null,revision:0}),role:'customer'};
+  const initial={...value({missing:['Photograph required'],submission:{lot:'LOT-A',acknowledged:true,hasPhoto:true,extra:{'practice-defect':'The handle has a crack.','practice-lot-confirm':true}},revision:1}),role:'customer'};
   const submitted={...value(),role:'customer'};
   const original=globalThis.fetch;
   globalThis.fetch=async(url,options)=>({ok:true,json:async()=>options?.method==='POST'?submitted:initial});
   try{
     await render(React.createElement(Practice));
-    await act(async()=>{button('Submit for review').click();await tick();});
+    await act(async()=>{button('Save a new revision').click();await tick();});
     assert.equal(text(document.activeElement),'Evidence submitted.');
   }finally{globalThis.fetch=original;}
+});
+
+
+test('practice submission waits for every required confirmation, including Enter submits',async()=>{
+ const calls=[];
+ await render(React.createElement(CustomerStage,{value:{...value({missing:['Required confirmation missing']}),role:'customer'},run:async(...args)=>calls.push(args),busy:false,error:'',stale:false,onRefresh:()=>{}}));
+ const submit=button('Save a new revision');
+ assert.equal(submit.disabled,true);assert.match(document.body.textContent,/Still needed:.*required confirmations/);
+ await act(async()=>{document.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await tick();});assert.equal(calls.length,0);
+ await act(async()=>{document.querySelector('input[type=checkbox]').click();await tick();});assert.equal(submit.disabled,false);
+ await act(async()=>{submit.click();await tick();});assert.equal(calls.length,1);assert.equal(calls[0][1].extra['practice-lot-confirm'],true);
+});
+
+test('a required replacement photo must differ from the saved photo before a correction can submit',async()=>{
+ const first=await readFile('public/assets/practice-label-a.png'),second=await readFile('public/assets/practice-label-b.png');
+ const calls=[],oldFetch=globalThis.fetch;globalThis.FileReader=dom.window.FileReader;
+ globalThis.fetch=async url=>({ok:true,blob:async()=>new dom.window.Blob([String(url).includes('label-a')?first:second],{type:'image/png'})});
+ try{
+  const c={...value({missing:['Replacement photograph required'],photo:'data:image/png;base64,'+first.toString('base64'),correction:{state:'REQUESTED',message:'Replace the label image.',replacePhoto:true}}),role:'customer'};c.case.submission.extra['practice-lot-confirm']=true;
+  await render(React.createElement(CustomerStage,{value:c,run:async(...args)=>calls.push(args),busy:false,error:'',stale:false,onRefresh:()=>{}}));
+  await act(async()=>{const field=document.querySelector('textarea');Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set.call(field,'Here is the replacement label.');field.dispatchEvent(new Event('input',{bubbles:true}));await tick();});
+  assert.equal(button('Send updated evidence').disabled,true);assert.match(document.body.textContent,/Still needed:.*replacement photo/);
+  await act(async()=>{button('Use fictional label A').click();await new Promise(r=>setTimeout(r,25));});assert.equal(button('Send updated evidence').disabled,true,'the same bytes cannot satisfy a required replacement');
+  await act(async()=>{document.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await tick();});assert.equal(calls.length,0);
+  await act(async()=>{button('Use fictional label B').click();await new Promise(r=>setTimeout(r,25));});assert.equal(button('Send updated evidence').disabled,false);
+  await act(async()=>{button('Send updated evidence').click();await tick();});assert.equal(calls.length,1);assert.notEqual(calls[0][1].photo,c.case.photo);
+ }finally{globalThis.fetch=oldFetch;}
 });

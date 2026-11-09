@@ -24,7 +24,7 @@ export function ProgressiveWorkspace({load,fallback,componentProps={},studioCont
     return()=>{active=false;clearTimeout(timer);};
   },[load,delayMs]);
   const Studio=loaded;
-  if(open&&Studio)return <div ref={workspace} tabIndex={-1} aria-label="Studio workspace"><WorkspaceBoundary fallback={fallback}>{studioControls}<Studio {...componentProps}/></WorkspaceBoundary></div>;
+  if(open&&Studio)return <div ref={workspace} tabIndex={-1} role="region" aria-label="Studio workspace"><WorkspaceBoundary fallback={fallback}>{studioControls}<Studio {...componentProps}/></WorkspaceBoundary></div>;
   return <div>
     <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
       <p role="status">{status==='loading'?'Studio is loading. You can use the standard workspace now.':status==='slow'?'The Studio download is taking longer. Continue in the standard workspace.':status==='failed'?'Studio could not download. Continue in the standard workspace, or reload this page to retry.':'Studio is ready. Your standard workspace stays open until you choose to switch.'}</p>

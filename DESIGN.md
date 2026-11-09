@@ -98,10 +98,10 @@ Source setup exposes the current stage: import, review fields, or publish. After
 ## Homepage migration status (2026-11-04)
 
 - Migrated: `/` homepage and `/practice` guided claim. Both use `--surface #FFFFFF`, `--canvas #F5F7FA`, `--ink #142337`, `--ink-2 #596779`, `--action #315CF5`, `--border #DEE5EE` and the shared wordmark/button language.
-- Homepage exact copy: eyebrow `Recall resolution for merchants`; headline `Resolve recall claims. Refund the right item.`; supporting sentence `Turn a recall notice into clear customer instructions. Review the evidence, then approve the affected item’s refund to the original PayPal payment.`; primary `Try a guided claim`; note `Simulated. No funds move.`; quiet `Sandbox workspace`.
+- Homepage exact copy: eyebrow `Recall resolution for merchants`; headline `Resolve recall claims. Refund the right item.`; supporting sentence `Turn a recall notice into clear customer steps, then refund only the affected item to the original PayPal payment.`; primary `Try AI + PayPal Sandbox`; note `Practice is simulated. The connected path uses PayPal Sandbox and a test-buyer login.`; secondary `Practice a complete claim`; quiet `Sandbox workspace`.
 - Illustrative allocation: `One order. One affected item.`; cup `$25.99` affected; tray `$34.00` excluded; original `$59.99`; proposed refund `$25.99` to the original PayPal payment; no approval control.
 - Instructions: `One clear path from notice to refund.` with Prepare claim, Review evidence and Approve refund; `Everything needed for the decision.` with Source requirement, Current evidence and Refund confirmation; compact practice/Sandbox FAQ.
-- Routes: `/practice` primary guided claim; `/desk` quieter Sandbox workspace; `/sample` in the footer; `#relay` for How it works. The practice wordmark returns to `/`.
+- Routes: `/setup?example=relay-home` primary connected path; `/practice` secondary guided claim; `/desk` Sandbox workspace; `/sample` in the footer; `/practice/reconciliation` linked from the FAQ and practice; `#relay` for How it works. The practice wordmark returns to `/`.
 - Not yet migrated: `/claim`, `/desk`, `/setup` and Studio keep their existing surface styling and behavior until their own increment. Do not copy the homepage palette into them piecemeal, and do not copy connected allocation constants into the homepage.
 - The homepage is static, so it may not invent a refund, submit a form, call a provider or display an authorization control.
 

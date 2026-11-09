@@ -104,7 +104,7 @@ function PracticeClaimCard({value}){
       <div><dt>Excluded tray</dt><dd>{facts.excluded}</dd></div>
       <div><dt>Original purchase</dt><dd>{facts.total}</dd></div>
     </dl>
-    <p className="rr-note-box">You will approve only the affected item.</p>
+    <p className="rr-note-box">Only the affected cup is refunded.</p>
   </Card>;
 }
 
@@ -165,11 +165,21 @@ export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
   }
   async function submit(event){
     event.preventDefault();
+    if(busy||reading||localError||!canSubmit)return;
     await run('submit',{caseId:c.id,attempt:value.attempt,revision:c.revision,lot,acknowledged:ack,extra,correctionResponse:response,...(photo===undefined?{}:{photo})});
   }
   const fields=(value.scenario.requirements||[]).filter(f=>f.kind!=='PHOTO');
   const confirmations=fields.filter(f=>f.kind==='CONFIRMATION');
   const descriptions=fields.filter(f=>f.kind!=='CONFIRMATION');
+  const missing=[];
+  const replacementRequired=c.correction?.state==='REQUESTED'&&c.correction.replacePhoto;
+  if(replacementRequired?(!photo||photo===c.photo):(!photo&&!c.photo))missing.push(replacementRequired?'replacement photo':'photo');
+  if(!lot.trim())missing.push('lot code');
+  if(!ack)missing.push('purchase confirmation');
+  if(confirmations.some(field=>extra[field.id]!==true))missing.push('required confirmations');
+  if(descriptions.some(field=>!String(extra[field.id]||'').trim()))missing.push('defect description');
+  if(c.correction?.state==='REQUESTED'&&response.trim().length<3)missing.push('correction response');
+  const canSubmit=missing.length===0;
   const submitLabel=busy?'Saving evidence…':task==='correction'?'Send updated evidence':c.submission?'Save a new revision':'Submit for review';
 
   return <div className="rr-grid rr-grid--customer">
@@ -211,7 +221,7 @@ export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
         <form onSubmit={submit} className="rr-stack">
           <div className="rr-form-step">
             <h3><span className="rr-step-number">1</span> Add a label photo</h3>
-            <p className="rr-muted">The practice notice requires a photograph of the product label showing the lot code. Two fictional labels are provided so the case can be completed without a real photo.</p>
+            <p className="rr-muted">Required: a label photo showing the lot. Use a fictional label or upload one.</p>
             <div className="rr-actions">
               <Button variant="secondary" type="button" disabled={busy||reading} onClick={()=>useSample('a')}>Use fictional label A</Button>
               <Button variant="secondary" type="button" disabled={busy||reading} onClick={()=>useSample('b')}>Use fictional label B</Button>
@@ -221,7 +231,7 @@ export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
                 :c.photo?<img src={c.photo} alt="Photograph already recorded on this practice claim"/>
                 :<p className="rr-evidence__empty">No photograph on this revision yet. Choose a fictional label or upload a PNG or JPEG under 2 MB.</p>}
             </div>
-            <p className="rr-muted" role="status">{reading?'Reading image…':fileName?`${fileName} ready to save`:c.submission?.hasPhoto?'A photograph is recorded on the current revision. Choosing another one replaces it.':'PNG or JPEG, under 2 MB.'}</p>
+            <p className="rr-muted" role="status">{reading?'Reading image…':fileName?`${fileName} ready to save`:c.submission?.hasPhoto?'A photo is recorded. Choosing another replaces it.':'PNG or JPEG, under 2 MB.'}</p>
             <Field label="Or upload your own image" hint="A practice upload is never checked for authenticity." htmlFor="practice-photo">
               <input id="practice-photo" className="rr-file" type="file" accept="image/png,image/jpeg" onChange={pickFile} disabled={busy||reading}/>
             </Field>
@@ -234,7 +244,7 @@ export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
             </Field>
             {confirmations.map(field=><label key={field.id} className="rr-check">
               <input type="checkbox" checked={extra[field.id]===true} disabled={busy} onChange={e=>setExtra(old=>({...old,[field.id]:e.target.checked}))}/>
-              <span>{field.quote}<span className="rr-muted" style={{display:'block',marginTop:4}}>Answering records your statement; the merchant reviews it rather than verifying it for you.</span></span>
+              <span>{field.quote}<span className="rr-muted" style={{display:'block',marginTop:4}}>The merchant reviews your statement, not the action behind it.</span></span>
             </label>)}
             <label className="rr-check"><input type="checkbox" checked={ack} onChange={e=>setAck(e.target.checked)} disabled={busy}/>This item is from my fictional practice purchase.</label>
           </div>
@@ -253,8 +263,8 @@ export function CustomerStage({value,run,busy,error,stale,onRefresh,expired}){
           <ErrorText error={localError||error}/>
           {stale&&<Button variant="secondary" type="button" onClick={onRefresh}>Refresh practice case</Button>}
           <div className="rr-actions">
-            <Button type="submit" disabled={busy||reading}>{submitLabel}</Button>
-            <p className="rr-muted">Saving creates revision {c.revision+1} and clears any earlier review.</p>
+            <Button type="submit" disabled={busy||reading||!!localError||!canSubmit}>{submitLabel}</Button>
+            <p className="rr-muted">{canSubmit?`Saving creates revision ${c.revision+1} and clears any earlier review.`:`Still needed: ${missing.join(', ')}.`}</p>
           </div>
         </form>
       </Card>}
@@ -443,7 +453,7 @@ function ApproveStage({value,run,busy,error,stale,onRefresh}){
       <Card>
         <p className="rr-kicker">Merchant · approve refund</p>
         <h2 id="claim-heading" tabIndex={-1}>Simulated refund recorded</h2>
-        <p className="rr-lede" style={{marginTop:10}}>The claim reached the end of the practice journey. This record is simulated; no payment provider was contacted and no funds moved.</p>
+        <p className="rr-lede" style={{marginTop:10}}>The practice journey is complete. No provider was contacted and no funds moved.</p>
       </Card>
       <Receipt value={value} run={run} busy={busy}/>
       <ErrorText error={error}/>
@@ -465,7 +475,7 @@ function ApproveStage({value,run,busy,error,stale,onRefresh}){
         </div>
         <div className="rr-stack" style={{marginTop:8}}>
           <Callout tone="info" title="What this records">
-            <p>A simulated refund of <strong>{facts.affected}</strong> against this practice case only. The {facts.excluded} tray stays outside the refund.</p>
+            <p>A <strong>{facts.affected}</strong> simulated refund. The {facts.excluded} tray stays excluded.</p>
           </Callout>
           <div className="rr-actions">
             <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -522,7 +532,7 @@ function Receipt({value,run,busy}){
   return <section className="rr-receipt" aria-label="Simulated refund receipt">
     <p className="rr-kicker" style={{color:'#0B5B3A'}}>Simulated refund. No funds moved.</p>
     <h2 style={{marginTop:8}}>{facts.completedAmount} simulated refund</h2>
-    <p style={{marginTop:8,color:'#0B5B3A',fontSize:15}}>Recorded on this practice case only. No payment provider was contacted and the {facts.excluded} tray was not refunded.</p>
+    <p style={{marginTop:8,color:'#0B5B3A',fontSize:15}}>Practice case only. No provider was contacted; the {facts.excluded} tray was not refunded.</p>
     <dl className="rr-amounts" style={{marginTop:14}}>
       <div><dt style={{color:'#0B5B3A'}}>Status</dt><dd>Simulated · completed</dd></div>
       {facts.reference&&<div><dt style={{color:'#0B5B3A'}}>Practice reference</dt><dd style={{fontSize:12,wordBreak:'break-all'}}>{facts.reference}</dd></div>}
@@ -545,12 +555,12 @@ export default function Practice(){
   useEffect(()=>{if(!state)return;const target=document.getElementById('claim-heading')||heading.current;target?.focus?.();},[state?.role,current,progress,state?.case.id,Boolean(state?.case.refund)]);
   return <div className="rr-app">
     <AppShell note="Simulated. No funds move.">
-      <Callout title="Want to find affected purchases first?"><p>Try a separate synthetic reconciliation example: inspect a mixed ledger, correct a missing lot for planning, and see why affected does not mean ready for refund.</p><a className="rr-btn rr-btn--secondary" href="/practice/reconciliation">Try reconciliation</a></Callout>
       <div ref={heading} tabIndex={-1} style={{outline:'none'}}>
         <StageTrack current={progress} complete={Boolean(state?.case?.refund)}/>
         {current===1&&<div className="rr-page-head">
           <h1 style={{marginTop:18}}>See a recall claim through.</h1>
           <p className="rr-lede" style={{marginTop:8}}>One fictional claim, from customer evidence to merchant approval.</p>
+          <p className="rr-muted" style={{marginTop:8}}><a href="/practice/reconciliation">Find affected purchases first</a></p>
         </div>}
       </div>
 

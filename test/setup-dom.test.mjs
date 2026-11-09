@@ -195,12 +195,12 @@ test('published setup preview points to the desk instead of an absent publish se
  const root=createRoot(document.getElementById('root'));
  await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
  const body=document.body.textContent;
- assert.match(body,/These fields remain the requirements for existing claims/);
  assert.match(body,/Open the claims desk above for the next test purchase/);
+ assert.match(body,/Republish before starting or binding another purchase/);
  assert.doesNotMatch(body,/Publish a sandbox scenario below/);
  assert.equal([...document.querySelectorAll('button')].some(node=>node.textContent==='Publish sandbox scenario'),false,'the publish section is absent while active');
  await act(async()=>{[...document.querySelectorAll('button')].find(node=>node.textContent==='Change test product').click();await tick();});
- assert.match(document.body.textContent,/Publish the updated sandbox scenario below/);
+ assert.match(document.body.textContent,/Publish the updated scenario below/);
  assert.ok([...document.querySelectorAll('button')].some(node=>node.textContent==='Publish sandbox scenario'),'editing the scope restores the publish section');
  await act(async()=>root.unmount());
 });
@@ -225,4 +225,23 @@ test('first open selects the active published setup and preserves a deliberate e
 
 test('compound response omissions are visible and cannot be published through an INFORMATION treatment',async()=>{
  const quote='Submit a photograph of the marked cup and attest that you disposed of it according to the posted instructions.';const field={id:'photo',kind:'PHOTO',quote};const source={recallNumber:'TEST',title:'Synthetic compound obligation',products:[{name:'Fictional cup'}],description:'Controlled source fixture',retrievedAt:'2026-11-05T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/fixture',sourceDigest:'a'.repeat(64),remedies:[quote],requirements:[{quote}]};const state={ai:{available:false},activeCampaign:null,setups:[{id:'compound',revision:2,source,suggestion:{model:'controlled',requirements:[field]},review:{fields:[field],coverage:[{id:'clause-0-0',quote,fieldIds:['photo'],disposition:'FIELD',reason:''}],digest:'old'}}]};globalThis.fetch=async()=>new Response(JSON.stringify(state));const root=createRoot(document.getElementById('root'));await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});const publish=[...document.querySelectorAll('button')].find(b=>b.textContent==='Publish sandbox scenario');assert.equal(publish.disabled,true);await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Edit reviewed fields').click());assert.match(document.querySelector('[aria-label="Source instruction coverage"]').textContent,/confirmation: Missing response/i);assert.equal([...document.querySelectorAll('select')].some(s=>s.parentElement.textContent.startsWith('Treatment')),false);await act(async()=>root.unmount());
+});
+
+
+test('the homepage example deep link creates once in a fresh workspace and reuses a saved example',async()=>{
+ const previousLocation=globalThis.location;
+ dom.reconfigure({url:'https://fixture.invalid/setup?example=relay-home'});globalThis.location=dom.window.location;
+ try{
+  for(const saved of [false,true]){
+   const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw Error('No payment calls permitted');}}),ws=new SourceWorkspace(desk.db,{ai:{status:()=>({available:false})}});
+   if(saved)ws.example();let creates=0;
+   globalThis.fetch=async path=>{if(path==='/api/merchant/source-example'){creates++;return new Response(JSON.stringify(ws.example()));}assert.equal(path,'/api/merchant/sources');return new Response(JSON.stringify(await ws.state(desk)));};
+   const root=createRoot(document.getElementById('root'));
+   try{
+    await act(async()=>{root.render(React.createElement(SourceSetup));for(let i=0;i<5;i++)await tick();});
+    assert.match(document.body.textContent,/Relay Home cup · fictional merchant test notice/);assert.equal(creates,saved?0:1);
+    await act(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Check assistant availability').click();for(let i=0;i<3;i++)await tick();});assert.equal(creates,saved?0:1,'refresh never silently creates another example');
+   }finally{await act(async()=>root.unmount());desk.db.close();}
+  }
+ }finally{dom.reconfigure({url:'https://fixture.invalid/setup'});if(previousLocation===undefined)delete globalThis.location;else globalThis.location=previousLocation;}
 });

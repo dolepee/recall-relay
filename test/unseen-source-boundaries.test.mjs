@@ -239,3 +239,22 @@ test('the complete response parser rejects no-timing extra actions and keeps pos
   assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},fields),quote);
  }
 });
+
+test('text and confirmation responses cannot smuggle a physical handoff after the response',()=>{
+ const photo='Upload one photograph of the product label.';
+ for(const quote of [
+  'Enter the lot code and return the item to the retailer.',
+  'Enter the lot code and returning the item to the retailer.',
+  'Confirm ownership and surrender the product.',
+  'Confirm ownership and surrendering the product.',
+  'Confirm ownership and hand over the product.',
+  'Confirm ownership and take the product to the retailer.',
+ ]){
+  const source={remedies:[photo,quote]};
+  const profile=sourceInstructionProfile(quote);
+  assert.ok(profile.issues.length>0,quote);
+  const fields=[{id:'p',kind:'PHOTO',quote:photo},...profile.kinds.map((kind,i)=>({id:`k${i}`,kind,quote}))];
+  assert.equal(sourceCoverage(source,fields)[1].disposition,'MANUAL',quote);
+  assert.throws(()=>assertExecutableSource(source,fields),/manual|handoff|unsupported/i,quote);
+ }
+});

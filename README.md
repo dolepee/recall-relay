@@ -352,9 +352,12 @@ the portal cannot perform.
    preconfigured connected demo.
 2. Under **Source versions and external instructions**, inspect every
    **External instructions not ingested** entry. The saved `27-026` fixture has
-   two such references. Do not paste an invented excerpt just to make the
-   demonstration proceed. If the referenced instructions cannot be obtained or
-   supported, leave the setup blocked for manual handling.
+   two such references. If a genuine public excerpt exists, read it and choose
+   **Save
+   external source snapshot** before drafting. Do not paste an invented excerpt
+   just to make the demonstration proceed; do not invent an excerpt. If the
+   referenced instructions cannot be obtained or supported, leave the setup
+   blocked for manual handling.
 3. Keep the unresolved or manual coverage visible and do not publish a connected
    form. That refusal is the expected result for this notice under the current
    bounded policy.

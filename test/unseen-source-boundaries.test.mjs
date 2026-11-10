@@ -115,3 +115,40 @@ test('completed and grammatically uncertain prerequisites retain external refere
   assert.throws(()=>assertExecutableSource(source,[field(photo)],decisions),/external instructions/);
  }
 });
+
+test('reported residual actions, means, prerequisites and purchase cutoffs cannot publish',()=>{
+ for(const quote of [
+  'Submit a photograph and obtain an authorization number from the manufacturer.',
+  'Submit a photograph after the replacement has arrived.',
+  'Submit a photograph using the manufacturer portal.',
+  'Submit a photograph for orders placed before January 2025.',
+  'Submit a photograph and deliver the item to the retailer.',
+ ]){
+  const source={remedies:[quote]},fields=[{id:'p',kind:'PHOTO',quote}];
+  assert.ok(sourceInstructionProfile(quote).issues.length>0,quote);
+  assert.equal(sourceCoverage(source,fields)[0].disposition,'MANUAL',quote);
+  assert.throws(()=>assertExecutableSource(source,fields),/manual|unsupported residual/i,quote);
+ }
+});
+test('the closed response grammar still publishes the supported Relay Home and compound controls',()=>{
+ const positive=[
+  ['Upload one photograph of the sample label showing the product name and lot code.',['PHOTO']],
+  ['Enter the lot code printed on the sample label.',['TEXT']],
+  ['Confirm that this submission belongs to this claim.',['CONFIRMATION']],
+  ['Upload a photograph of the label and confirm the product serial number.',['PHOTO','CONFIRMATION']],
+  ['Submit a photograph of the marked cup and attest that you disposed of it.',['PHOTO','CONFIRMATION']],
+  ['Submit a photograph of the marked cup and enter the serial number.',['PHOTO','TEXT']],
+  ['Upload a photograph of the label provided by the manufacturer.',['PHOTO']],
+  ['Upload one photograph of the return label.',['PHOTO']],
+  ['Upload a photograph of the product label; return address must be legible.',['PHOTO']],
+ ];
+ const basePhoto='Upload one photograph of the product label.';
+ for(const [quote,kinds] of positive){
+  const remedies=kinds.includes('PHOTO')?[quote]:[basePhoto,quote];
+  const fields=[];
+  if(!kinds.includes('PHOTO'))fields.push({id:'p-photo',kind:'PHOTO',quote:basePhoto});
+  for(const [i,kind] of kinds.entries())fields.push({id:`p${i}`,kind,quote});
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies},fields),quote);
+ }
+});

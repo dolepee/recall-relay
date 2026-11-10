@@ -109,3 +109,19 @@ test('queue and financial tools also use server-owned answers, not model prose',
  assert.equal(money.citations[0].id,'amount-OPEN');
  db.close();
 });
+
+test('manual or waiting claims never recommend approval even with a retained current review',async()=>{
+ const {desk,db}=make();
+ desk.merchantState=()=>({cases:[{id:'a',order:'RR-A',revision:3,amountCents:3875,status:{code:'MANUAL',reason:'Source policy requires manual resolution.'},submission:{lot:'LOT-A',photo:'photo',extra:{}},review:{revision:3,reviewedAt:'2026-11-10T00:00:00Z'},payment:null,receipt:null}]});
+ const ai={generate:async()=>output({tool:'get_case_brief',answer:'The original capture has been fully refunded.',citations:['case-review']}),status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'a',revision:3});
+ assert.equal(result.nextActions[0].id,'resolve-manual');
+ assert.doesNotMatch(result.answer,/approval controls/i);
+ assert.match(result.answer,/manual source or evidence requirement/i);
+ for(const [status,id] of [['WAITING','wait-customer'],['NEEDS_INFORMATION','obtain-information']]){
+  desk.merchantState=()=>({cases:[{id:'a',order:'RR-A',revision:3,amountCents:3875,status:{code:status,reason:'Recorded state.'},submission:{lot:'LOT-A',photo:'photo',extra:{}},review:{revision:3},payment:null,receipt:null}]});
+  const r=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'a',revision:3});
+  assert.equal(r.nextActions[0].id,id,status);assert.doesNotMatch(r.answer,/approval controls/i,status);
+ }
+ db.close();
+});

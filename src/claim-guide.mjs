@@ -15,8 +15,13 @@ function factText(f){
 function safeNextActions(f,context){
  if(f.statusCode==='COMPLETED'||f.providerCompleted)return [{id:'none',label:'No further evidence review or refund action is available.',kind:'NONE'}];
  if(f.paymentState)return [{id:'reconcile-payment',label:'Reconcile the recorded payment attempt using the recovery controls.',kind:'RECOVERY'}];
+ if(f.correctionState==='REQUESTED')return [{id:'wait-correction',label:'Wait for the customer correction; the current revision cannot be approved.',kind:'WAITING'}];
+ if(f.statusCode==='MANUAL')return [{id:'resolve-manual',label:'Resolve the manual source or evidence requirement before any refund decision.',kind:'MANUAL'}];
+ if(f.statusCode==='WAITING')return [{id:'wait-customer',label:'Wait for the customer or outside action recorded by the case.',kind:'WAITING'}];
+ if(f.statusCode==='NEEDS_INFORMATION')return [{id:'obtain-information',label:'Obtain the missing customer information before any refund decision.',kind:'WAITING'}];
  if(!f.reviewRecorded)return [{id:'record-review',label:'Record a human evidence review before any refund decision.',kind:'REVIEW'}];
- return [{id:'approval-controls',label:'Use the merchant approval controls for the refund decision.',kind:'APPROVAL'}];
+ if(f.statusCode==='READY_FOR_APPROVAL')return [{id:'approval-controls',label:'Use the merchant approval controls for the refund decision.',kind:'APPROVAL'}];
+ return [{id:'case-controls',label:'Use the case controls for the recorded next step; approval is not available from this state.',kind:'CONTROLS'}];
 }
 // Model prose is not authoritative for selected-case facts. These answers are
 // assembled from the same server snapshot that supplies the citations, so a

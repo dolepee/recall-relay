@@ -23,6 +23,24 @@ for(const [name,kind,quote] of [
 test('missing written response in a compound photo instruction cannot be marked covered',()=>{
  const q='Submit a photograph of the marked cup and enter the serial number.';const c=sourceCoverage(source([q]),[{id:'p',kind:'PHOTO',quote:q}]);assert.deepEqual(c[0].missingKinds,['TEXT']);
 });
+
+test('an explicit MANUAL decision overrides a linked field and survives save, reload and history',async()=>{
+ const quote='Submit a photograph and also return the item to the retailer.';
+ const s=await prepared([quote],[['PHOTO',quote]]);try{
+  const reason='A physical return must be handled outside this portal.';
+  const r=s.review([{id:'clause-0-0',disposition:'MANUAL',reason}]);
+  assert.equal(r.review.coverage[0].disposition,'MANUAL');
+  assert.equal(r.review.coverage[0].reason,reason);
+  assert.deepEqual(r.review.decisions,[{id:'clause-0-0',disposition:'MANUAL',reason}]);
+  const reloaded=s.ws.get(r.id);
+  assert.deepEqual(reloaded.review.decisions,[{id:'clause-0-0',disposition:'MANUAL',reason}]);
+  assert.equal(sourceCoverage(reloaded.source,reloaded.review.fields,reloaded.review.decisions)[0].disposition,'MANUAL');
+  const history=s.ws.historyFor(r.id).events;
+  assert.equal(history.at(-1).snapshot.review.decisions[0].reason,reason);
+  assert.throws(()=>s.publish(),/every source obligation/);
+ }finally{s.desk.close();}
+});
+
 test('legacy source campaigns cannot start provider work until republished; old claims are preserved',async()=>{
  let calls=0;const desk=new ClaimDesk({provider:async()=>{calls++;throw Error('Unexpected provider');}});try{desk.setSetting('published','yes');desk.setSetting('active-campaign',JSON.stringify({sourceDigest:'a'.repeat(64),sku:'CUP',lot:'LOT-A',fields:[{kind:'PHOTO',quote:photo}]}));await assert.rejects(desk.createCheckout(),/Review and republish/);assert.equal(calls,0);assert.equal(desk.merchantState().checkouts.length,0);}finally{desk.close();}
 });

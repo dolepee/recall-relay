@@ -160,7 +160,7 @@ function textThenPhoto(segment){
     // The part's own head decides. A scalar part that merely mentions a
     // photograph as the place a value appears is still TEXT.
     const part=coordinatedPhotoPart(segment,photo.index);
-    if(!/^(?:(?:a|an|the|your|its|their|one|two|three|both|each|every|all|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photographs?|photos?|pictures?|images?)\b/i.test(part))return false;
+    if(!/^(?:(?:a|an|the|your|its|their|one|two|three|both|each|every|all|clear|digital|new|original|marked|damaged|destroyed|recalled|provided|\d+)\s+)*(?:photographs?|photos?|pictures?|images?)\b/i.test(part))return false;
     const before=segment.slice(0,photo.index);
     return /(?:[,;]|\b(?:and|then|also|plus)\b)[^.!?]*$/i.test(before)
       && TEXT_VALUE_NOUN.test(before)

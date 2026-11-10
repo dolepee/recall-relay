@@ -205,6 +205,62 @@ test('a supported whole controlled notice keeps every response and allows INFORM
   }finally{desk.close();}
 });
 
+test('a coordinated written object after a photo retains a TEXT obligation',async()=>{
+  for(const quote of ['Include a photograph of the label and your order number.','Supply a photograph of the label, your name and address.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['PHOTO']]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','PHOTO'],quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to publish a photo while omitting the written object.'}]);
+      assert.notEqual(row.review.coverage[1].disposition,'FIELD',quote);
+      assert.notEqual(row.review.coverage[1].disposition,'INFORMATION',quote);
+      assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i,quote);
+    }finally{desk.close();}
+  }
+});
+
+test('a label showing a written value remains pictured evidence only',async()=>{
+  const quote='Include a photograph of the label showing your order number.';
+  const {desk,ws}=fixture(quote,['PHOTO']);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO']);
+    row=reviewAll(ws,row);
+    assert.equal(row.review.coverage[0].disposition,'FIELD');
+    assert.ok(activate(ws,row,desk).publishedCampaign);
+  }finally{desk.close();}
+});
+
+test('a compound photo-object name is never a TEXT request',async()=>{
+  for(const verb of ['Include','Supply','Provide','Send','Submit']){
+    for(const noun of ['photograph','photo','image','picture']){
+      const quote=`${verb} two order number ${noun}s.`;
+      const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['TEXT']]);
+      try{
+        let row=await ws.suggest((await ws.import('TEST')).id,1);
+        assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],quote);
+        assert.equal(row.suggestion.filtered.length,1,quote);
+        row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to turn a compound photo name into text.'}]);
+        assert.equal(row.review.coverage[1].disposition,'MANUAL',quote);
+        assert.throws(()=>activate(ws,row,desk),/manual|photograph|missing|unsupported/i,quote);
+      }finally{desk.close();}
+    }
+  }
+});
+
+test('mandatory noun-form attestations remain obligations and cannot be waived',async()=>{
+  const quote='Your disposal attestation is required.';
+  const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['CONFIRMATION']]);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+    assert.equal(row.suggestion.filtered.length,0);
+    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive a mandatory attestation.'}]);
+    assert.equal(row.review.coverage[1].disposition,'MANUAL');
+    assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i);
+  }finally{desk.close();}
+});
+
 test('a misproposed TEXT for a multi-photo instruction cannot bypass the photo guard',async()=>{
   const {desk,ws}=fixture(['Upload a photograph of the item.','Include two photographs of the label.'],[['PHOTO'],['TEXT']]);
   try{

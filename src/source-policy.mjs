@@ -97,18 +97,23 @@ function photoTextOutside(segment){
   const photo=/\b(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);
   if(!photo)return false;
   const before=segment.slice(0,photo.index),after=segment.slice(photo.index+photo[0].length);
-  if(TEXT_VALUE_NOUN.test(before))return true;
-  return /\b(?:along with|together with|plus|and include|and provide|and submit)\b[\s\S]*\b(?:name|address|order|serial|lot|code|number|postal|phone|receipt|invoice)\b/i.test(after);
+  // A written value before a connector is a separate object. Without a
+  // connector, "order-number image" is a photo object name, not a TEXT request.
+  if(TEXT_VALUE_NOUN.test(before)&&/(?:[;,]|\b(?:and|then|also|plus)\b)/i.test(before))return true;
+  if(/\b(?:along with|together with|plus|and include|and provide|and submit)\b[\s\S]*\b(?:name|address|order|serial|lot|code|number|postal|phone|receipt|invoice)\b/i.test(after))return true;
+  // "label showing the product name and lot code" keeps those values pictured.
+  if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing)\b/i.test(after))return false;
+  return /(?:[,;]|\b(?:and|plus)\b)\s*(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(after);
 }
 function photoObjectRequest(segment){
   const photo=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);
   if(!photo)return false;
   const before=segment.slice(0,photo.index);
-  // A written value can be described as shown in a photograph. That is a TEXT
-  // response, not a request for the photograph itself. A connector before the
-  // photo starts a separate photo object and retains both obligations.
+  // A written value is a TEXT request only with a positive written-reference
+  // relationship ("lot number shown in the photograph"). A compound photo name
+  // such as "order number image" is not such a relationship and stays PHOTO.
   if(!TEXT_VALUE_NOUN.test(before))return true;
-  return /(?:[;,]|\b(?:and|then|also|plus)\b)[^.!?]*$/i.test(before);
+  return !/\b(?:shown|printed|visible|displayed|written|readable|legible|appearing)\s+(?:in|on)\b[^.!?]*$/i.test(before);
 }
 function responseKinds(word,segment){
   let kind;
@@ -307,7 +312,10 @@ function parsedKinds(parser){
 }
 function nominalKinds(quote){
   const waived=/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?(?:photo|photograph|picture|image)s?\b|\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,30}\b(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(quote);
-  return !waived&&/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote)?['PHOTO']:[];
+  const kinds=[];
+  if(!waived&&/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote))kinds.push('PHOTO');
+  if(/\b(?:attestations?|confirmations?|certifications?|declarations?)\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote)&&!/\b(?:confirmation|confirmations)\s+e-?mail\b/i.test(quote))kinds.push('CONFIRMATION');
+  return kinds;
 }
 function canonicalKinds(quote){
   const parser=parseResponseGrammar(quote);

@@ -351,6 +351,22 @@ test('a coordinated written object after a photo retains a TEXT obligation',asyn
   }
 });
 
+test('a text reference followed by multiple photo requests retains the photo guard',async()=>{
+  const quote='Provide the lot number shown in the photograph and two photographs of the label.';
+  assert.deepEqual(sourceInstructionProfile(quote).kinds,['PHOTO','TEXT']);
+  for(const kinds of [['TEXT'],['PHOTO','TEXT']]){
+    const {desk,ws}=fixture(['Upload one photograph of the label.',quote],[['PHOTO'],kinds]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind).slice(0,2),['PHOTO',kinds[0]],quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive the multi-photo branch.'}]);
+      assert.notEqual(row.review.coverage[1].disposition,'FIELD',quote);
+      assert.notEqual(row.review.coverage[1].disposition,'INFORMATION',quote);
+      assert.throws(()=>activate(ws,row,desk),/manual|photograph|unresolved/i,quote);
+    }finally{desk.close();}
+  }
+});
+
 test('every coordinated object after a photo is checked, not only the first',async()=>{
   const quote='Include a photograph of the label and packaging, your name and address.';
   {

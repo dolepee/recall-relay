@@ -145,6 +145,16 @@ function photoObjectRequest(segment){
   if(!TEXT_VALUE_NOUN.test(before))return true;
   return !/\b(?:shown|printed|visible|displayed|written|readable|legible|appearing)\s+(?:in|on)\b[^.!?]*$/i.test(before);
 }
+function textThenPhoto(segment){
+  const photos=[...segment.matchAll(/\b(?:photographs?|photos?|pictures?|images?)\b/gi)];
+  return photos.some((photo,index)=>{
+    if(index===0)return false;
+    const before=segment.slice(0,photo.index);
+    return /(?:[,;]|\b(?:and|then|also|plus)\b)[^.!?]*$/i.test(before)
+      && TEXT_VALUE_NOUN.test(before)
+      && /\b(?:shown|printed|visible|displayed|written|readable|legible|appearing)\s+(?:in|on)\b/i.test(before);
+  });
+}
 function responseKinds(word,segment){
   let kind;
   if(CONFIRM_VERBS.test(word))kind='CONFIRMATION';
@@ -156,6 +166,7 @@ function responseKinds(word,segment){
   // provide/send/submit/e-mail are ambiguous until the parsed object is known.
   else if(/\b(?:attestations?|confirmations?|certifications?|declarations?)\b/i.test(segment))kind='CONFIRMATION';
   else kind=photoObjectRequest(segment)?'PHOTO':'TEXT';
+  if(textThenPhoto(segment))return ['TEXT','PHOTO'];
   return kind==='PHOTO'&&photoTextOutside(segment)?['PHOTO','TEXT']:[kind];
 }
 function objectTokens(value){return photoObjectTokens(value);}

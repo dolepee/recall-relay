@@ -106,7 +106,7 @@ description descriptions detail details reason reasons damage damaged condition 
 label labels sample samples packaging box boxes carton cartons container containers base bases
 submission claim claims ownership disposed disposal commitment notice notices step steps original linked affected recalled new used opened sealed`.split(/\s+/));
 function unsupportedCharacterIssue(value){
-  const leftover=String(value).replace(/[A-Za-z0-9\s'’.,;:!?()\/&+\-—–]/g,'');
+  const leftover=String(value).replace(/[A-Za-z0-9\s'’"“”‘.,;:!?()\/&+\-—–]/g,'');
   return leftover?'The response contains an unsupported character or script. Keep this instruction manual.':null;
 }
 function closedObjectIssue(kind,object){
@@ -153,7 +153,7 @@ function prohibitionObjectAllowed(part){
 }
 
 function parseResponseGrammar(quote){
-  let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
+  let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'').replace(/^(?:(?:fill out|complete)\s+(?:an?|the)\s+(?:online\s+)?form\s+and\s+)/i,'');
   const prohibited=/\b(?:do not|must not|should not|not required|not necessary)\b/i.test(quote)||/^(?:not|no)\b/i.test(text);
   if(prohibited){
     // A prohibition is information, but a later affirmative response after a

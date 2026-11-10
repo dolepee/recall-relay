@@ -246,6 +246,26 @@ test('a purchase cutoff survives a no-response sentence and an INFORMATION decis
  assert.throws(()=>assertExecutableSource(source,fields,decisions),/manual|eligibility|cutoff/i);
 });
 
+test('form-completion prefixes and quoted markings remain supported',()=>{
+ for(const quote of [
+  'Complete the form and upload one photograph of the product label.',
+  'Fill out an online form and upload one photograph of the product label.',
+  'Upload one photograph of the product label marked "RECALL".',
+  'Upload one photograph of the product label marked “RECALL”.',
+ ]){
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[field(quote)]),quote);
+ }
+ for(const quote of [
+  'Complete the form and upload one photograph of the product label marked "WUG".',
+  'Upload one photograph of the product label marked "RECALL" and wug the lot code.',
+  'Complete the form and upload one photograph of the product label on the recall website.',
+ ]){
+  assert.ok(sourceInstructionProfile(quote).issues.length>0,quote);
+  assert.throws(()=>assertExecutableSource({remedies:[quote]},[field(quote)]),/manual|unsupported|external|handoff/i,quote);
+ }
+});
+
 test('the complete response parser rejects no-timing extra actions and keeps positive controls',()=>{
  const photo='Upload one photograph of the product label.';
  for(const quote of [

@@ -217,6 +217,19 @@ test('a no-response remedy timing cutoff also survives INFORMATION',()=>{
  assert.throws(()=>assertExecutableSource(source,[field(photo)],decisions),/manual|eligibility|cutoff|timing/i);
 });
 
+test('a bare purchases phrase does not create a remedy constraint',()=>{
+ const photo='Upload one photograph of the product label.';
+ const refund='Refunds for purchases of the recalled product will be issued to the original form of payment.';
+ const source={remedies:[photo,refund]};
+ const fields=[field(photo)];
+ const decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'The refund sentence describes settlement, not a customer response.'}];
+ const profile=sourceInstructionProfile(refund);
+ assert.equal(profile.kinds.length,0);
+ assert.equal(profile.purchaseApplicability,false);
+ assert.equal(sourceCoverage(source,fields,decisions)[1].disposition,'INFORMATION');
+ assert.doesNotThrow(()=>assertExecutableSource(source,fields,decisions));
+});
+
 test('a purchase cutoff survives a no-response sentence and an INFORMATION decision',()=>{
  const photo='Upload one photograph of the product label.';
  const refund='Refunds will be issued to the original form of payment for orders placed before January2025.';

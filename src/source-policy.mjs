@@ -288,7 +288,7 @@ export function sourceInstructionProfile(quote){
   const applicability=/\b(?:for|only for)\s+(?:purchases?|products?|items?|orders?)\s+(?:made|purchased|bought|placed|ordered)\b|\b(?:orders?|purchases?|products?|items?)\s+(?:placed|made|purchased|bought|ordered)\s+(?:before|after|on|by)\b|\b(?:except|excluding|other than)\b/i.test(quote);
   // A remedy narrative can carry a cutoff without asking for customer evidence.
   // INFORMATION may explain that sentence, but it cannot make the cutoff safe.
-  const remedyConstraint=/\b(?:refunds?|reimbursements?|payments?|remedy|remedies|replacements?|eligibility|qualify|qualifies)\b[^.!?]{0,140}\b(?:after|before|once|upon|only for|only to|for\s+(?:orders?|purchases?)|placed|purchased|bought|ordered|except|excluding|other than)\b/i.test(quote);
+  const remedyConstraint=/\b(?:refunds?|reimbursements?|payments?|remedy|remedies|replacements?|eligibility|qualify|qualifies)\b[^.!?]{0,140}\b(?:after|before|once|upon|only for|only to|for\s+(?:orders?|purchases?)\s+(?:made|purchased|bought|placed|ordered|from|through|at|with|in|on|by|only|exclusively)|placed|purchased|bought|ordered|except|excluding|other than)\b/i.test(quote);
   const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0||secondHandoff||externalDestination)||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
   if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
   if(parser.issue)issues.push(parser.issue);

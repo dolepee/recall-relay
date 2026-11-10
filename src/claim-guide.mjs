@@ -39,9 +39,11 @@ function selectedCaseAnswer(tool,f,context){
  if(tool==='get_source_requirements')return `The reviewed source has ${context.clauses.length} cited clauses. Read every complete quotation and its conditions; this guide cannot decide whether the claim meets them. Next: ${next}`;
  return '';
 }
-function showViewAnswer(view){
+function showViewAnswer(view,snapshot){
  const labels={ALL:'all',OPEN:'open',REVIEW:'review',READY:'ready for approval',WAITING:'waiting',MANUAL:'manual',PAYMENT:'payment',COMPLETED:'completed'};
- return `Showing the ${labels[view]||view.toLowerCase()} queue. The view changed only; no evidence, approval or refund action was taken.`;
+ const count=snapshot.viewCounts?.[view];
+ const countText=Number.isSafeInteger(count)?`${count} claim${count===1?'':'s'}`:'claim count unavailable';
+ return `Showing the ${labels[view]||view.toLowerCase()} queue: ${countText}. The view changed only; no evidence, approval or refund action was taken.`;
 }
 
 function unsafeAnswer(answer,f){
@@ -73,7 +75,7 @@ function evidenceFor(desk,input){
   // Fingerprint the full state on the server. Evidence/payment transitions need not
   // increment the customer revision; never return an answer from the older state.
   const selectedItem=context?state.cases.find(c=>c.id===input.caseId):null;
-  return {evidence,contextDigest:hash(state),selected:selectedItem?{caseId:input.caseId,revision:input.revision,order:selectedItem.order||input.caseId,statusCode:selectedItem.status.code,gaps:context.gaps,clauses:context.clauses,facts:{statusCode:selectedItem.status.code,statusReason:selectedItem.status.reason,revision:selectedItem.revision,reviewRecorded:context.facts.reviewRevision===selectedItem.revision,reviewRevision:context.facts.reviewRevision,correctionState:context.facts.correctionState||'none',photoPresent:context.facts.photoPresent,photoValidation:'FORMAT_ONLY',lotMatches:context.facts.lotMatches,approvalRecorded:Boolean(selectedItem.payment),paymentState:selectedItem.payment?.state||null,providerCompleted:selectedItem.receipt?.status==='COMPLETED',providerOutcome:selectedItem.receipt?.status||selectedItem.payment?.state||'NOT_STARTED'}}:null};
+  return {evidence,viewCounts:Object.fromEntries(overview.groups.map(g=>[g.view,g.count])),contextDigest:hash(state),selected:selectedItem?{caseId:input.caseId,revision:input.revision,order:selectedItem.order||input.caseId,statusCode:selectedItem.status.code,gaps:context.gaps,clauses:context.clauses,facts:{statusCode:selectedItem.status.code,statusReason:selectedItem.status.reason,revision:selectedItem.revision,reviewRecorded:context.facts.reviewRevision===selectedItem.revision,reviewRevision:context.facts.reviewRevision,correctionState:context.facts.correctionState||'none',photoPresent:context.facts.photoPresent,photoValidation:'FORMAT_ONLY',lotMatches:context.facts.lotMatches,approvalRecorded:Boolean(selectedItem.payment),paymentState:selectedItem.payment?.state||null,providerCompleted:selectedItem.receipt?.status==='COMPLETED',providerOutcome:selectedItem.receipt?.status||selectedItem.payment?.state||'NOT_STARTED'}}:null};
 }
 export async function answerClaimQuestion(ai,desk,input){
   if(!input||Object.keys(input).some(k=>!['question','caseId','revision'].includes(k))||typeof input.question!=='string'||!input.question.trim()||input.question.length>1500||input.caseId!==undefined&&(typeof input.caseId!=='string'||!Number.isSafeInteger(input.revision)))throw new Error('Ask a question under 1,500 characters about the current claim or workspace.');
@@ -108,8 +110,8 @@ export async function answerClaimQuestion(ai,desk,input){
     if(!result.citations.length)result.citations=['case-review'];
   }
   if(result.tool==='show_claim_view'){
-    result.answer=showViewAnswer(result.view);
-    result.citations=['workspace'];
+    result.answer=showViewAnswer(result.view,snapshot);
+    result.citations=['workspace',`amount-${result.view}`].filter(id=>snapshot.evidence.some(e=>e.id===id));
   }
   const lockedCase=snapshot.selected&&['COMPLETED','RESERVED','UNKNOWN','PENDING','FAILED','CANCELLED'].includes(snapshot.selected.statusCode)&&['get_case_brief','get_case_changes','get_evidence_gaps'].includes(result.tool);
   if(lockedCase){

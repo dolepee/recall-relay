@@ -146,6 +146,11 @@ function mandatoryCustomerIssue(quote){
 }
 const PROHIBITION_CONTINUATION=/^(?:do not|must not|should not|not required|not necessary|no)\b/i;
 const PROHIBITION_OBJECT_START=/^(?:its|their|his|her|the|a|an|this|that|these|those|your|our|all|any|each|every|both|it|them)\b/i;
+function prohibitionObjectAllowed(part){
+  if(!PROHIBITION_OBJECT_START.test(part))return false;
+  const tokens=photoObjectTokens(part);
+  return Boolean(tokens.length)&&tokens.every(token=>PHOTO_OBJECT_WORDS.has(token)||/^\d+$/.test(token));
+}
 
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
@@ -158,13 +163,15 @@ function parseResponseGrammar(quote){
     const rest=text.slice(separator.index+separator[0].length).trim();
     if(!rest)return {issue:null,segments:[],consumed:text,remainder:''};
     const responseStart=/^(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i;
-    if(PROHIBITION_CONTINUATION.test(rest)||(PROHIBITION_OBJECT_START.test(rest)&&!responseStart.test(rest))){
-      return {issue:null,segments:[],consumed:text,remainder:''};
-    }
-    if(!responseStart.test(rest)){
+    const tailParts=rest.split(/[;—–]|:(?=\s)|\b(?:and|then|also|but)\b/i).map(part=>part.trim()).filter(Boolean);
+    let firstResponse=-1;
+    for(const [index,part] of tailParts.entries()){
+      if(responseStart.test(part)){firstResponse=index;break;}
+      if(PROHIBITION_CONTINUATION.test(part)||prohibitionObjectAllowed(part))continue;
       return {issue:'The instruction after a prohibition is unsupported. Keep this instruction manual.',segments:[],consumed:text.slice(0,separator.index+separator[0].length),remainder:rest};
     }
-    text=rest;
+    if(firstResponse<0)return {issue:null,segments:[],consumed:text,remainder:''};
+    text=rest.slice(rest.indexOf(tailParts[firstResponse]));
   }
   const matches=[...text.matchAll(/\b(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/gi)];
   const verbs=[];

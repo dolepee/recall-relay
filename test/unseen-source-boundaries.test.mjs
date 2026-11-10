@@ -262,6 +262,17 @@ test('incoming notifications are informational, not customer evidence handoffs',
   assert.doesNotThrow(()=>assertExecutableSource(source,fields,decisions),receive);
  }
  for(const quote of [
+  'Evidence must be submitted by email.',
+  'Evidence should be sent by email.',
+  'Evidence must be uploaded by email.',
+  'Evidence is required to be submitted by email.',
+ ]){
+  const profile=sourceInstructionProfile(quote);
+  assert.equal(profile.externalAction,true,quote);
+  assert.equal(sourceCoverage({remedies:[photo,quote]},fields,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive a mandatory passive submission.'}])[1].disposition,'MANUAL',quote);
+  assert.throws(()=>assertExecutableSource({remedies:[photo,quote]},fields,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive a mandatory passive submission.'}]),/manual|handoff|external/i,quote);
+ }
+ for(const quote of [
   'You will receive a confirmation by email, then submit a photograph by email.',
   'You will receive a confirmation by email and send a photograph by email.',
   'The manufacturer will send a confirmation by email, then submit a photograph by email.',

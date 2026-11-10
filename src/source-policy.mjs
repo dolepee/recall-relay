@@ -251,7 +251,7 @@ export const SOURCE_POLICY_VERSION=8;
 // out. Business notifications and the noun "email" are not customer submissions.
 function customerOutgoingDestination(quote){
   const clauses=String(quote).split(/(?:[;—–]|:(?=\s)|\b(?:and|then|also|but)\b)/i);
-  const verbs=/\b(?:send|submit(?:ted)?|upload(?:ed)?|provide[ds]?|e-?mail)\b/gi;
+  const verbs=/\b(?:send|sent|submit(?:ted)?|upload(?:ed)?|provide[ds]?|e-?mail)\b/gi;
   for(const clause of clauses){
     for(const match of clause.matchAll(verbs)){
       const word=match[0].toLowerCase();
@@ -262,7 +262,7 @@ function customerOutgoingDestination(quote){
       const before=clause.slice(0,match.index);
       const subject=(before.match(/\b(?:you|consumers?|customers?|manufacturer|retailer|company|firm|brand|we|it)\b/gi)||[]).at(-1)?.toLowerCase();
       if(subject&&/^(?:manufacturer|retailer|company|firm|brand|we|it)$/.test(subject))continue;
-      const passive=/\b(?:must|should|shall|are|is|will be|can be)\s*$/i.test(before);
+      const passive=/\b(?:(?:must|should|shall|are|is|will|can)\s+be|(?:is|are|was|were|will\s+be|can\s+be)\s+required\s+to\s+be|required\s+to\s+be)\s*$/i.test(before);
       const imperative=/^\s*(?:please\s+)?(?:send|submit|upload|provide|e-?mail)\b/i.test(clause);
       if(!subject&&!passive&&!imperative)continue;
       if(/\b(?:by|via|through|using)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(after)||/\bto\s+[^\s@]+@[^\s@]+/i.test(after)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(after))return true;

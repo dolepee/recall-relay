@@ -76,7 +76,7 @@ description descriptions detail details reason reasons damage damaged condition 
 label labels sample samples packaging box boxes carton cartons container containers base bases
 original linked affected recalled new used opened sealed full
 printed writing written shown showing marked engraved stamped listed
-on in at of from for with to by and or
+on in at of from for with by and or
 must be legible
 submission claim claims ownership disposed disposal proper has have been was were is are you it they them
 belongs this that from linked
@@ -98,6 +98,17 @@ function responseKind(word,segment){
   return /(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.test(segment)?'PHOTO':'TEXT';
 }
 function objectTokens(value){return photoObjectTokens(value);}
+const TEXT_OBJECT_CORE=new Set(`serial serials lot lots order orders purchase purchases product products item items unit units device devices
+number numbers code codes identifier identifiers id ids sku skus batch batches model models tracking
+name names address addresses postcode postcodes postal zip zipcode e-mail email phone telephone contact
+date dates receipt receipts invoice invoices proof amount amounts price prices cost costs quantity quantities size sizes color colour
+description descriptions detail details reason reasons damage damaged condition condition defect defects issue issue
+label labels sample samples packaging box boxes carton cartons container containers base bases
+submission claim claims ownership disposed disposal commitment notice notices step steps original linked affected recalled new used opened sealed`.split(/\s+/));
+function unsupportedCharacterIssue(value){
+  const leftover=String(value).replace(/[A-Za-z0-9\s'’.,;:!?()\/&+\-—–]/g,'');
+  return leftover?'The response contains an unsupported character or script. Keep this instruction manual.':null;
+}
 function closedObjectIssue(kind,object){
   const tokens=objectTokens(object);
   if(!tokens.length)return kind==='TEXT'?'A written response needs a value or description. Keep this instruction manual.':'A confirmation response needs a statement to confirm. Keep this instruction manual.';
@@ -105,9 +116,15 @@ function closedObjectIssue(kind,object){
   for(const token of tokens){
     if(!allowed.has(token)&&!/^\d+$/.test(token))return 'The response contains an unsupported word in its object. Keep this instruction manual.';
   }
+  if(kind==='TEXT'&&![...TEXT_OBJECT_CORE].some(word=>new RegExp(`\\b${word}\\b`,'i').test(object)))return 'A written response needs a supported value or description. Keep this instruction manual.';
+  if(kind==='CONFIRMATION'&&![...TEXT_OBJECT_CORE].some(word=>new RegExp(`\\b${word}\\b`,'i').test(object)))return 'A confirmation response needs a supported statement. Keep this instruction manual.';
+  if(/[\s,](?:and|or|for|to|of|with|by|from|at|in|on)\s*$/i.test(object.replace(/[.!?;:,]+$/,'').trim()))return 'The response ends with an unconsumed connector. Keep this instruction manual.';
+  if(kind==='CONFIRMATION'&&/\bto\b/i.test(object)&&!/\bbelongs\s+to\s+(?:this|the)\s+claim\b/i.test(object))return 'The confirmation uses an unsupported destination or relation. Keep this instruction manual.';
   return null;
 }
 function responseObjectIssue(kind,segment){
+  const characterIssue=unsupportedCharacterIssue(segment);
+  if(characterIssue)return characterIssue;
   if(kind==='PHOTO'){
     const match=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b\s*(?:of|showing)?\s*([\s\S]*)$/i.exec(segment);
     if(match){
@@ -125,9 +142,16 @@ function responseObjectIssue(kind,segment){
 }
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
-  // A prohibition is information, not a request for evidence. Its separate,
-  // affirmative clauses are still checked by the surrounding policy.
-  if(/\b(?:do not|must not|should not|not required|not necessary)\b/i.test(quote)||/^(?:not|no)\b/i.test(text))return {issue:null,segments:[]};
+  const prohibited=/\b(?:do not|must not|should not|not required|not necessary)\b/i.test(quote)||/^(?:not|no)\b/i.test(text);
+  if(prohibited){
+    // A prohibition is information, but a later affirmative response after a
+    // separator is still parsed. Do not swallow the rest of the sentence.
+    const separator=/[;—–:]|\b(?:and|then|also|but)\b/i.exec(text);
+    if(!separator)return {issue:null,segments:[],consumed:text,remainder:''};
+    const rest=text.slice(separator.index+separator[0].length).trim();
+    if(!/^(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(rest))return {issue:null,segments:[],consumed:text,remainder:''};
+    text=rest;
+  }
   const matches=[...text.matchAll(/\b(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/gi)];
   const verbs=[];
   for(const match of matches){
@@ -138,9 +162,9 @@ function parseResponseGrammar(quote){
     if((word==='email'||word==='e-mail')&&/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(text.slice(match.index+match[0].length).trim()))continue;
     verbs.push({...match,word});
   }
-  if(!verbs.length)return {issue:null,segments:[]};
+  if(!verbs.length)return {issue:null,segments:[],consumed:text,remainder:''};
   const prefix=text.slice(0,verbs[0].index).trim();
-  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix))return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[]};
+  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix))return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text};
   const segments=[];
   for(let i=0;i<verbs.length;i++){
     const start=verbs[i].index+verbs[i][0].length;
@@ -148,10 +172,10 @@ function parseResponseGrammar(quote){
     const segment=text.slice(start,end).replace(/[\s,;:—–-]*(?:(?:and|then|also)\s*)?$/i,'').trim();
     const kind=responseKind(verbs[i].word,segment);
     const issue=responseObjectIssue(kind,segment);
-    if(issue)return {issue,segments};
+    if(issue)return {issue,segments,consumed:text.slice(0,start),remainder:text.slice(start)};
     segments.push({kind,text:segment});
   }
-  return {issue:null,segments};
+  return {issue:null,segments,consumed:text,remainder:''};
 }
 
 // Applies to assistant output only. The notice may legitimately contain disposal
@@ -237,7 +261,7 @@ export function sourceInstructionProfile(quote){
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');
   const photoCount=[...quote.matchAll(/\b(?:photos?|photographs?|pictures?|images?)\b/gi)].length===1&&!/\b(?:photos|photographs|pictures|images)\b|\b(?:two|three|four|multiple|separate|distinct|several|[2-9]|[1-9][0-9]+)\s+(?:(?:distinct|separate|required)\s+)?(?:photo|photograph|picture|image)\b|\b(?:both|each|every|all)\s+(?:sides?|views?|angles?)\b/i.test(quote)?1:null;
   if(kinds.includes('PHOTO')&&photoCount!==1)issues.push('The required photograph count is multiple or unclear. This form supports exactly one photograph; keep this instruction manual.');
-  return {actor:'CUSTOMER',conditional,externalAction,applicability:issues.some(i=>i.startsWith('Conditional'))?'UNSUPPORTED':'UNCONDITIONAL',purchaseApplicability:applicability,parserIssue:parser.issue,phase:issues.some(i=>i.startsWith('Post-refund'))?'UNSUPPORTED':'BEFORE_REFUND',photoCount,kinds,issues};
+  return {actor:'CUSTOMER',conditional,externalAction,applicability:issues.some(i=>i.startsWith('Conditional'))?'UNSUPPORTED':'UNCONDITIONAL',purchaseApplicability:applicability,parserIssue:parser.issue,parser,phase:issues.some(i=>i.startsWith('Post-refund'))?'UNSUPPORTED':'BEFORE_REFUND',photoCount,kinds,issues};
 }
 export function sourceFieldIssue(field){
   const problem=aiFieldProblem(field);if(problem)return problem;

@@ -345,3 +345,30 @@ test('the independent 28-case closed-grammar contract passes as a synthetic chec
   assert.equal(publishes(quote,split),false,quote);
  }
 });
+
+test('response-specific relations, prohibition parsing and parser consumption are explicit',()=>{
+ for(const quote of [
+  'Provide the serial number to the manufacturer.',
+  'Submit a photograph to the manufacturer.',
+  'Provide the serial number to the retailer.',
+ ]){
+  assert.ok(sourceInstructionProfile(quote).issues.length>0,quote);
+  const kinds=sourceInstructionProfile(quote).kinds;
+  const fields=[];
+  if(!kinds.includes('PHOTO'))fields.push({id:'p',kind:'PHOTO',quote:'Upload one photograph of the product label.'});
+  for(const [i,kind] of kinds.entries())fields.push({id:`f${i}`,kind,quote});
+  assert.throws(()=>assertExecutableSource({remedies:[quote,'Upload one photograph of the product label.']},fields),/manual|unsupported|object/i,quote);
+ }
+ assert.deepEqual(sourceInstructionProfile('Upload a photograph of the label provided by the manufacturer.').issues,[]);
+ const mixed=sourceInstructionProfile('Do not upload a photograph; enter the lot code.');
+ assert.ok(mixed.parser.segments.some(segment=>segment.kind==='TEXT'),'a later affirmative response is not swallowed');
+ assert.equal(sourceInstructionProfile('Do not submit photographs by email.').parser.segments.length,0);
+ const unknown=sourceInstructionProfile('Enter the glorp lot code.');
+ assert.match(unknown.parser.remainder,/glorp/);
+ assert.equal(unknown.parser.consumed,'Enter');
+ const script=sourceInstructionProfile('Enter the lot code 序列号.');
+ assert.match(script.parser.issue,/unsupported character|script/i);
+ const ok=sourceInstructionProfile('Provide the serial number.');
+ assert.equal(ok.parser.remainder,'');
+ assert.ok(ok.parser.segments.length);
+});

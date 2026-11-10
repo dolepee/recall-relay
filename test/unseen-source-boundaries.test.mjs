@@ -393,3 +393,18 @@ test('phone relations, unknown scripts and unparsed mandatory instructions stay 
  }
  assert.doesNotThrow(()=>assertExecutableSource({remedies:['Provide the serial number.','Upload one photograph of the product label.']},[{id:'t',kind:'TEXT',quote:'Provide the serial number.'},{id:'p',kind:'PHOTO',quote:'Upload one photograph of the product label.'}]));
 });
+
+test('a modified photograph noun stays inside its response segment',()=>{
+ const photo='Upload one photograph of the product label.';
+ for(const quote of ['Upload one clear photograph of the product label.','Upload a digital photograph of the product label.']){
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{id:'p',kind:'PHOTO',quote}]),quote);
+  const compound=`${quote.replace(/\.$/,'')} and enter the serial number.`;
+  assert.equal(sourceInstructionProfile(compound).parser.segments.length,2,compound);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:[compound]},[{id:'p',kind:'PHOTO',quote:compound},{id:'t',kind:'TEXT',quote:compound}]),compound);
+ }
+ // A real second photograph action still starts its own segment and stays manual.
+ const second='Upload one photograph of the product label and photograph the serial number.';
+ assert.throws(()=>assertExecutableSource({remedies:[second]},[{id:'p',kind:'PHOTO',quote:second}]),/manual/i);
+ assert.equal(sourceInstructionProfile(photo).parser.segments.length,1);
+});

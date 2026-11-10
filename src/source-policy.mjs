@@ -162,7 +162,10 @@ function parseResponseGrammar(quote){
     const word=match[0].toLowerCase();
     const before=text.slice(0,match.index).trim().split(/\s+/).at(-1)||'';
     if(!responseVerb(word))continue;
-    if(word==='photograph'&&/^(?:a|an|the|one|two|both|this|that|these|those)$/i.test(before))continue;
+    // The photograph noun can follow any supported modifier ('one clear photograph',
+    // 'a digital photograph'), not only a determiner. A verb position still starts
+    // a new response segment.
+    if(word==='photograph'&&(PHOTO_PREFIX_WORDS.has(before.toLowerCase())||/^\d+$/.test(before)))continue;
     if((word==='email'||word==='e-mail')&&/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(text.slice(match.index+match[0].length).trim()))continue;
     verbs.push({...match,word});
   }

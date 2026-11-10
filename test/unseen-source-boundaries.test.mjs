@@ -328,11 +328,19 @@ test('pure coordinated prohibitions remain information and tell-us consumes its 
   assert.equal(sourceCoverage(source,[{id:'p',kind:'PHOTO',quote:photo}],decisions)[1].disposition,'INFORMATION',quote);
   assert.doesNotThrow(()=>assertExecutableSource(source,[{id:'p',kind:'PHOTO',quote:photo}],decisions),quote);
  }
- const tell='Tell us the serial number.';
- assert.deepEqual(sourceInstructionProfile(tell).issues,[],tell);
- assert.doesNotThrow(()=>assertExecutableSource({remedies:[photo,tell]},[
-  {id:'p',kind:'PHOTO',quote:photo},{id:'t',kind:'TEXT',quote:tell},
- ]),tell);
+ const tells=['Tell us the serial number.','Upload one photograph of the label: tell us the serial number.'];
+ for(const tell of tells){
+  assert.deepEqual(sourceInstructionProfile(tell).issues,[],tell);
+  const fields=tell.startsWith('Upload')
+   ? [{id:'p',kind:'PHOTO',quote:'Upload one photograph of the label:'},{id:'t',kind:'TEXT',quote:'tell us the serial number.'}]
+   : [{id:'p',kind:'PHOTO',quote:photo},{id:'t',kind:'TEXT',quote:tell}];
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:tell.startsWith('Upload')?[tell]:[photo,tell]},fields),tell);
+ }
+ const glorp='Tell us the glorp serial number.';
+ assert.ok(sourceInstructionProfile(glorp).issues.length,glorp);
+ assert.throws(()=>assertExecutableSource({remedies:[photo,glorp]},[
+  {id:'p',kind:'PHOTO',quote:photo},{id:'t',kind:'TEXT',quote:glorp},
+ ]),/manual|unsupported/i,glorp);
  for(const quote of ['Do not return the product and wug the packaging.','Do not return the product and contact the retailer.']){
   assert.ok(sourceInstructionProfile(quote).parser.issue,quote);
   assert.throws(()=>assertExecutableSource({remedies:[photo,quote]},[{id:'p',kind:'PHOTO',quote:photo}],

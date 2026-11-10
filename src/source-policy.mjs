@@ -5,7 +5,7 @@ function parseJSON(raw){return JSON.parse(raw.trim().replace(/^```json\s*/,'').r
 const KINDS=['PHOTO','CONFIRMATION','TEXT'];
 const PHOTO_CUE=/\b(photo|photograph|photographing|photographs|photos|picture|pictures|image|images)\b/i;
 const CONFIRM_CUE=/\b(confirm|confirms|confirmed|confirmation|confirmations|attest|attests|attested|attestation|attestations|certify|certifies|certification|certifications|verify|verifies|declare|declares|declaration|declarations)\b/i;
-const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|include|write|tell(?:\s+us)?)\b(?:(?!\b(?:photo|photos|photograph|photographs|picture|pictures|image|images)\b)[^.!?]){0,60}?\b(?:(?:serial|batch|lot|model|order|item|product)\s+)?(?:number|code|identifier|description|name|address|date|receipt|invoice|amount|price|quantity|size|color)\b/i;
+const TEXT_CUE=/\b(enter|provide|send|supply|state|describe|identify|list|include|write|tell(?:\\s+us)?)\b(?:(?!\b(?:photo|photos|photograph|photographs|picture|pictures|image|images)\b)[^.!?]){0,60}?\b(?:(?:serial|batch|lot|model|order|item|product)\s+)?(?:number|code|identifier|description|name|address|date|receipt|invoice|amount|price|quantity|size|color)\b/i;
 
 
 // Supported executable grammar for a photograph response. The object is deliberately
@@ -50,7 +50,7 @@ function photoResidualIssue(quote){
   const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?/i,'').replace(/^please\s+/i,'');
   // A recognized response verb after a connector starts another supported response.
   // Everything else remains in the photograph clause and must fit the closed object grammar.
-  const first=instruction.replace(/(?:(?:\b(?:and|then|also)\s+)|(?:;\s*))(?=(?:upload|submit|send|email|e-mail|take|provide|enter|supply|state|describe|identify|list|include|write|tell(?:\s+us)?|confirm|attest|certify|verify|declare)\b)/gi,' |SECOND| ').split(' |SECOND| ')[0];
+  const first=instruction.replace(/(?:(?:\b(?:and|then|also)\s+)|(?:;\s*))(?=(?:upload|submit|send|email|e-mail|take|provide|enter|supply|state|describe|identify|list|include|write|tell(?:\\s+us)?|confirm|attest|certify|verify|declare)\b)/gi,' |SECOND| ').split(' |SECOND| ')[0];
   const match=/^(?:(?:fill out|complete) (?:an?|the) (?:online )?form and )?(?:upload|submit|send|email|e-mail|take|provide|photograph)\b[\s\S]*?\b(?:photographs?|photos?|pictures?|images?)\b\s*(?:of|showing)?\s*([\s\S]*)$/i.exec(first);
   return match?photoObjectIssue(match[1]):null;
 }
@@ -219,7 +219,7 @@ export function aiFieldProblem({kind,quote}){
   return null;
 }
 
-const RESPONSE_VERB_SOURCE='(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell(?:\s+us)?|confirm|attest|certify|verify|declare)';
+const RESPONSE_VERB_SOURCE='(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell(?:\\s+us)?|confirm|attest|certify|verify|declare)';
 function responseClauseParts(quote){
   const separator=new RegExp(`(\\s*[;:—–]\\s*|\\s+(?:and|then|also)\\s+)(?=${RESPONSE_VERB_SOURCE}\\b)`,'gi');
   return quote.split(separator).filter((part,index)=>index%2===0&&part.trim()).map(part=>part.trim());

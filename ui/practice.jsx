@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {AlertDialog} from '@base-ui/react/alert-dialog';
 import {api,money} from './components.jsx';
 import {AppShell,Badge,Button,Card,Callout,ErrorText,Field,StageTrack} from './system.jsx';
-import {approveActionLabel,approveLabel,canApprove,canConfirmReview,customerTask,evidenceState,evidenceTitle,handoff,merchantNextStep,progressStage,refundFacts,reviewPhotoKey,reviewedCurrent,stage} from './guided-state.mjs';
+import {approveActionLabel,approveLabel,canApprove,canConfirmReview,canReturnToReview,customerTask,evidenceState,evidenceTitle,handoff,merchantNextStep,progressStage,refundFacts,reviewPhotoKey,reviewedCurrent,stage} from './guided-state.mjs';
 
 const kindLabel={PHOTO:'Photograph',CONFIRMATION:'Confirmation',TEXT:'Written information'};
 
@@ -432,7 +432,7 @@ function ReviewStage({value,run,busy,error,stale,onRefresh}){
   </div>;
 }
 
-function ApproveStage({value,run,busy,error,stale,onRefresh}){
+function ApproveStage({value,run,busy,error,stale,onRefresh,onReturnToReview}){
   const c=value.case;
   const [confirmOpen,setConfirmOpen]=useState(false);
   const [approving,setApproving]=useState(false);
@@ -478,6 +478,7 @@ function ApproveStage({value,run,busy,error,stale,onRefresh}){
             <p>A <strong>{facts.affected}</strong> simulated refund. The {facts.excluded} tray stays excluded.</p>
           </Callout>
           <div className="rr-actions">
+            {onReturnToReview&&<Button variant="secondary" type="button" onClick={onReturnToReview} disabled={busy}>Back to evidence review</Button>}
             <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
               <AlertDialog.Trigger render={<Button disabled={!approvable||busy}/>}>{approveLabel(value)}</AlertDialog.Trigger>
               <AlertDialog.Portal>
@@ -544,14 +545,19 @@ function Receipt({value,run,busy}){
 export {ApproveStage,ReviewStage};
 
 export default function Practice(){
-  const [state,setState]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[stale,setStale]=useState(false),[expired,setExpired]=useState(false);
+  const [state,setState]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[stale,setStale]=useState(false),[expired,setExpired]=useState(false),[returnToReview,setReturnToReview]=useState(false);
   const heading=useRef(null);
   async function refresh(){setError('');setStale(false);setExpired(false);try{setState(await api('practice/state'));}catch(e){setError(e.message);setExpired(Boolean(e.expired));}}
   useEffect(()=>{let active=true;api('practice/state').then(v=>active&&setState(v)).catch(e=>active&&(setError(e.message),setExpired(Boolean(e.expired))));return()=>{active=false;};},[]);
-  async function run(action,data){setBusy(true);setError('');setStale(false);setExpired(false);try{setState(await api(`practice/${action}`,data));}catch(e){setError(e.message);setStale(Boolean(e.stale));setExpired(Boolean(e.expired));}finally{setBusy(false);}}
+  async function run(action,data){setReturnToReview(false);setBusy(true);setError('');setStale(false);setExpired(false);try{setState(await api(`practice/${action}`,data));}catch(e){setError(e.message);setStale(Boolean(e.stale));setExpired(Boolean(e.expired));}finally{setBusy(false);}}
+  useEffect(()=>{setReturnToReview(false);},[state?.case.id,state?.attempt]);
   // A handoff changes who is acting, so the heading is the new reading position.
-  const current=state?stage(state):1;
-  const progress=state?progressStage(state):1;
+  const baseStage=state?stage(state):1;
+  // The recorded review is kept while the merchant looks back. This local view
+  // never reopens a completed, locked or reserved case.
+  const canReturn=Boolean(state&&baseStage===3&&canReturnToReview(state));
+  const current=state&&returnToReview&&canReturn?2:baseStage;
+  const progress=state?(current===2&&baseStage===3?2:progressStage(state)):1;
   useEffect(()=>{if(!state)return;const target=document.getElementById('claim-heading')||heading.current;target?.focus?.();},[state?.role,current,progress,state?.case.id,Boolean(state?.case.refund)]);
   return <div className="rr-app">
     <AppShell note="Simulated. No funds move.">
@@ -575,7 +581,7 @@ export default function Practice(){
         {expired&&<div style={{marginBottom:16}}><Callout tone="attention" title="This practice case expired" actions={<Button onClick={()=>run('new',{})} disabled={busy}>Start a fresh practice case</Button>}><p>Practice cases are kept for 24 hours in this session. A fresh case starts the journey again.</p></Callout></div>}
         {current===1?<CustomerStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh} expired={expired}/>
           :current===2?<ReviewStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh}/>
-          :<ApproveStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh}/>}
+          :<ApproveStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh} onReturnToReview={canReturn?()=>setReturnToReview(true):undefined}/>}
       </div>}
     </AppShell>
   </div>;

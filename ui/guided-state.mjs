@@ -107,6 +107,11 @@ export function reviewPhotoKey(value) {
   return `${c.id}:${c.revision}:${c.photo || 'missing'}`;
 }
 
+export function canReturnToReview(value) {
+  const c = value?.case;
+  return Boolean(c) && reviewedCurrent(value) && !c.refund && !c.locked && !c.unresolved;
+}
+
 export function canApprove(value) {
   const c = value.case;
   return reviewedCurrent(value) && c.plan.status === 'READY_FOR_APPROVAL' && Boolean(c.plan.digest) && !c.locked;

@@ -9,7 +9,7 @@ import {JSDOM} from 'jsdom';
 // This mounts the real review surface. A photograph that is still loading or
 // has failed must keep both the acknowledgement and the review action closed.
 const dom=new JSDOM('<!doctype html><html><body></body></html>',{url:'https://fixture.invalid/practice',pretendToBeVisual:true});
-for(const name of ['window','document','HTMLElement','HTMLInputElement','HTMLTextAreaElement','Node','MutationObserver','Event'])globalThis[name]=name==='window'?dom.window:dom.window[name];
+for(const name of ['window','document','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLFormElement','Element','Node','MutationObserver','Event'])globalThis[name]=name==='window'?dom.window:dom.window[name];
 Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
 globalThis.getComputedStyle=dom.window.getComputedStyle.bind(dom.window);globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 dom.window.Element.prototype.scrollIntoView=function(){};
@@ -17,11 +17,13 @@ await mkdir('.cache',{recursive:true});
 const bundleDir=await mkdtemp(resolve('.cache/practice-review-'));
 after(async()=>{dom.window.close();await rm(bundleDir,{recursive:true,force:true});});
 await build({entryPoints:['ui/practice.jsx'],outdir:bundleDir,bundle:true,platform:'node',format:'esm',packages:'external',logLevel:'silent'});
-const {default:Practice,ReviewStage,CustomerStage}=await import(pathToFileURL(`${bundleDir}/practice.js`).href);
+const {default:Practice,ReviewStage,CustomerStage,ApproveStage}=await import(pathToFileURL(`${bundleDir}/practice.js`).href);
+const {canReturnToReview}=await import(pathToFileURL(resolve('ui/guided-state.mjs')).href);
 const React=await import('react');const {act}=React;const {createRoot}=await import('react-dom/client');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 const mounted=[];
-afterEach(async()=>{for(const unmount of mounted.splice(0))await unmount();document.body.innerHTML='';});
+const baseFetch=globalThis.fetch;
+afterEach(async()=>{globalThis.fetch=baseFetch;for(const unmount of mounted.splice(0))await unmount();document.body.innerHTML='';});
 async function render(element){
   for(const unmount of mounted.splice(0))await unmount();document.body.innerHTML='';
   const container=document.createElement('div');document.body.appendChild(container);const root=createRoot(container);
@@ -115,4 +117,35 @@ test('a required replacement photo must differ from the saved photo before a cor
   await act(async()=>{button('Use fictional label B').click();await new Promise(r=>setTimeout(r,25));});assert.equal(button('Send updated evidence').disabled,false);
   await act(async()=>{button('Send updated evidence').click();await tick();});assert.equal(calls.length,1);assert.notEqual(calls[0][1].photo,c.case.photo);
  }finally{globalThis.fetch=oldFetch;}
+});
+
+
+test('a reviewed case can return to evidence and request correction without reopening settled cases',async()=>{
+ const reviewed=value({review:{revision:1},plan:{status:'READY_FOR_APPROVAL',reason:'Evidence reviewed.',digest:'d'.repeat(64)},status:{code:'READY_FOR_APPROVAL',reason:'Evidence reviewed.'}});
+ assert.equal(canReturnToReview(reviewed),true);
+ for(const closed of [
+  {...reviewed,case:{...reviewed.case,refund:{cents:2599,reference:'SIMULATED'}}},
+  {...reviewed,case:{...reviewed.case,locked:true}},
+  {...reviewed,case:{...reviewed.case,unresolved:{state:'RESERVED',cents:2599}}},
+  {...reviewed,case:{...reviewed.case,review:{revision:0}}},
+ ])assert.equal(canReturnToReview(closed),false);
+ let calls=[];let returned=false;
+ await render(React.createElement(ApproveStage,{value:reviewed,run:async()=>{},busy:false,error:'',stale:false,onRefresh:()=>{},onReturnToReview:()=>{returned=true;}}));
+ assert.ok(button('Back to evidence review'));
+ await act(async()=>{button('Back to evidence review').click();await tick();});
+ assert.equal(returned,true);
+
+ const corrected={...reviewed,role:'merchant',case:{...reviewed.case,review:null,status:{code:'NEEDS_INFORMATION',reason:'Correction requested.'},plan:{status:'NOT_READY',reason:'No review.',digest:null},correction:{state:'REQUESTED',message:'Please upload a clearer label.',replacePhoto:true}}};
+ globalThis.fetch=async(url,options)=>({ok:true,json:async()=>{if(options?.method==='POST'){calls.push([url,JSON.parse(options.body)]);return corrected;}return reviewed;}});
+ await render(React.createElement(Practice));
+ assert.match(text(document.querySelector('#claim-heading')),/Approve the refund/);
+ await act(async()=>{button('Back to evidence review').click();await tick();});
+ assert.match(text(document.querySelector('#claim-heading')),/Review this claim/);
+ assert.match(text(document.body),/Reviewed · revision 1/);
+ assert.ok(document.querySelector('#correction-details'));
+ const area=document.querySelector('#correction-message');
+ await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set.call(area,'Please upload a clearer label.');area.dispatchEvent(new Event('input',{bubbles:true}));await tick();});
+ await act(async()=>{button('Request customer update').click();await tick();});
+ assert.deepEqual(calls.map(([,body])=>body),[ {caseId:'PRACTICE-AAAA1111',attempt:1,revision:1,message:'Please upload a clearer label.',replacePhoto:true} ]);
+ assert.match(text(document.body),/Correction requested|Waiting for the customer/);
 });

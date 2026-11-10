@@ -184,13 +184,16 @@ export function sourceInstructionProfile(quote){
   const externalDestination=!negative&&(/\b(?:by|via|through)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(quote)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(quote));
   const prerequisite=/\b(?:after|once|upon|following)\b[^.!?]{0,100}\b(?:return(?:ing|ed)?|send(?:ing)? back|ship(?:ping)? back|hav(?:e|ing) (?:returned|shipped|sent))\b/i.test(quote);
   const applicability=/\b(?:for|only for)\s+(?:purchases?|products?|items?|orders?)\s+(?:made|purchased|bought|placed|ordered)\b|\b(?:orders?|purchases?|products?|items?)\s+(?:placed|made|purchased|bought|ordered)\s+(?:before|after|on|by)\b|\b(?:except|excluding|other than)\b/i.test(quote);
+  // A remedy narrative can carry a cutoff without asking for customer evidence.
+  // INFORMATION may explain that sentence, but it cannot make the cutoff safe.
+  const remedyConstraint=/\b(?:refunds?|reimbursements?|payments?|remedy|remedies|replacements?|eligibility|qualify|qualifies)\b[^.!?]{0,140}\b(?:after|before|once|upon|only for|only to|for\s+(?:orders?|purchases?)|placed|purchased|bought|ordered|except|excluding|other than)\b/i.test(quote);
   const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0||secondHandoff||externalDestination)||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
   if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
   if(parser.issue)issues.push(parser.issue);
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(externalDestination)issues.push('Submitting evidence outside this portal needs a manual workflow; this form cannot deliver an email or third-party portal response.');
   if(prerequisite)issues.push('A return or other prerequisite needs a manual workflow; this form cannot establish that an outside action happened first.');
-  if(applicability)issues.push('Purchase eligibility, date cutoffs and exceptions need a manual workflow; this form cannot establish who or what qualifies.');
+  if(applicability||remedyConstraint)issues.push('Purchase eligibility, date cutoffs and exceptions need a manual workflow; this form cannot establish who or what qualifies.');
   if(!direct.test(quote.trim())||conditional)issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');
   const photoCount=[...quote.matchAll(/\b(?:photos?|photographs?|pictures?|images?)\b/gi)].length===1&&!/\b(?:photos|photographs|pictures|images)\b|\b(?:two|three|four|multiple|separate|distinct|several|[2-9]|[1-9][0-9]+)\s+(?:(?:distinct|separate|required)\s+)?(?:photo|photograph|picture|image)\b|\b(?:both|each|every|all)\s+(?:sides?|views?|angles?)\b/i.test(quote)?1:null;

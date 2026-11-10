@@ -190,6 +190,17 @@ test('whole-instruction timing and purchase residuals stay manual for text and c
  }
 });
 
+test('a no-response remedy timing cutoff also survives INFORMATION',()=>{
+ const photo='Upload one photograph of the product label.';
+ const timing='Refunds will be issued after January2025.';
+ const source={remedies:[photo,timing]};
+ const decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'The refund sentence describes settlement timing.'}];
+ assert.equal(sourceInstructionProfile(timing).kinds.length,0);
+ assert.ok(sourceInstructionProfile(timing).issues.some(issue=>/eligibility|cutoff|timing/i.test(issue)));
+ assert.equal(sourceCoverage(source,[field(photo)],decisions)[1].disposition,'MANUAL');
+ assert.throws(()=>assertExecutableSource(source,[field(photo)],decisions),/manual|eligibility|cutoff|timing/i);
+});
+
 test('a purchase cutoff survives a no-response sentence and an INFORMATION decision',()=>{
  const photo='Upload one photograph of the product label.';
  const refund='Refunds will be issued to the original form of payment for orders placed before January2025.';

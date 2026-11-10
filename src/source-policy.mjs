@@ -172,6 +172,9 @@ function positiveBusinessPrefix(value){
     && !/[;,:—–]|\b(?:and|then|but)\b/i.test(value)
     && !/\b(?:consumers?|customers?|you|please)\b/i.test(value);
 }
+function businessClause(value){
+  return value.split(/[;,:—–]|\b(?:and|then|but)\b/i).at(-1).trim();
+}
 
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'').replace(/^(?:(?:fill out|complete)\s+(?:an?|the)\s+(?:online\s+)?form\s+and\s+)/i,'');
@@ -225,7 +228,8 @@ function parseResponseGrammar(quote){
     // context. Do not enumerate adverbs; the subject and absence of a customer
     // actor are the boundary. Notification verbs are skipped, while later
     // customer instructions keep their own verb and remain parseable.
-    if(businessSubject.test(beforeText)&&!/\b(?:consumers?|customers?|you|please)\b/i.test(beforeText)&&/^(?:send|sent|provide|provides|issue|issues|email|e-mail)$/i.test(word))continue;
+    const clauseBefore=businessClause(beforeText);
+    if(businessSubject.test(clauseBefore)&&!/\b(?:consumers?|customers?|you|please)\b/i.test(clauseBefore)&&/^(?:send|sent|provide|provides|issue|issues|email|e-mail)$/i.test(word))continue;
     // "Take six weeks" and "take 4-6 weeks" are timing narrative. A non-duration
     // "take the product to the store" remains a customer handoff and is manual.
     if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText)){

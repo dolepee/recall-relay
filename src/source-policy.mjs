@@ -101,9 +101,17 @@ function photoTextOutside(segment){
   // connector, "order-number image" is a photo object name, not a TEXT request.
   if(TEXT_VALUE_NOUN.test(before)&&/(?:[;,]|\b(?:and|then|also|plus)\b)/i.test(before))return true;
   if(/\b(?:along with|together with|plus|and include|and provide|and submit)\b[\s\S]*\b(?:name|address|order|serial|lot|code|number|postal|phone|receipt|invoice)\b/i.test(after))return true;
-  // A pictured modifier only covers its own image-object clause. A hard
-  // separator starts a later object that must not inherit the picture exemption.
-  const tail=after.split(/[;:—–]/).at(-1);
+  // A pictured modifier only covers its own image-object clause. Walk every
+  // hard-separated object, not just the final tail: a scalar later object with
+  // no internal connector still requires TEXT or manual review.
+  const parts=after.split(/[;:—–]/);
+  for(const part of parts.slice(1)){
+    const clean=part.trim().replace(/^(?:and|plus)\s+/i,'');
+    if(!clean)continue;
+    if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(clean))continue;
+    if(/^(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(clean))return true;
+  }
+  const tail=parts.at(-1);
   if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(tail))return false;
   return /(?:[,;]|\b(?:and|plus)\b)\s*(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(tail);
 }
@@ -325,16 +333,32 @@ function nominalConfirmationObligation(quote){
     return NOMINAL_CONFIRMATION_OBLIGATION.test(after);
   });
 }
-function nominalKinds(quote){
+function nominalConfirmationFallback(quote){
+  return quote.split(/[;,]|\b(?:but|and|then|also)\b/i).some(part=>{
+    const noun=NOMINAL_CONFIRMATION_NOUN.exec(part);
+    if(!noun)return false;
+    const before=part.slice(0,noun.index),after=part.slice(noun.index+noun[0].length);
+    if(/^\s*e-?mail\b/i.test(after))return false;
+    if(!/\b(?:your|you|consumers?|customers?)\b/i.test(part))return false;
+    if(/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?$/i.test(before))return false;
+    if(/^\s*(?:(?:will|shall|must|is|are)\s+)?not\s+(?:be\s+)?(?:required|requested|needed|necessary|mandatory)\b/i.test(after))return false;
+    if(/\b(?:optional|not\s+(?:required|necessary|mandatory))\b/i.test(after))return false;
+    if(/\b(?:will|may|should|can)\s+(?:be sent|receive|be given)\b[^.!?]{0,50}\b(?:confirmation|attestation|certification|declaration)\b/i.test(part))return false;
+    if(/\b(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand)\b[^.!?]{0,60}\b(?:send|sent|provide|provides|issue|issues)\b/i.test(part))return false;
+    return true;
+  });
+}
+function nominalKinds(quote,parser=parseResponseGrammar(quote)){
   const waived=/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?(?:photo|photograph|picture|image)s?\b|\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,30}\b(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(quote);
   const kinds=[];
   if(!waived&&/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote))kinds.push('PHOTO');
   if(nominalConfirmationObligation(quote))kinds.push('CONFIRMATION');
+  if(!parsedKinds(parser).length&&nominalConfirmationFallback(quote))kinds.push('CONFIRMATION');
   return kinds;
 }
 function canonicalKinds(quote){
   const parser=parseResponseGrammar(quote);
-  const found=new Set([...parsedKinds(parser),...nominalKinds(quote)]);
+  const found=new Set([...parsedKinds(parser),...nominalKinds(quote,parser)]);
   return KINDS.filter(kind=>found.has(kind));
 }
 export function canonicalResponseKinds(quote){

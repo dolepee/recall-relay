@@ -255,17 +255,22 @@ test('nominal confirmation obligations survive tense changes and future waivers 
   }
 });
 
-test('a pictured modifier does not cross a hard clause boundary',async()=>{
-  const quote='Include a photograph of the label showing the serial number; your name and address.';
-  const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['PHOTO']]);
-  try{
-    let row=await ws.suggest((await ws.import('TEST')).id,1);
-    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','PHOTO']);
-    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive the later written object.'}]);
-    assert.notEqual(row.review.coverage[1].disposition,'FIELD');
-    assert.notEqual(row.review.coverage[1].disposition,'INFORMATION');
-    assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i);
-  }finally{desk.close();}
+test('a pictured modifier does not cross any hard clause boundary',async()=>{
+  for(const quote of [
+    'Include a photograph of the label showing the serial number; your order number.',
+    'Include a photograph of the label showing the serial number; your name and address.',
+    'Include a photograph of the label showing the serial number; your name; your order number.',
+  ]){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['PHOTO']]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','PHOTO'],quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive the later written object.'}]);
+      assert.notEqual(row.review.coverage[1].disposition,'FIELD',quote);
+      assert.notEqual(row.review.coverage[1].disposition,'INFORMATION',quote);
+      assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i,quote);
+    }finally{desk.close();}
+  }
 });
 
 test('a positive attestation survives a separate confirmation waiver',async()=>{
@@ -321,6 +326,23 @@ test('a compound photo-object name is never a TEXT request',async()=>{
       }finally{desk.close();}
     }
   }
+});
+
+test('an unknown positive customer nominal is retained as manual, not waived',async()=>{
+  const quote='Your disposal attestation is essential.';
+  assert.deepEqual(sourceInstructionProfile(quote).kinds,['CONFIRMATION']);
+  const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['CONFIRMATION']]);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive an unknown positive nominal.'}]);
+    assert.equal(row.review.coverage[1].disposition,'MANUAL');
+    assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i);
+  }finally{desk.close();}
+});
+
+test('a parsed text request does not gain an extra confirmation kind',()=>{
+  assert.deepEqual(sourceInstructionProfile('Enter confirmation number.').kinds,['TEXT']);
 });
 
 test('mandatory noun-form attestations remain obligations and cannot be waived',async()=>{

@@ -302,47 +302,65 @@ The local server does not fall back to hosted inference.
 
 ## Use the app
 
-1. From the merchant desk, open **Prepare claim instructions**. Import a CPSC
-   number such as `27-026`, inspect the complete notice, and review its remedy.
-   This notice is a source-review example, not a preconfigured one-click demo.
-2. Under **Source versions and external instructions**, resolve every
-   **External instructions not ingested** entry. Open **Attach a reviewed public
-   instruction excerpt**, choose the reference, read its public HTTPS website,
-   paste the relevant public instruction text, confirm it, and choose **Save
-   external source snapshot**. The saved `27-026` fixture has two such references;
-   a fresh notice may differ. Repeat for every unresolved reference before drafting.
-   These are labelled merchant-supplied excerpts, not independently fetched
-   verification. Attaching or replacing one clears the draft and review. If the
-   instructions cannot be obtained or supported, keep the setup blocked for manual
-   handling; do not invent an excerpt to make the demonstration proceed.
-3. Draft source-linked fields with AI or add an exact source
-   sentence manually. Correct omissions and conditions before saving the
-   reviewed instructions. Every remedy sentence gets a disposition: a field
-   link, an information/manual note with a reason, or an unresolved marker.
-   AI suggestions are not authoritative.
-4. Preview and publish a **sandbox scenario** with an explicit test SKU and lot.
-   Unresolved or manual coverage entries block publication of a connected
-   form; only the supported original-payment remedy can use this settlement
+### Supported connected walkthrough: fictional Relay Home
+
+Use this path when you want one complete connected demonstration. It uses the
+merchant-authored fictional notice, not a CPSC record.
+
+1. Open **Prepare claim instructions**. Choose the **Relay Home cup · fictional
+   merchant test notice** example, or use **Load fictional test notice**. It is
+   explicitly fictional and uses sample labels; never damage or dispose of a
+   real product. The CPSC path below is a separate refusal example, not this
+   walkthrough.
+2. Draft source-linked fields with AI or add an exact source sentence manually.
+   Correct omissions and conditions before saving the reviewed instructions.
+   Every remedy sentence gets a disposition: a field link, an information/manual
+   note with a reason, or an unresolved marker. AI suggestions are not
+   authoritative. If AI is unavailable, manual field selection remains
+   available, but that is not an AI demonstration.
+3. Preview and publish a **sandbox scenario** with an explicit test SKU and lot
+   such as `RH-CUP` and `LOT-A`. Unresolved or manual coverage entries block
+   publication; only a supported original-payment remedy can use this settlement
    path.
-5. In the desk, use **Create sandbox purchase** for a $25.99 scenario item
-   plus an unaffected $34 item. Approve the $59.99 purchase as the Sandbox
-   buyer, then use **Verify approved purchase** for that same order. Do not
-   create another order merely because approval or capture is pending. To
-   evaluate an existing captured purchase instead, ask the operator to attach a
-   **Provisioned purchases** grant to this workspace; without one, keep using
-   the ordinary new-purchase path.
-6. Open the private customer link. Submit a disposable image, the test lot,
-   purchase confirmation and the required scenario responses. The image must
-   be a valid decoded JPEG or non-interlaced 8-bit PNG, at most 2 MB, 4
-   megapixels and 4,096 pixels per side. Missing information can be saved and
-   completed later.
-7. Return to the merchant desk, refresh and inspect the submitted evidence.
-   If it needs correction, ask for an update with a specific message and,
+4. In the desk, create the sandbox purchase and approve it as the Sandbox buyer.
+   Use **Verify approved purchase** for that same order. Do not create another
+   order merely because approval or capture is pending. To evaluate an existing
+   captured purchase, ask the operator to attach a **Provisioned purchases**
+   grant; without one, use the ordinary new-purchase path.
+5. Open the private customer link. Submit a disposable image, the test lot,
+   purchase confirmation and the required scenario responses. The image must be
+   a valid decoded JPEG or non-interlaced 8-bit PNG, at most 2 MB, 4 megapixels
+   and 4,096 pixels per side. A valid file is not proof of authenticity or
+   eligibility. Missing information can be saved and completed later.
+6. Return to the merchant desk, refresh and inspect the submitted evidence. If
+   it needs correction, ask for an update with a specific message and,
    optionally, a required replacement photo. The customer responds on the same
-   private page. This does not send an email. After the update, confirm a fresh
-   evidence review, then approve the exact **$25.99** item refund in its dialog.
-8. Refresh the customer's page. A receipt appears only after authenticated
-   PayPal readback verifies refund status, amount, currency and original capture.
+   private page; this does not send an email. After the update, confirm a fresh
+   evidence review. The previous review and approval cannot be reused.
+7. Approve the affected item refund shown in the dialog, then refresh the
+   customer's page. A receipt appears only after authenticated PayPal readback
+   verifies refund status, amount, currency and original capture.
+
+### CPSC 27026: a supported manual/refusal example
+
+This is deliberately a separate path. Use it to show what the application
+refuses to turn into an executable form when the public source needs something
+the portal cannot perform.
+
+1. From **Prepare claim instructions**, import CPSC number `27-026` and inspect
+   the complete notice and its remedy. It is a source-review example, not a
+   preconfigured connected demo.
+2. Under **Source versions and external instructions**, inspect every
+   **External instructions not ingested** entry. The saved `27-026` fixture has
+   two such references. Do not paste an invented excerpt just to make the
+   demonstration proceed. If the referenced instructions cannot be obtained or
+   supported, leave the setup blocked for manual handling.
+3. Keep the unresolved or manual coverage visible and do not publish a connected
+   form. That refusal is the expected result for this notice under the current
+   bounded policy.
+
+The source publication demo must never imply that attaching an excerpt performs
+the external registration, return, or manufacturer contact itself.
 
 The desktop merchant workspace uses AG Studio's Agent Framework, a custom
 runner, case-review widget and view-only tool. The connected desk also shows

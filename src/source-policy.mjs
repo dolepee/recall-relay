@@ -101,10 +101,11 @@ function photoTextOutside(segment){
   // connector, "order-number image" is a photo object name, not a TEXT request.
   if(TEXT_VALUE_NOUN.test(before)&&/(?:[;,]|\b(?:and|then|also|plus)\b)/i.test(before))return true;
   if(/\b(?:along with|together with|plus|and include|and provide|and submit)\b[\s\S]*\b(?:name|address|order|serial|lot|code|number|postal|phone|receipt|invoice)\b/i.test(after))return true;
-  // "label showing the product name" and "name and address printed on the
-  // label" keep those values inside the physical photo object.
-  if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(after))return false;
-  return /(?:[,;]|\b(?:and|plus)\b)\s*(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(after);
+  // A pictured modifier only covers its own image-object clause. A hard
+  // separator starts a later object that must not inherit the picture exemption.
+  const tail=after.split(/[;:—–]/).at(-1);
+  if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(tail))return false;
+  return /(?:[,;]|\b(?:and|plus)\b)\s*(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(tail);
 }
 function photoObjectRequest(segment){
   const photo=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);
@@ -311,16 +312,24 @@ function parsedKinds(parser){
   for(const segment of parser.segments)for(const kind of segment.kinds||[segment.kind])if(KINDS.includes(kind))found.add(kind);
   return KINDS.filter(kind=>found.has(kind));
 }
+const NOMINAL_CONFIRMATION_NOUN=/(?:attestations?|confirmations?|certifications?|declarations?)/i;
+const NOMINAL_CONFIRMATION_OBLIGATION=/(?:\b(?:is|are|will be|shall be|must be|is to be|are to be|has to be|have to be|was|were)\s+(?:required|requested|needed|mandatory|necessary|provided|completed|signed|returned|submitted)\b|\b(?:must|shall|will|should)\s+(?:be\s+)?(?:provide|provided|complete|completed|sign|signed|return|returned|submit|submitted|accompany)\b)/i;
+function nominalConfirmationObligation(quote){
+  return quote.split(/[;,]|\b(?:but|and|then|also)\b/i).some(part=>{
+    const noun=NOMINAL_CONFIRMATION_NOUN.exec(part);
+    if(!noun)return false;
+    const before=part.slice(0,noun.index),after=part.slice(noun.index+noun[0].length);
+    if(/^\s*e-?mail\b/i.test(after))return false;
+    if(/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?$/i.test(before))return false;
+    if(/^\s*(?:(?:will|shall|must|is|are)\s+)?not\s+(?:be\s+)?(?:required|requested|needed|necessary|mandatory)\b/i.test(after))return false;
+    return NOMINAL_CONFIRMATION_OBLIGATION.test(after);
+  });
+}
 function nominalKinds(quote){
   const waived=/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?(?:photo|photograph|picture|image)s?\b|\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,30}\b(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(quote);
   const kinds=[];
   if(!waived&&/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote))kinds.push('PHOTO');
-  const mandatoryConfirmation=quote.split(/[;,]|\b(?:but|and|then|also)\b/i).some(part=>{
-    if(!/\b(?:attestations?|confirmations?|certifications?|declarations?)\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(part))return false;
-    if(/\b(?:confirmation|confirmations)\s+e-?mail\b/i.test(part))return false;
-    return !/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?(?:attestations?|confirmations?|certifications?|declarations?)\b|\b(?:attestations?|confirmations?|certifications?|declarations?)\b[^.!?]{0,30}\b(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(part);
-  });
-  if(mandatoryConfirmation)kinds.push('CONFIRMATION');
+  if(nominalConfirmationObligation(quote))kinds.push('CONFIRMATION');
   return kinds;
 }
 function canonicalKinds(quote){

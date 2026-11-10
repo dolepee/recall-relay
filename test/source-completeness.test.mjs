@@ -231,6 +231,43 @@ test('a waived nominal confirmation remains informational',async()=>{
   }finally{desk.close();}
 });
 
+test('nominal confirmation obligations survive tense changes and future waivers stay informational',async()=>{
+  for(const quote of ['Your disposal attestation will be required.','Your confirmation must be provided.','Your confirmation is mandatory.','Your confirmation will be needed.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['CONFIRMATION']]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION'],quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive a nominal confirmation obligation.'}]);
+      assert.equal(row.review.coverage[1].disposition,'MANUAL',quote);
+      assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i,quote);
+    }finally{desk.close();}
+  }
+  for(const quote of ['No confirmation will be required.','Confirmation will not be required.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],quote);
+      assert.deepEqual(sourceInstructionProfile(quote).kinds,[],quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'The source explicitly waives confirmation in the future.'}]);
+      assert.equal(row.review.coverage[1].disposition,'INFORMATION',quote);
+      assert.ok(activate(ws,row,desk).publishedCampaign,quote);
+    }finally{desk.close();}
+  }
+});
+
+test('a pictured modifier does not cross a hard clause boundary',async()=>{
+  const quote='Include a photograph of the label showing the serial number; your name and address.';
+  const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['PHOTO']]);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','PHOTO']);
+    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive the later written object.'}]);
+    assert.notEqual(row.review.coverage[1].disposition,'FIELD');
+    assert.notEqual(row.review.coverage[1].disposition,'INFORMATION');
+    assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i);
+  }finally{desk.close();}
+});
+
 test('a positive attestation survives a separate confirmation waiver',async()=>{
   const quote='No confirmation is required, but your disposal attestation is required.';
   assert.deepEqual(sourceInstructionProfile(quote).kinds,['CONFIRMATION']);

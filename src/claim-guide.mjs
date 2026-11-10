@@ -8,6 +8,19 @@ Choose the tool that answers the actual question: summarize a claim -> get_case_
 Explain the practical next step from recorded facts. Distinguish customer statements, human review and provider-confirmed completion. Never claim to inspect a photo, determine eligibility/authenticity, send a message, approve or pay. Never invent previous evidence, times saved, urgency, missing requirements, financial outcomes or source conditions. An answered correction is not a completed review. Earlier submissions cannot be reconstructed from the supplied latest-state record. A missing review on a completed case does not require another review or refund.
 Do not repeat amounts or counts in the answer: exact figures and full quotations are appended by the server from cited records. Never invent numbers. Refer to those recorded figures. Source conditions must remain conditional. If evidence is absent, say what cannot be established and use the normal controls. For UNSUPPORTED set citations:[] and explain that the merchant must use the review controls. Answer under 650 characters, with no Markdown links or HTML.`;
 const formatMoney=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n/100);
+function factText(f){
+ const photo=f.photoPresent?'present; file format validated only, not authenticity':'not present';
+ return `Recorded facts: status ${f.statusCode}; evidence revision ${f.revision}; ${f.reviewRecorded?`current merchant review recorded at revision ${f.reviewRevision}`:'no current merchant review recorded'}; photograph ${photo}; ${f.approvalRecorded?'an approval/refund attempt is recorded':'no approval recorded'}; provider outcome ${f.providerOutcome}.`;
+}
+function unsafeAnswer(answer,f){
+ const a=answer.toLowerCase();
+ if(!f.reviewRecorded&&/\b(?:merchant (?:has )?reviewed|review (?:is )?(?:complete|completed)|reviewed and approved|approved)\b/.test(a))return true;
+ if(!f.approvalRecorded&&/\b(?:approved|approval (?:is )?(?:recorded|complete|completed))\b/.test(a))return true;
+ if(!f.providerCompleted&&/\b(?:refund|payment)\b[^.]{0,80}\b(?:complete|completed|settled|paid|issued|confirmed|received)\b/.test(a))return true;
+ if(/\b(?:photo|photograph|image)\b[^.]{0,90}\b(?:authentic|authenticity|verified|validated|matches|proves|confirms)\b/.test(a))return true;
+ if(/\b(?:eligible|entitled|qualifies)\b/.test(a))return true;
+ return false;
+}
 function evidenceFor(desk,input){
   const state=desk.merchantState(),overview=incidentOverview(state.cases),evidence=[];
   evidence.push({id:'workspace',text:`${overview.claimCount} saved claims. ${overview.basis}`});
@@ -17,7 +30,9 @@ function evidenceFor(desk,input){
     const item=state.cases.find(c=>c.id===input.caseId);
     if(!item||item.revision!==input.revision)throw new Error('The selected claim changed. Refresh before asking again.');
     context=caseContext(desk,{caseId:input.caseId,revision:input.revision,section:'brief'});
+    const facts={statusCode:item.status.code,statusReason:item.status.reason,revision:item.revision,reviewRecorded:context.facts.reviewRevision===item.revision,reviewRevision:context.facts.reviewRevision,correctionState:context.facts.correctionState||'none',photoPresent:context.facts.photoPresent,photoValidation:'FORMAT_ONLY',lotMatches:context.facts.lotMatches,approvalRecorded:Boolean(item.payment),paymentState:item.payment?.state||null,providerCompleted:item.receipt?.status==='COMPLETED',providerOutcome:item.receipt?.status||item.payment?.state||'NOT_STARTED'};
     evidence.push({id:'case-state',text:`Selected claim, revision ${item.revision}. Workflow status: ${item.status.code}. ${item.status.reason}`});
+    evidence.push({id:'case-facts',text:factText(facts)});
     evidence.push({id:'case-review',text:`Photograph recorded: ${context.facts.photoPresent?'yes':'no'} (not authenticity). Lot matches: ${context.facts.lotMatches===null?'unknown':context.facts.lotMatches?'yes':'no'}. Review revision: ${context.facts.reviewRevision??'not recorded'}. Correction state: ${context.facts.correctionState||'none'}. Only latest evidence is available; earlier photograph/text changes are not reconstructed.`});
     if(item.status.code!=='COMPLETED')for(const [i,gap] of context.gaps.entries())evidence.push({id:`gap-${i+1}`,text:gap});
     if(!context.gaps.length||item.status.code==='COMPLETED')evidence.push({id:'case-gaps',text:item.status.code==='COMPLETED'?'Settlement complete. No further review or refund action.':'No recorded evidence gap. Human review and payment controls remain authoritative.'});
@@ -25,7 +40,8 @@ function evidenceFor(desk,input){
   }
   // Fingerprint the full state on the server. Evidence/payment transitions need not
   // increment the customer revision; never return an answer from the older state.
-  return {evidence,contextDigest:hash(state),selected:context?{caseId:input.caseId,revision:input.revision,order:state.cases.find(c=>c.id===input.caseId)?.order||input.caseId,statusCode:state.cases.find(c=>c.id===input.caseId)?.status.code}:null};
+  const selectedItem=context?state.cases.find(c=>c.id===input.caseId):null;
+  return {evidence,contextDigest:hash(state),selected:selectedItem?{caseId:input.caseId,revision:input.revision,order:selectedItem.order||input.caseId,statusCode:selectedItem.status.code,facts:{statusCode:selectedItem.status.code,statusReason:selectedItem.status.reason,revision:selectedItem.revision,reviewRecorded:context.facts.reviewRevision===selectedItem.revision,reviewRevision:context.facts.reviewRevision,correctionState:context.facts.correctionState||'none',photoPresent:context.facts.photoPresent,photoValidation:'FORMAT_ONLY',lotMatches:context.facts.lotMatches,approvalRecorded:Boolean(selectedItem.payment),paymentState:selectedItem.payment?.state||null,providerCompleted:selectedItem.receipt?.status==='COMPLETED',providerOutcome:selectedItem.receipt?.status||selectedItem.payment?.state||'NOT_STARTED'}}:null};
 }
 export async function answerClaimQuestion(ai,desk,input){
   if(!input||Object.keys(input).some(k=>!['question','caseId','revision'].includes(k))||typeof input.question!=='string'||!input.question.trim()||input.question.length>1500||input.caseId!==undefined&&(typeof input.caseId!=='string'||!Number.isSafeInteger(input.revision)))throw new Error('Ask a question under 1,500 characters about the current claim or workspace.');
@@ -55,6 +71,11 @@ export async function answerClaimQuestion(ai,desk,input){
     result.answer=snapshot.selected.statusCode==='COMPLETED'?'This claim is complete. Its recorded receipt is the result; no further evidence review or refund action is available.':'This claim already has a recorded payment attempt. Use its status and recovery controls to reconcile that attempt. A new evidence review or replacement refund is not available here.';
     result.citations=['case-state','case-review'];
   }
+  if(snapshot.selected&&unsafeAnswer(result.answer,snapshot.selected.facts)){
+    result.answer=factText(snapshot.selected.facts);
+    result.citations=[...new Set(['case-facts',...result.citations])].slice(0,6);
+  }
   const citations=result.citations.map(id=>snapshot.evidence.find(e=>e.id===id));
-  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${lockedCase?'Recorded case boundary':result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':result.tool==='get_financial_summary'?'Recorded financial summary':'AI explanation · check the cited records'}\n${result.answer.trim()}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
+  const recordedFacts=snapshot.selected?`\n\n${factText(snapshot.selected.facts)}`:'';
+  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${lockedCase?'Recorded case boundary':result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':result.tool==='get_financial_summary'?'Recorded financial summary':'AI explanation · check the cited records'}\n${result.answer.trim()}${recordedFacts}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
 }

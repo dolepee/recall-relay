@@ -5,7 +5,7 @@ const make=()=>{
  const claim={id:'a',revision:3,submission:{photo:'SECRET_IMAGE',extra:{secret:'CUSTOMER_FREE_TEXT'}},review:null,correction:{state:'RESPONDED'},purchase:{captureId:'PRIVATE_CAPTURE'}};
  const campaign={sourceDigest:'digest',lot:'LOT-A',coverage:[{id:'c1',quote:'Upload a label photograph.',disposition:'FIELD'}]};
  const desk={db,claim:()=>claim,campaignFor:()=>campaign,missing:()=>[],reservation:()=>null,merchantState:()=>({cases:[{id:'a',revision:3,amountCents:3875,status:{code:status,reason:'Current evidence needs merchant review.'}}]})};
- return {desk,claim,db,change:()=>{status='READY_FOR_APPROVAL';}};
+ return {desk,claim,db,change:()=>{status='READY_FOR_APPROVAL';},setStatus:s=>{status=s;}};
 };
 const output=(overrides={})=>JSON.stringify({tool:'get_evidence_gaps',view:'ALL',answer:'Inspect the replacement label before recording a fresh review.',citations:['case-review'],...overrides});
 test('natural questions receive cited latest-state answers without sending customer evidence or capture data',async()=>{
@@ -68,4 +68,17 @@ test('model advice cannot reopen completed evidence or suggest replacement refun
 test('financial summaries retain payment outcomes and receipts when the model fills its optional citations',async()=>{
  const {desk,db}=make();const ai={generate:async()=>output({tool:'get_financial_summary',citations:['amount-ALL','amount-REVIEW','amount-READY','amount-WAITING','amount-MANUAL','amount-OPEN']}),status:()=>({model:'double'})};
  const result=await answerClaimQuestion(ai,desk,{question:'Summarize workspace amounts'});assert.equal(result.citations.length,6);assert.deepEqual(result.citations.slice(0,3).map(c=>c.id),['amount-OPEN','amount-PAYMENT','amount-COMPLETED']);db.close();
+});
+
+test('server facts replace unsafe photo, review and refund claims in non-completed states',async()=>{
+ const {desk,db,setStatus}=make();
+ for(const status of ['SUBMITTED','NEEDS_INFORMATION','READY_FOR_APPROVAL']){
+  setStatus(status);
+  const ai={generate:async()=>output({tool:'get_case_brief',answer:'The photograph has been verified as authentic and the refund is complete.',citations:['case-review']}),status:()=>({model:'double'})};
+  const result=await answerClaimQuestion(ai,desk,{question:'What is the state of this claim?',caseId:'a',revision:3});
+  assert.doesNotMatch(result.answer,/verified as authentic|refund is complete/i,status);
+  assert.match(result.message,/file format validated only, not authenticity/,status);
+  assert.match(result.message,/no current merchant review recorded|current merchant review recorded/,status);
+ }
+ db.close();
 });

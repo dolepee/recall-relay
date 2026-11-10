@@ -103,13 +103,14 @@ export class SourceWorkspace {
     const fields=row.suggestion.requirements.filter(r=>fieldIds.includes(r.id));
     const clauses=sourceClauses(row.source);
     if(!Array.isArray(clauseDecisions)||clauseDecisions.length>clauses.length||new Set(clauseDecisions.map(d=>d?.id)).size!==clauseDecisions.length||clauseDecisions.some(d=>!d||!clauses.some(c=>c.id===d.id)||!['INFORMATION','MANUAL'].includes(d.disposition)||typeof d.reason!=='string'||d.reason.trim().length<10||d.reason.length>600))throw new Error('Record a reason for every source instruction not represented by a field.');
-    const coverage=sourceCoverage(row.source,fields,clauseDecisions);
-    return this.save({...row,revision:row.revision+1,review:{sourceDigest:row.source.sourceDigest,fields,coverage,digest:hash({source:row.source.sourceDigest,fields,coverage}),reviewedAt:new Date().toISOString(),status:'REVIEWED_SETUP',paymentAuthorized:false}});
+    const decisions=clauseDecisions.map(({id,disposition,reason})=>({id,disposition,reason:reason.trim()}));
+    const coverage=sourceCoverage(row.source,fields,decisions);
+    return this.save({...row,revision:row.revision+1,review:{sourceDigest:row.source.sourceDigest,fields,decisions,coverage,digest:hash({source:row.source.sourceDigest,fields,decisions,coverage}),reviewedAt:new Date().toISOString(),status:'REVIEWED_SETUP',paymentAuthorized:false}});
   }
   activate(id,{revision,sku,lot,confirmed},desk){
     const row=this.get(id);
     if(confirmed!==true||row.revision!==revision||!row.review||row.review.sourceDigest!==row.source.sourceDigest)throw new Error('Review the current source fields before publishing a sandbox scenario.');
-    const coverage=assertExecutableSource(row.source,row.review.fields,row.review.coverage||[]);
+    const coverage=assertExecutableSource(row.source,row.review.fields,row.review.decisions||row.review.coverage||[]);
     if((row.source.options?classifyRemedyRoute(row.source.remedies,row.source.options):row.source.route)!=='ORIGINAL_PAYMENT_CANDIDATE')throw new Error('This notice needs a manual remedy route. It cannot publish an original-payment sandbox scenario.');
     if(![sku,lot].every(x=>typeof x==='string'&&/^[A-Z0-9][A-Z0-9 -]{0,39}$/.test(x))||lot==='ALL')throw new Error('Provide explicit uppercase test SKU and lot identifiers, up to 40 characters.');
     const campaign={id:campaignIdFor(row.source.recallNumber,row.review.digest),version:1,title:row.source.originType==='MERCHANT_TEST_NOTICE'?`Sandbox scenario · ${row.source.recallNumber}`:`Sandbox scenario · CPSC ${row.source.recallNumber}`,product:row.source.products?.[0]?.name||row.source.title,sku,lot,remedy:'REFUND',notice:row.source.remedies.join('\n'),sourceUrl:row.source.sourceUrl,sourceDigest:row.source.sourceDigest,sourcePolicyVersion:SOURCE_POLICY_VERSION,sourceRemedies:row.source.remedies,sourceRootRemedies:row.source.rootRemedies,sourceExternalSnapshots:row.source.externalSnapshots,fields:row.review.fields,coverage,requirements:row.review.fields.map(f=>f.quote),scenario:true};

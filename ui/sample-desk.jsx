@@ -1,12 +1,10 @@
-import {IncidentOverview} from './incident-overview.jsx';
-import {casesForView} from '../src/case-views.mjs';
+import {casesForView,views} from '../src/case-views.mjs';
 import {ProgressiveWorkspace} from './progressive-workspace.jsx';
 import React,{useContext,useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {Frame} from './components.jsx';
 import {SampleContext,SampleStatus,SampleCasePanel,SourceRequirementsWidget,PaymentExceptionsWidget,AmountSummaryWidget} from './sample-widgets.jsx';
 import {SAMPLE_CASES,DEFAULT_SAMPLE_ORDER,caseForOrder} from './sample-data.mjs';
 
-const overviewCases=SAMPLE_CASES.map(c=>({...c,id:c.order,payment:{...c.payment,cents:c.payment.amountCents}}));
 const loadStudio=()=>import('./sample-studio.jsx');
 const media=typeof window==='undefined'?null:window.matchMedia('(min-width: 1100px)');
 const subscribe=callback=>{if(!media)return()=>{};media.addEventListener('change',callback);return()=>media.removeEventListener('change',callback);};
@@ -43,9 +41,9 @@ export default function SampleDesk(){
   const wide=useWide();
   const value=useMemo(()=>({selected:current,selectCase:setSelected,caseForOrder:order=>order?caseForOrder(order):null,visibleCases}),[current,visibleCases]);
   return <Frame merchant sample note="Read-only sample">
-    <div className="rr-sample-banner mb-5" role="note"><strong>Six fictional claims.</strong> No login, payment or AI call.</div>
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-slate-500">Read-only sample</p><h1 className="mt-2 text-2xl font-semibold text-balance">Inspect a sample claim.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Six states. No setup, login or payment.</p></div><div className="flex flex-wrap gap-2"><a className="rr-action inline-flex items-center justify-center px-4 py-2" data-secondary="true" href="/practice">Practice journey</a><a className="rr-action rr-action--primary inline-flex items-center justify-center px-4 py-2" href="/desk">Open sandbox desk</a></div></div>
-    <SampleContext.Provider value={value}><div className="rr-card mb-4"><IncidentOverview cases={overviewCases} view={view} onView={setView} simulated/></div>{wide?<ProgressiveWorkspace load={loadStudio} fallback={<SampleMobile selected={current} selectCase={setSelected} caseForOrder={caseForOrder}/>}/>:<SampleMobile selected={current} selectCase={setSelected} caseForOrder={caseForOrder}/>}</SampleContext.Provider>
-    <p className="mt-4 text-xs leading-5 text-slate-500">Fixture only. Not a merchant workspace or payment record; no funds moved.</p>
+    <div className="rr-sample-banner mb-3 flex flex-wrap items-center justify-between gap-3" role="note"><span><strong>Six fictional claims.</strong> No login, payment or AI call.</span><label className="flex min-h-11 items-center gap-2 text-sm">Filter<select className="rr-input min-w-48" value={view} onChange={e=>setView(e.target.value)}>{Object.entries(views).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label></div>
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-slate-500">Read-only sample</p><h1 className="mt-1 text-xl font-semibold text-balance">Inspect a sample claim.</h1><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Six states. No setup, login or payment.</p></div><div className="flex flex-wrap gap-2"><a className="rr-action inline-flex items-center justify-center px-4 py-2" data-secondary="true" href="/practice">Practice journey</a><a className="rr-action rr-action--primary inline-flex items-center justify-center px-4 py-2" href="/desk">Open sandbox desk</a></div></div>
+    <SampleContext.Provider value={value}>{wide?<ProgressiveWorkspace load={loadStudio} fallback={<SampleMobile selected={current} selectCase={setSelected} caseForOrder={caseForOrder}/>}/>:<SampleMobile selected={current} selectCase={setSelected} caseForOrder={caseForOrder}/>}</SampleContext.Provider>
+    <p className="mt-4 text-xs leading-5 text-slate-500">Fictional receipt states; no funds moved. Fixture only. Not a merchant workspace or payment record.</p>
   </Frame>;
 }

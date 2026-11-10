@@ -275,7 +275,7 @@ try{
   // 7. The daily ceilings bind dispatched attempts: the last unit of both ceilings is spent by a real
   // generation, and the next attempt is refused before the provider is ever contacted.
   await area('the daily ceilings bound dispatched attempts',async()=>{
-    A.deepEqual(DEFAULT_BUDGET_LIMITS,{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationAIperBurst:2,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
+    A.deepEqual(DEFAULT_BUDGET_LIMITS,{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationAIperBurst:2,evaluationAIperWorkspacePerDay:10,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
     await configure({limits:null});
     const d=await desk();
     const perWorkspace=DEFAULT_BUDGET_LIMITS.aiPerWorkspacePerDay,global=DEFAULT_BUDGET_LIMITS.aiGlobalPerDay;

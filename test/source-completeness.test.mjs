@@ -367,6 +367,32 @@ test('a text reference followed by multiple photo requests retains the photo gua
   }
 });
 
+test('an independent photo after a written value is retained; repeated photo references stay TEXT',async()=>{
+  for(const quote of ['Submit the serial number printed on the label and a photo of the receipt.','Include the order number shown on the receipt and a picture of the damage.']){
+    assert.deepEqual(sourceInstructionProfile(quote).kinds,['PHOTO','TEXT'],quote);
+    for(const kinds of [['TEXT'],['PHOTO']]){
+      const {desk,ws}=fixture(quote,kinds);
+      try{
+        let row=await ws.suggest((await ws.import('TEST')).id,1);
+        row=reviewAll(ws,row,[{id:'clause-0-0',disposition:'INFORMATION',reason:'Attempt to waive the independent photo or written object.'}]);
+        assert.notEqual(row.review.coverage[0].disposition,'FIELD',quote);
+        assert.notEqual(row.review.coverage[0].disposition,'INFORMATION',quote);
+        assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i,quote);
+      }finally{desk.close();}
+    }
+  }
+  const repeated='Provide the lot number shown in the photograph and the model number shown in the photograph.';
+  assert.deepEqual(sourceInstructionProfile(repeated).kinds,['TEXT']);
+  const {desk,ws}=fixture(['Upload a photograph of the item.',repeated],[['PHOTO'],['TEXT']]);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','TEXT']);
+    row=reviewAll(ws,row);
+    assert.equal(row.review.coverage[1].disposition,'FIELD');
+    assert.ok(activate(ws,row,desk).publishedCampaign);
+  }finally{desk.close();}
+});
+
 test('every coordinated object after a photo is checked, not only the first',async()=>{
   const quote='Include a photograph of the label and packaging, your name and address.';
   {

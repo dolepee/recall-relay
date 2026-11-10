@@ -145,10 +145,22 @@ function photoObjectRequest(segment){
   if(!TEXT_VALUE_NOUN.test(before))return true;
   return !/\b(?:shown|printed|visible|displayed|written|readable|legible|appearing)\s+(?:in|on)\b[^.!?]*$/i.test(before);
 }
+function coordinatedPhotoPart(segment,index){
+  const prefix=segment.slice(0,index);
+  const connectors=[...prefix.matchAll(/[,;]|\b(?:and|then|also|plus)\b/gi)];
+  const start=connectors.length?connectors.at(-1).index+connectors.at(-1)[0].length:0;
+  const after=segment.slice(index);
+  const next=/[,;]|\b(?:and|then|also|plus)\b/i.exec(after);
+  const end=next?index+next.index:segment.length;
+  return segment.slice(start,end).trim();
+}
 function textThenPhoto(segment){
   const photos=[...segment.matchAll(/\b(?:photographs?|photos?|pictures?|images?)\b/gi)];
   return photos.some((photo,index)=>{
-    if(index===0)return false;
+    // The part's own head decides. A scalar part that merely mentions a
+    // photograph as the place a value appears is still TEXT.
+    const part=coordinatedPhotoPart(segment,photo.index);
+    if(!/^(?:(?:a|an|the|your|its|their|one|two|three|both|each|every|all|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photographs?|photos?|pictures?|images?)\b/i.test(part))return false;
     const before=segment.slice(0,photo.index);
     return /(?:[,;]|\b(?:and|then|also|plus)\b)[^.!?]*$/i.test(before)
       && TEXT_VALUE_NOUN.test(before)

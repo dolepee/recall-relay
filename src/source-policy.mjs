@@ -167,13 +167,19 @@ function prohibitionObjectAllowed(part){
 }
 const businessSubject=/^(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\b/i;
 function positiveBusinessPrefix(value){
-  return businessSubject.test(value)
-    && /\b(?:will|shall|must|may|can|should|is|are|has|have)\b/i.test(value)
-    && !/[;,:—–]|\b(?:and|then|but)\b/i.test(value)
+  return /^(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand|we|it)(?:\s+(?:will|shall|must|may|can|should|is|are|has|have|also|then|still|now|just|already|even|only|again|soon|later|[a-z]+ly)){1,6}\s*$/i.test(value)
     && !/\b(?:consumers?|customers?|you|please)\b/i.test(value);
 }
-function businessClause(value){
-  return value.split(/[;,:—–]|\b(?:and|then|but)\b/i).at(-1).trim();
+const businessActionVerb=/^(?:send|sent|provide|provides|issue|issues|email|e-mail)$/i;
+const businessConnector=/[;,:—–]|\b(?:and|then|also|but)\b/i;
+function firstBusinessAction(beforeText,word){
+  if(!businessActionVerb.test(word))return false;
+  const subjects=[...beforeText.matchAll(/(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\b/gi)];
+  const subject=subjects.at(-1);
+  if(!subject)return false;
+  const tail=beforeText.slice(subject.index+subject[0].length);
+  if(/\b(?:consumers?|customers?|you|please)\b/i.test(tail))return false;
+  return !/\b(?:send|sent|provide|provides|issue|issues|email|e-mail)\b[\s\S]*?(?:[;,:—–]|\b(?:and|then|also|but)\b)/i.test(tail);
 }
 
 function parseResponseGrammar(quote){
@@ -228,8 +234,7 @@ function parseResponseGrammar(quote){
     // context. Do not enumerate adverbs; the subject and absence of a customer
     // actor are the boundary. Notification verbs are skipped, while later
     // customer instructions keep their own verb and remain parseable.
-    const clauseBefore=businessClause(beforeText);
-    if(businessSubject.test(clauseBefore)&&!/\b(?:consumers?|customers?|you|please)\b/i.test(clauseBefore)&&/^(?:send|sent|provide|provides|issue|issues|email|e-mail)$/i.test(word))continue;
+    if(firstBusinessAction(beforeText,word))continue;
     // "Take six weeks" and "take 4-6 weeks" are timing narrative. A non-duration
     // "take the product to the store" remains a customer handoff and is manual.
     if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText)){

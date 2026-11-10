@@ -100,7 +100,7 @@ test('a rejected proposal cannot leave coverage FIELD',async()=>{
 });
 
 test('ordinary informational narratives remain publishable beside a valid photo',async()=>{
-  for(const narrative of ['The manufacturer will send a confirmation email.','The manufacturer will also send a confirmation email.','The manufacturer will promptly send a confirmation email.','The retailer will automatically send a receipt.','Refunds take six weeks.','Refunds take 4-6 weeks.','The retailer will still send a receipt.','Payments take 4–6 weeks.']){
+  for(const narrative of ['The manufacturer will send a confirmation email.','The manufacturer will also send a confirmation email.','The manufacturer will then send a confirmation email.','The manufacturer will promptly send a confirmation email.','The retailer will automatically send a receipt.','The manufacturer will send a confirmation email; the retailer will send a receipt.','The manufacturer will send a confirmation email and the retailer will send a receipt.','Refunds take six weeks.','Refunds take 4-6 weeks.','The retailer will still send a receipt.','Payments take 4–6 weeks.']){
     const quote='Upload a photograph of the item.';
     const {desk,ws}=fixture([quote,narrative],[[ 'PHOTO' ],[]]);
     try{
@@ -146,6 +146,21 @@ test('a later implicit imperative after a business narrative does not inherit it
       assert.equal(row.review.coverage[1].disposition,'MANUAL',instruction);
       assert.throws(()=>activate(ws,row,desk),/manual|unsupported/i,instruction);
     }finally{desk.close();}
+  }
+});
+
+test('every parser connector after a completed business action keeps a later imperative manual',async()=>{
+  for(const connector of [';','and','then','also']){
+    for(const verb of ['provide','send']){
+      const instruction=`The manufacturer will send a confirmation email ${connector} ${verb} your order number.`;
+      const {desk,ws}=fixture(['Upload a photograph of the item.',instruction],[['PHOTO'],[]]);
+      try{
+        let row=await ws.suggest((await ws.import('TEST')).id,1);
+        row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive a later imperative after a completed business action.'}]);
+        assert.equal(row.review.coverage[1].disposition,'MANUAL',instruction);
+        assert.throws(()=>activate(ws,row,desk),/manual|unsupported/i,instruction);
+      }finally{desk.close();}
+    }
   }
 });
 

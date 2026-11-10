@@ -322,7 +322,7 @@ test('supported responses after colons and dashes publish as compound controls',
 
 test('pure coordinated prohibitions remain information and tell-us consumes its pronoun',()=>{
  const photo='Upload one photograph of the product label.';
- for(const quote of ['Do not return the product and its packaging.','Do not return the product and do not contact the retailer.']){
+ for(const quote of ['Do not return the product and its packaging.','Do not return the product and do not contact the retailer.','Do not return the product; never contact the retailer.']){
   const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Pure prohibition; no customer action requested.'}];
   assert.equal(sourceInstructionProfile(quote).parser.issue,null,quote);
   assert.equal(sourceCoverage(source,[{id:'p',kind:'PHOTO',quote:photo}],decisions)[1].disposition,'INFORMATION',quote);

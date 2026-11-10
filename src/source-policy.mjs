@@ -144,7 +144,7 @@ function mandatoryCustomerIssue(quote){
   const parts=quote.split(/[;—–:]|\b(?:and|then|also|but)\b/i);
   return parts.some(part=>/^(?:consumers?|customers?|you)\s+(?:(?:must|shall)(?!\s+not)\b|(?:are|is)\s+required\s+to\b|(?:need|have)\s+to\b|will\s+be\s+asked\s+to\b)/i.test(part.trim()));
 }
-const PROHIBITION_CONTINUATION=/^(?:do not|must not|should not|not required|not necessary|no)\b/i;
+const PROHIBITION_CONTINUATION=/^(?:do not|must not|should not|never|not required|not necessary|no)\b/i;
 const PROHIBITION_OBJECT_START=/^(?:its|their|his|her|the|a|an|this|that|these|those|your|our|all|any|each|every|both|it|them)\b/i;
 function prohibitionObjectAllowed(part){
   if(!PROHIBITION_OBJECT_START.test(part))return false;

@@ -149,6 +149,18 @@ test('a later implicit imperative after a business narrative does not inherit it
   }
 });
 
+test('business nouns in a customer instruction are not positive business subjects',async()=>{
+  for(const instruction of ['Contact the manufacturer and provide your order number.','Speak to the retailer and provide your order number.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',instruction],[['PHOTO'],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive a customer instruction that mentions a business as its object.'}]);
+      assert.equal(row.review.coverage[1].disposition,'MANUAL',instruction);
+      assert.throws(()=>activate(ws,row,desk),/manual|unsupported/i,instruction);
+    }finally{desk.close();}
+  }
+});
+
 test('every parser connector after a completed business action keeps a later imperative manual',async()=>{
   for(const connector of [';','and','then','also']){
     for(const verb of ['provide','send']){

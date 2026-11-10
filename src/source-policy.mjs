@@ -174,12 +174,11 @@ const businessActionVerb=/^(?:send|sent|provide|provides|issue|issues|email|e-ma
 const businessConnector=/[;,:—–]|\b(?:and|then|also|but)\b/i;
 function firstBusinessAction(beforeText,word){
   if(!businessActionVerb.test(word))return false;
-  const subjects=[...beforeText.matchAll(/(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\b/gi)];
-  const subject=subjects.at(-1);
-  if(!subject)return false;
-  const tail=beforeText.slice(subject.index+subject[0].length);
-  if(/\b(?:consumers?|customers?|you|please)\b/i.test(tail))return false;
-  return !/\b(?:send|sent|provide|provides|issue|issues|email|e-mail)\b[\s\S]*?(?:[;,:—–]|\b(?:and|then|also|but)\b)/i.test(tail);
+  // The actor must be the subject of the current clause, not merely a business
+  // noun in the object ("contact the manufacturer"). Hard connectors start a new
+  // clause; "also" remains an adverb until the first business action completes.
+  const clause=beforeText.split(/[;,:—–]|\b(?:and|then|but)\b/i).at(-1).trim();
+  return positiveBusinessPrefix(clause);
 }
 
 function parseResponseGrammar(quote){

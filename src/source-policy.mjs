@@ -144,6 +144,9 @@ function mandatoryCustomerIssue(quote){
   const parts=quote.split(/[;—–:]|\b(?:and|then|also|but)\b/i);
   return parts.some(part=>/^(?:consumers?|customers?|you)\s+(?:(?:must|shall)(?!\s+not)\b|(?:are|is)\s+required\s+to\b|(?:need|have)\s+to\b|will\s+be\s+asked\s+to\b)/i.test(part.trim()));
 }
+const PROHIBITION_CONTINUATION=/^(?:do not|must not|should not|not required|not necessary|no)\b/i;
+const PROHIBITION_OBJECT_START=/^(?:its|their|his|her|the|a|an|this|that|these|those|your|our|all|any|each|every|both|it|them)\b/i;
+
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
   const prohibited=/\b(?:do not|must not|should not|not required|not necessary)\b/i.test(quote)||/^(?:not|no)\b/i.test(text);
@@ -154,7 +157,11 @@ function parseResponseGrammar(quote){
     if(!separator)return {issue:null,segments:[],consumed:text,remainder:''};
     const rest=text.slice(separator.index+separator[0].length).trim();
     if(!rest)return {issue:null,segments:[],consumed:text,remainder:''};
-    if(!/^(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(rest)){
+    const responseStart=/^(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i;
+    if(PROHIBITION_CONTINUATION.test(rest)||(PROHIBITION_OBJECT_START.test(rest)&&!responseStart.test(rest))){
+      return {issue:null,segments:[],consumed:text,remainder:''};
+    }
+    if(!responseStart.test(rest)){
       return {issue:'The instruction after a prohibition is unsupported. Keep this instruction manual.',segments:[],consumed:text.slice(0,separator.index+separator[0].length),remainder:rest};
     }
     text=rest;
@@ -179,7 +186,8 @@ function parseResponseGrammar(quote){
   for(let i=0;i<verbs.length;i++){
     const start=verbs[i].index+verbs[i][0].length;
     const end=verbs[i+1]?.index??text.length;
-    const segment=text.slice(start,end).replace(/[\s,;:—–-]*(?:(?:and|then|also)\s*)?$/i,'').trim();
+    let segment=text.slice(start,end).replace(/[\s,;:—–-]*(?:(?:and|then|also)\s*)?$/i,'').trim();
+    if(verbs[i].word==='tell')segment=segment.replace(/^us\s+/i,'');
     const kind=responseKind(verbs[i].word,segment);
     const issue=responseObjectIssue(kind,segment);
     if(issue)return {issue,segments,consumed:text.slice(0,start),remainder:text.slice(start)};

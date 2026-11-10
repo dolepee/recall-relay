@@ -12,4 +12,5 @@ test('negative original-payment wording cannot become an original-payment candid
 test('an unavailable replacement does not negate an original-payment promise',()=>{
  assert.equal(classifyRemedyRoute(['Refunds will be issued to the original form of payment because a replacement is unavailable.'],['Refund']),'ORIGINAL_PAYMENT_CANDIDATE');
  assert.notEqual(classifyRemedyRoute(['Refunds to the original form of payment are unavailable because a replacement is unavailable.'],['Refund']),'ORIGINAL_PAYMENT_CANDIDATE');
+ assert.notEqual(classifyRemedyRoute(['Refunds to the original form of payment, as requested, are not available.'],['Refund']),'ORIGINAL_PAYMENT_CANDIDATE');
 });

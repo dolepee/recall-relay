@@ -320,6 +320,26 @@ test('supported responses after colons and dashes publish as compound controls',
  }
 });
 
+test('pure coordinated prohibitions remain information and tell-us consumes its pronoun',()=>{
+ const photo='Upload one photograph of the product label.';
+ for(const quote of ['Do not return the product and its packaging.','Do not return the product and do not contact the retailer.']){
+  const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Pure prohibition; no customer action requested.'}];
+  assert.equal(sourceInstructionProfile(quote).parser.issue,null,quote);
+  assert.equal(sourceCoverage(source,[{id:'p',kind:'PHOTO',quote:photo}],decisions)[1].disposition,'INFORMATION',quote);
+  assert.doesNotThrow(()=>assertExecutableSource(source,[{id:'p',kind:'PHOTO',quote:photo}],decisions),quote);
+ }
+ const tell='Tell us the serial number.';
+ assert.deepEqual(sourceInstructionProfile(tell).issues,[],tell);
+ assert.doesNotThrow(()=>assertExecutableSource({remedies:[photo,tell]},[
+  {id:'p',kind:'PHOTO',quote:photo},{id:'t',kind:'TEXT',quote:tell},
+ ]),tell);
+ for(const quote of ['Do not return the product and wug the packaging.','Do not return the product and contact the retailer.']){
+  assert.ok(sourceInstructionProfile(quote).parser.issue,quote);
+  assert.throws(()=>assertExecutableSource({remedies:[photo,quote]},[{id:'p',kind:'PHOTO',quote:photo}],
+   [{id:'clause-1-0',disposition:'INFORMATION',reason:'Cannot waive an affirmative tail.'}]),/manual|prohibition/i,quote);
+ }
+});
+
 test('the independent 28-case closed-grammar contract passes as a synthetic check',()=>{
  const positive=[
   ['PHOTO','Upload one photograph of the product label.'],

@@ -17,6 +17,7 @@ function safeNextActions(f,context){
  if(f.paymentState)return [{id:'reconcile-payment',label:'Reconcile the recorded payment attempt using the recovery controls.',kind:'RECOVERY'}];
  if(f.correctionState==='REQUESTED')return [{id:'wait-correction',label:'Wait for the customer correction; the current revision cannot be approved.',kind:'WAITING'}];
  if(f.statusCode==='MANUAL')return [{id:'resolve-manual',label:'Resolve the manual source or evidence requirement before any refund decision.',kind:'MANUAL'}];
+ if(f.statusCode==='AWAITING_CUSTOMER')return [{id:'wait-customer',label:'Wait for the customer to complete the claim.',kind:'WAITING'}];
  if(f.statusCode==='WAITING')return [{id:'wait-customer',label:'Wait for the customer or outside action recorded by the case.',kind:'WAITING'}];
  if(f.statusCode==='NEEDS_INFORMATION')return [{id:'obtain-information',label:'Obtain the missing customer information before any refund decision.',kind:'WAITING'}];
  if(!f.reviewRecorded)return [{id:'record-review',label:'Record a human evidence review before any refund decision.',kind:'REVIEW'}];

@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';
 import {answerClaimQuestion} from '../src/claim-guide.mjs';
+import {ClaimDesk} from '../src/claims.mjs';
 const make=()=>{
  const db=new DatabaseSync(':memory:');let status='SUBMITTED';
  const claim={id:'a',revision:3,submission:{photo:'SECRET_IMAGE',extra:{secret:'CUSTOMER_FREE_TEXT'}},review:null,correction:{state:'RESPONDED'},purchase:{captureId:'PRIVATE_CAPTURE'}};
@@ -124,4 +125,36 @@ test('manual or waiting claims never recommend approval even with a retained cur
   assert.equal(r.nextActions[0].id,id,status);assert.doesNotMatch(r.answer,/approval controls/i,status);
  }
  db.close();
+});
+
+test('actual ClaimDeskCore AWAITING_CUSTOMER maps to waiting, not review',async()=>{
+ const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No provider');}});
+ const campaign=desk.activeCampaign();
+ desk.saveClaim({id:'real-a',campaign,access:'token',createdAt:'2026-11-10T00:00:00.000Z',purchase:{id:'RR-REAL',version:1,merchantId:'merchant',captureId:'capture',lineId:'CUP-01-LINE',sku:'CUP-01',lot:'LOT-A',capturedAt:'2026-11-10T00:00:00.000Z',currency:'USD',linePaidCents:5999,lineRefundedCents:0,captureRemainingCents:5999,originalCaptureCents:5999},submission:null,revision:0,review:null});
+ assert.equal(desk.merchantState().cases[0].status.code,'AWAITING_CUSTOMER');
+ const ai={generate:async()=>output({tool:'get_case_brief',answer:'The funds have arrived in the customer account.',citations:['case-review']}),status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'real-a',revision:0});
+ assert.equal(result.nextActions[0].id,'wait-customer');
+ assert.doesNotMatch(result.answer,/funds have arrived|record a human evidence review/i);
+ assert.match(result.answer,/Wait for the customer to complete the claim/);
+ desk.close();
+});
+
+test('actual ClaimDeskCore missing, manual and ready statuses map to their safe controls',async()=>{
+ const base={id:'real-state',access:'token',createdAt:'2026-11-10T00:00:00.000Z',purchase:{id:'RR-REAL',version:1,merchantId:'merchant',captureId:'capture',lineId:'CUP-01-LINE',sku:'CUP-01',lot:'LOT-A',capturedAt:'2026-11-10T00:00:00.000Z',currency:'USD',linePaidCents:5999,lineRefundedCents:0,captureRemainingCents:5999,originalCaptureCents:5999},submission:null,revision:0,review:null};
+ const cases=[
+  {status:'NEEDS_INFORMATION',next:'obtain-information',claim:{submission:{lot:'LOT-A',acknowledged:false,extra:{},photo:'p'}}},
+  {status:'MANUAL',next:'resolve-manual',claim:{campaign:{...new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No provider');}}).activeCampaign(),sourceDigest:'d',sourcePolicyVersion:7,sourceRemedies:[]}}},
+  {status:'READY_FOR_APPROVAL',next:'approval-controls',claim:{submission:{lot:'LOT-A',acknowledged:true,extra:{},photo:'p'},revision:1,review:{revision:1,reviewedAt:'2026-11-10T00:00:00.000Z'}}},
+ ];
+ for(const item of cases){
+  const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No provider');}});
+  if(item.next==='approval-controls')desk.publish(true);
+  desk.saveClaim({...base,...item.claim});
+  assert.equal(desk.merchantState().cases[0].status.code,item.status);
+  const ai={generate:async()=>output({tool:'get_case_brief',answer:'Use the merchant approval controls.',citations:['case-review']}),status:()=>({model:'double'})};
+  const result=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'real-state',revision:desk.claim('real-state').revision});
+  assert.equal(result.nextActions[0].id,item.next,item.status);
+  desk.close();
+ }
 });

@@ -150,10 +150,13 @@ function parseResponseGrammar(quote){
   if(prohibited){
     // A prohibition is information, but a later affirmative response after a
     // separator is still parsed. Do not swallow the rest of the sentence.
-    const separator=/[;—–:]|\b(?:and|then|also|but)\b/i.exec(text);
+    const separator=/[;—–]|:(?=\s)|\b(?:and|then|also|but)\b/i.exec(text);
     if(!separator)return {issue:null,segments:[],consumed:text,remainder:''};
     const rest=text.slice(separator.index+separator[0].length).trim();
-    if(!/^(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(rest))return {issue:null,segments:[],consumed:text,remainder:''};
+    if(!rest)return {issue:null,segments:[],consumed:text,remainder:''};
+    if(!/^(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(rest)){
+      return {issue:'The instruction after a prohibition is unsupported. Keep this instruction manual.',segments:[],consumed:text.slice(0,separator.index+separator[0].length),remainder:rest};
+    }
     text=rest;
   }
   const matches=[...text.matchAll(/\b(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/gi)];
@@ -288,7 +291,7 @@ export function sourceCoverage(source,fields,decisions=[]){
     // Eligibility, timing and destination constraints survive even when the
     // sentence requests no customer response. An INFORMATION decision explains
     // the narrative; it cannot waive an unsupported cutoff or handoff.
-    const nonWaivableIssue=profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite|An unrecognized mandatory customer instruction)/.test(i));
+    const nonWaivableIssue=profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite|An unrecognized mandatory customer instruction|The instruction after a prohibition)/.test(i));
     const conditionalIssue=profile.issues.find(i=>i.startsWith('Conditional'));
     const issue=phaseIssue||nonWaivableIssue||((profile.conditional||profile.externalAction)?(conditionalIssue||profile.issues[0]):null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
     // A merchant's explicit MANUAL decision dominates any derived FIELD result.

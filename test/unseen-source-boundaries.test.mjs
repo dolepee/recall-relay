@@ -380,6 +380,8 @@ test('phone relations, unknown scripts and unparsed mandatory instructions stay 
   ['Enter the lot code请联系厂家.',/unsupported character|script|manual/i],
   ['Consumers must furnish the lot code.',/mandatory|manual/i],
   ['Do not upload a photograph; consumers must furnish the lot code.',/mandatory|manual/i],
+  ['Do not submit photographs by email; consumers must furnish the lot code.',/mandatory|manual/i],
+  ['Do not upload a photograph; wug the lot code.',/prohibition|unsupported|manual/i],
  ]){
   const profile=sourceInstructionProfile(quote);
   assert.ok(profile.issues.length>0,quote);

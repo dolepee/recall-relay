@@ -25,12 +25,13 @@ function selectedCaseAnswer(tool,f,context){
  const review=f.reviewRecorded?`A current merchant review is recorded at revision ${f.reviewRevision}.`:`No current merchant review is recorded for evidence revision ${f.revision}.`;
  const photo=f.photoPresent?'A photograph is present; only its file format is validated, not its authenticity.':'No photograph is recorded.';
  const payment=f.providerCompleted?'A completed provider receipt is recorded.':f.paymentState?`A payment attempt is recorded with state ${f.paymentState}.`:'No approval or refund attempt is recorded.';
- if(tool==='get_case_brief')return `This claim is at ${f.statusCode}. ${f.statusReason} ${review} ${photo} ${payment}`;
+ const next=safeNextActions(f,context)[0]?.label||'';
+ if(tool==='get_case_brief')return `This claim is at ${f.statusCode}. ${f.statusReason} ${review} ${photo} ${payment} Next: ${next}`;
  if(tool==='get_evidence_gaps'){
   const gaps=context.gaps||[];
-  return gaps.length?`The recorded gaps are: ${gaps.slice(0,2).join(' ')}${gaps.length>2?` ${gaps.length-2} more.`:''} ${photo}`:`No recorded evidence gap. ${review} ${photo}`;
+  return `${gaps.length?`The recorded gaps are: ${gaps.slice(0,2).join(' ')}${gaps.length>2?` ${gaps.length-2} more.`:''}`:`No recorded evidence gap. ${review}`} ${photo} Next: ${next}`;
  }
- if(tool==='get_source_requirements')return `The reviewed source has ${context.clauses.length} cited clauses. Read every complete quotation and its conditions; this guide cannot decide whether the claim meets them.`;
+ if(tool==='get_source_requirements')return `The reviewed source has ${context.clauses.length} cited clauses. Read every complete quotation and its conditions; this guide cannot decide whether the claim meets them. Next: ${next}`;
  return '';
 }
 function showViewAnswer(view){

@@ -173,3 +173,19 @@ test('supported responses after a semicolon are not treated as photograph object
   assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},fields),quote);
  }
 });
+
+test('whole-instruction timing and purchase residuals stay manual for text and confirmation segments',()=>{
+ const photo='Upload one photograph of the product label.';
+ for(const [quote,kinds] of [
+  ['Upload one photograph of the label and confirm the lot code after contacting the manufacturer.',['PHOTO','CONFIRMATION']],
+  ['Enter the lot code for orders placed before January 2025.',['TEXT']],
+  ['Confirm ownership after obtaining an authorization number from the manufacturer.',['CONFIRMATION']],
+ ]){
+  const source=kinds.includes('PHOTO')?{remedies:[quote]}:{remedies:[photo,quote]};
+  const fields=[];
+  if(!kinds.includes('PHOTO'))fields.push({id:'p-photo',kind:'PHOTO',quote:photo});
+  for(const [i,kind] of kinds.entries())fields.push({id:`p${i}`,kind,quote});
+  assert.ok(sourceInstructionProfile(quote).issues.length>0,quote);
+  assert.throws(()=>assertExecutableSource(source,fields),/manual|unsupported residual|residual/i,quote);
+ }
+});

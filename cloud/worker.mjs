@@ -27,7 +27,7 @@ export class UsageBudget extends DurableObject {
   constructor(ctx,env){super(ctx,env);this.core=new UsageBudgetCore(ctx.storage,()=>this.limits(),{clock:()=>this.now()});}
   // Adjustable limits and clock. The shipped values live in src/cloud-budget.mjs; nothing here raises
   // a ceiling, and the daily counters always bind before the burst windows.
-  limits(){return {evaluationReserveEnabled:/^[a-f0-9]{64}$/.test(this.env.EVALUATION_ACCESS_HASH||'')};}
+  limits(){return {evaluationReserveEnabled:/^[a-f0-9]{64}$/.test(this.env.EVALUATION_ACCESS_HASH||''),evaluationGeneration:this.env.EVALUATION_ACCESS_HASH||null};}
   now(){return Date.now();}
   hasWorkspace(id){return this.core.hasWorkspace(id);}
   openWorkspace(id,evaluation=false){return this.core.openWorkspace(id,evaluation);}

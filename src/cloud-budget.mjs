@@ -22,6 +22,7 @@ export const DEFAULT_BUDGET_LIMITS=Object.freeze({
   evaluationWorkspacesPerDay:20,
   evaluationAIperDay:20,
   evaluationAIperBurst:2,
+  evaluationAIperWorkspacePerDay:10,
   evaluationPracticePerDay:40,
   aiPerWorkspacePerDay:20,
   aiGlobalPerDay:80,
@@ -74,10 +75,14 @@ export class UsageBudgetCore {
     this.storage=storage;
     this.limitSource=typeof limits==='function'?limits:()=>limits;
     this.clock=clock;
-    storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_budget (day TEXT NOT NULL, scope TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day,scope)); CREATE TABLE IF NOT EXISTS known_workspaces (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS evaluation_workspaces (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS known_practice_sessions (id TEXT PRIMARY KEY, issued_at INTEGER NOT NULL)');
+    storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_budget (day TEXT NOT NULL, scope TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day,scope)); CREATE TABLE IF NOT EXISTS known_workspaces (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS evaluation_workspaces (id TEXT PRIMARY KEY, generation TEXT NOT NULL DEFAULT \'\'); CREATE TABLE IF NOT EXISTS known_practice_sessions (id TEXT PRIMARY KEY, issued_at INTEGER NOT NULL)');
   }
   limits(){return {...DEFAULT_BUDGET_LIMITS,...this.limitSource()};}
   hasWorkspace(id){return this.storage.sql.exec('SELECT id FROM known_workspaces WHERE id=?',id).toArray().length===1;}
+  // Existing deployments created this table without a generation column. A
+  // failed ALTER means the column already exists; either way old rows are stale.
+  ensureEvaluationGeneration(){try{this.storage.sql.exec("ALTER TABLE evaluation_workspaces ADD COLUMN generation TEXT NOT NULL DEFAULT \'\'")}catch{}}
+  evaluationGeneration(){const generation=this.limits().evaluationGeneration;return typeof generation==='string'&&generation?generation:'DEFAULT';}
   count(day,scope){return this.storage.sql.exec('SELECT count FROM daily_budget WHERE day=? AND scope=?',day,scope).toArray()[0]?.count||0;}
   bump(day,scope){this.storage.sql.exec('INSERT INTO daily_budget VALUES (?,?,1) ON CONFLICT(day,scope) DO UPDATE SET count=count+1',day,scope);}
   // Both scopes move together: rows from an earlier day and stale burst buckets of the current day
@@ -113,14 +118,21 @@ export class UsageBudgetCore {
       return {available:true,reason:null,resetAt:dayResetInstant(day)};
     });
   }
-  protectWorkspace(id){if(this.hasWorkspace(id))this.storage.sql.exec('INSERT INTO evaluation_workspaces VALUES (?) ON CONFLICT(id) DO NOTHING',id);}
+  protectWorkspace(id){
+    this.ensureEvaluationGeneration();
+    if(!this.hasWorkspace(id))return false;
+    this.storage.sql.exec('INSERT INTO evaluation_workspaces VALUES (?,?) ON CONFLICT(id) DO UPDATE SET generation=excluded.generation',id,this.evaluationGeneration());
+    return true;
+  }
   aiSpec(workspaceId){
     const limits=this.limits();
-    const evaluation=limits.evaluationReserveEnabled&&this.storage.sql.exec('SELECT id FROM evaluation_workspaces WHERE id=?',workspaceId).toArray().length===1;
+    this.ensureEvaluationGeneration();
+    const generation=this.evaluationGeneration();
+    const evaluation=limits.evaluationReserveEnabled&&this.storage.sql.exec('SELECT id FROM evaluation_workspaces WHERE id=? AND generation=?',workspaceId,generation).toArray().length===1;
     const evaluationBurst=Math.min(limits.aiGlobalPerBurst,limits.evaluationAIperBurst);
     const reserved=limits.evaluationReserveEnabled?[{scope:evaluation?'ai-evaluation':'ai-public',limit:evaluation?limits.evaluationAIperDay:Math.max(0,limits.aiGlobalPerDay-limits.evaluationAIperDay)}]:[];
     return {
-      daily:[...reserved,{scope:'ai-workspace-'+workspaceId,limit:limits.aiPerWorkspacePerDay},{scope:'ai-total',limit:limits.aiGlobalPerDay}],
+      daily:[...reserved,{scope:'ai-workspace-'+workspaceId,limit:evaluation?limits.evaluationAIperWorkspacePerDay:limits.aiPerWorkspacePerDay},{scope:'ai-total',limit:limits.aiGlobalPerDay}],
       burst:[{scope:BURST_PREFIX+'workspace-'+workspaceId,limit:limits.aiPerWorkspacePerBurst},...(limits.evaluationReserveEnabled?[{scope:BURST_PREFIX+(evaluation?'evaluation':'public'),limit:evaluation?evaluationBurst:Math.max(0,limits.aiGlobalPerBurst-evaluationBurst)}]:[]),{scope:BURST_PREFIX+'total',limit:limits.aiGlobalPerBurst}],
     };
   }

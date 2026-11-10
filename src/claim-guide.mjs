@@ -59,7 +59,7 @@ function evidenceFor(desk,input){
     const facts={statusCode:item.status.code,statusReason:item.status.reason,revision:item.revision,reviewRecorded:context.facts.reviewRevision===item.revision,reviewRevision:context.facts.reviewRevision,correctionState:context.facts.correctionState||'none',photoPresent:context.facts.photoPresent,photoValidation:'FORMAT_ONLY',lotMatches:context.facts.lotMatches,approvalRecorded:Boolean(item.payment),paymentState:item.payment?.state||null,providerCompleted:item.receipt?.status==='COMPLETED',providerOutcome:item.receipt?.status||item.payment?.state||'NOT_STARTED'};
     evidence.push({id:'case-state',text:`Selected claim, revision ${item.revision}. Workflow status: ${item.status.code}. ${item.status.reason}`});
     evidence.push({id:'case-facts',text:factText(facts)});
-    evidence.push({id:'case-review',text:`Photograph recorded: ${context.facts.photoPresent?'yes':'no'} (not authenticity). Lot matches: ${context.facts.lotMatches===null?'unknown':context.facts.lotMatches?'yes':'no'}. Review revision: ${context.facts.reviewRevision??'not recorded'}. Correction state: ${context.facts.correctionState||'none'}. Only latest evidence is available; earlier photograph/text changes are not reconstructed.`});
+    evidence.push({id:'case-review',text:`Photograph recorded: ${context.facts.photoPresent?'yes':'no'} (not authenticity). Lot matches: ${context.facts.lotMatches===null?'unknown':context.facts.lotMatches?'yes':'no'}. Review revision: ${context.facts.reviewRevision??'not recorded'}. Correction state: ${context.facts.correctionState||'none'}. Only latest evidence is available here; earlier photograph/text changes are not reconstructed. Use History and refund recovery for retained events.`});
     if(item.status.code!=='COMPLETED')for(const [i,gap] of context.gaps.entries())evidence.push({id:`gap-${i+1}`,text:gap});
     if(!context.gaps.length||item.status.code==='COMPLETED')evidence.push({id:'case-gaps',text:item.status.code==='COMPLETED'?'Settlement complete. No further review or refund action.':'No recorded evidence gap. Human review and payment controls remain authoritative.'});
     for(const c of context.clauses)evidence.push({id:`source-${c.citationId}`,text:c.quote});
@@ -83,7 +83,7 @@ export async function answerClaimQuestion(ai,desk,input){
   if(['get_case_changes','get_case_brief','get_source_requirements','get_evidence_gaps'].includes(result.tool)&&!snapshot.selected)throw new Error('Select a claim before asking about its evidence or source.');
   if(hash(desk.merchantState())!==snapshot.contextDigest)throw new Error('The workspace changed while the guide was answering. Refresh and ask again.');
   if(result.tool==='get_case_changes'){
-    result.answer='The cited record shows the latest correction and review state. Earlier submissions are not reconstructed here, so the guide cannot say exactly which photo or response changed. Inspect the current evidence and correction record.';
+    result.answer='The cited record shows the latest correction and review state. Earlier submissions are not reconstructed here, so the guide cannot say exactly which photo or response changed. Open History and refund recovery to inspect retained events; older revisions may be absent if retention was not enabled.';
     result.citations=['case-review'];
   }
   if(result.tool==='get_financial_summary'){

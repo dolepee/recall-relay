@@ -40,3 +40,11 @@ test('accepted explanations are rendered from server-owned structure, not model 
  const direction=run('The manufacturer will issue a refund.',{actor:'MANUFACTURER',explanation:'The manufacturer will collect a refund from the consumer.'});
  assert.equal(direction.interpretationAvailable,false);
 });
+
+test('verbatim explanations with ordinary stop/refund or decline/refund wording survive',()=>{
+ for(const quote of ['Consumers should stop using the product and contact the firm for a refund.','The manufacturer will decline a refund.']){
+  const r=run(quote,{actor:quote.startsWith('The manufacturer')?'MANUFACTURER':'CUSTOMER',explanation:quote});
+  assert.equal(r.interpretationAvailable,true,quote);
+  assert.match(r.explanation,/Bounded source classification/);
+ }
+});

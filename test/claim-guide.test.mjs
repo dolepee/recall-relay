@@ -29,7 +29,7 @@ test('financial questions use deterministic amounts and only an explicit view to
 test('correction questions never infer a difference from an unavailable earlier submission',async()=>{
  const {desk,db}=make();const ai={generate:async()=>output({tool:'get_case_changes',answer:'The customer added a different photo and changed the lot.'}),status:()=>({model:'double'})};
  const result=await answerClaimQuestion(ai,desk,{question:'What changed after the correction?',caseId:'a',revision:3});
- assert.doesNotMatch(result.answer,/customer added/);assert.match(result.answer,/Earlier submissions are not reconstructed/);assert.match(result.citations[0].text,/RESPONDED/);db.close();
+ assert.doesNotMatch(result.answer,/customer added/);assert.match(result.answer,/Earlier submissions are not reconstructed/);assert.match(result.answer,/History and refund recovery/);assert.match(result.citations[0].text,/RESPONDED/);db.close();
 });
 test('unsupported mutation requests receive a server-owned refusal with no view change',async()=>{
  const {desk,db}=make();const ai={generate:async()=>JSON.stringify({tool:'UNSUPPORTED',view:null,answer:'Cannot pay',citations:[]}),status:()=>({model:'double'})};

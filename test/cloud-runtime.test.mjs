@@ -73,7 +73,7 @@ test('hosted AI consumes its budget before inference and reports only actual pro
 });
 
 test('budget defaults keep every published ceiling and add only adjustable burst pacing',()=>{
-  assert.deepEqual({...DEFAULT_BUDGET_LIMITS},{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationAIperBurst:2,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
+  assert.deepEqual({...DEFAULT_BUDGET_LIMITS},{workspacesPerDay:200,evaluationReserveEnabled:false,evaluationWorkspacesPerDay:20,evaluationAIperDay:20,evaluationAIperBurst:2,evaluationAIperWorkspacePerDay:10,evaluationPracticePerDay:40,aiPerWorkspacePerDay:20,aiGlobalPerDay:80,aiPerWorkspacePerBurst:2,aiGlobalPerBurst:5,burstWindowSeconds:60});
   assert.equal(utcDay(DAY1),DAY1_KEY);assert.equal(utcDay(NaN),null);
   assert.equal(dayResetInstant(DAY1_KEY),'2026-10-25T00:00:00.000Z');
   assert.equal(burstBucket(DAY1,60),Math.floor(DAY1/60000));
@@ -278,4 +278,18 @@ test('two evaluation workspaces can draft in one minute while public and total c
   assert.equal(core.admitAI('judge-c').admitted,false);
   assert.equal(count(DAY1_KEY,'ai-total'),5,'refusal does not consume a daily unit');
  }finally{sqlite.close();}
+});
+
+test('evaluation access generation rotation revokes protected allowance without deleting workspace records',()=>{
+ const a=budgetFixture({limits:{evaluationReserveEnabled:true,evaluationGeneration:'A'}});
+ try{
+  assert.equal(a.core.openWorkspace('judge',true).opened,true);
+  assert.equal(a.core.hasWorkspace('judge'),true);
+  assert.equal(a.core.aiSpec('judge').daily[0].scope,'ai-evaluation');
+  const b=new UsageBudgetCore(a.core.storage,{evaluationReserveEnabled:true,evaluationGeneration:'B'},{clock:()=>DAY1});
+  assert.equal(b.hasWorkspace('judge'),true,'ordinary workspace records remain');
+  assert.equal(b.aiSpec('judge').daily[0].scope,'ai-public','the old generation loses the protected allowance');
+  assert.equal(b.protectWorkspace('judge'),true,'a fresh authenticated admission can rebind it');
+  assert.equal(b.aiSpec('judge').daily[0].scope,'ai-evaluation');
+ }finally{a.sqlite.close();}
 });

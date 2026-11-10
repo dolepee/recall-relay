@@ -189,3 +189,42 @@ test('whole-instruction timing and purchase residuals stay manual for text and c
   assert.throws(()=>assertExecutableSource(source,fields),/manual|unsupported residual|residual/i,quote);
  }
 });
+
+test('a purchase cutoff survives a no-response sentence and an INFORMATION decision',()=>{
+ const photo='Upload one photograph of the product label.';
+ const refund='Refunds will be issued to the original form of payment for orders placed before January2025.';
+ const source={remedies:[photo,refund]};
+ const fields=[field(photo)];
+ const decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'The refund sentence describes settlement, not a customer response.'}];
+ const profile=sourceInstructionProfile(refund);
+ assert.equal(profile.kinds.length,0);
+ assert.equal(profile.purchaseApplicability,true);
+ assert.ok(profile.issues.some(issue=>/eligibility|cutoff/i.test(issue)));
+ const coverage=sourceCoverage(source,fields,decisions);
+ assert.equal(coverage[1].disposition,'MANUAL');
+ assert.match(coverage[1].reason,/eligibility|cutoff/i);
+ assert.throws(()=>assertExecutableSource(source,fields,decisions),/manual|eligibility|cutoff/i);
+});
+
+test('the complete response parser rejects no-timing extra actions and keeps positive controls',()=>{
+ const photo='Upload one photograph of the product label.';
+ for(const quote of [
+  'Enter the lot code and obtain an authorization number from the manufacturer.',
+  'Confirm ownership and deliver the product to the retailer.',
+  'Submit a photograph and obtain an authorization number from the manufacturer.',
+  'Upload a photograph of the label and confirm the lot code using the manufacturer portal.',
+  'Enter the lot code after the manufacturer confirms the order.',
+ ]){
+  const source={remedies:[photo,quote]};
+  assert.ok(sourceInstructionProfile(quote).issues.length>0,quote);
+  assert.throws(()=>assertExecutableSource(source,[field(photo)]),/manual|unsupported|residual/i,quote);
+ }
+ for(const [quote,kinds] of [
+  ['Upload one photograph of the product label and confirm the lot code.',['PHOTO','CONFIRMATION']],
+  ['Upload one photograph of the product label; enter the serial number.',['PHOTO','TEXT']],
+ ]){
+  const fields=kinds.map((kind,i)=>({id:`p${i}`,kind,quote}));
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},fields),quote);
+ }
+});

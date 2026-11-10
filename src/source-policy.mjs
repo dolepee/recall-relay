@@ -58,6 +58,63 @@ const accompanyingText=/\b(?:send|submit|upload|provide)\b[^.!?]{0,160}\b(?:alon
 // Dots in an e-mail destination do not end the request for a following value.
 const textRequest=quote=>TEXT_CUE.test(quote.replace(/[^\s@<>]+@[^\s@<>]+/g,'destination'))||accompanyingText.test(quote);
 
+// A response instruction is executable only when every response segment and every
+// connector/object token is consumed by the supported grammar. This is a bounded
+// parser, not a general semantic understanding of the notice.
+const PHOTO_VERBS=/^(?:upload|submit|send|e-?mail|take|provide|photograph)$/i;
+const TEXT_VERBS=/^(?:enter|provide|send|supply|state|describe|identify|list|include|write|tell)$/i;
+const CONFIRM_VERBS=/^(?:confirm|attest|certify|verify|declare)$/i;
+const OBJECT_UNSUPPORTED=/\b(?:after|before|once|upon|obtain(?:s|ed|ing)?|deliver(?:s|ed|ing)?|using|via|through|contact(?:s|ed|ing)?|return(?:s|ed|ing)?|ship(?:s|ped|ping)?|mail(?:s|ed|ing)?|register(?:s|ed|ing)?|registration|e-?mail(?:s|ed|ing)?|visit(?:s|ed|ing)?|call(?:s|ed|ing)?|for\s+(?:orders?|purchases?|products?|items?)|placed|purchased|bought|ordered|replace(?:s|d|ment)?|authorization|authorisation)\b/i;
+const ACTOR_PREFIX=/^(?:(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?|please\s+)/i;
+const FIRM_PREFIX=/^(?:the\s+)?(?:firm|manufacturer|retailer|company)\s+will\s+ask\s+(?:consumers?|customers?|you)\s+to\s+/i;
+function responseVerb(word){return PHOTO_VERBS.test(word)||TEXT_VERBS.test(word)||CONFIRM_VERBS.test(word);}
+function responseKind(word){return PHOTO_VERBS.test(word)?'PHOTO':TEXT_VERBS.test(word)?'TEXT':'CONFIRMATION';}
+function responseObjectIssue(kind,segment){
+  if(kind==='PHOTO'){
+    const match=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b\s*(?:of|showing)?\s*([\s\S]*)$/i.exec(segment);
+    if(match)return photoObjectIssue(match[1]);
+    const verb=/^(?:photograph)\s+([\s\S]+)$/i.exec(segment.trim());
+    return verb?photoObjectIssue(verb[1]):'A photograph response needs a supported object. Keep this instruction manual.';
+  }
+  const object=segment.trim().replace(/^[:\s]+/,'');
+  if(!object)return kind==='TEXT'?'A written response needs a value or description. Keep this instruction manual.':'A confirmation response needs a statement to confirm. Keep this instruction manual.';
+  if(OBJECT_UNSUPPORTED.test(object))return 'The response contains an unsupported action, timing or destination. Keep this instruction manual.';
+  return null;
+}
+function parseResponseGrammar(quote){
+  let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
+  // A prohibition is information, not a request for evidence. Its separate,
+  // affirmative clauses are still checked by the surrounding policy.
+  if(/^(?:(?:do not|must not|should not|not required|not necessary)|(?:consumers?|customers?|you)\s+(?:do not|must not|should not|are not (?:required|necessary)))/i.test(text))return {issue:null,segments:[]};
+  const matches=[...text.matchAll(/\b(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/gi)];
+  const verbs=[];
+  for(const match of matches){
+    const word=match[0].toLowerCase();
+    const before=text.slice(0,match.index).trim().split(/\s+/).at(-1)||'';
+    if(!responseVerb(word))continue;
+    if(word==='photograph'&&/^(?:a|an|the|one|two|both|this|that|these|those)$/i.test(before))continue;
+    if((word==='email'||word==='e-mail')&&/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(text.slice(match.index+match[0].length).trim()))continue;
+    verbs.push({...match,kind:responseKind(word)});
+  }
+  if(!verbs.length)return {issue:null,segments:[]};
+  const prefix=text.slice(0,verbs[0].index).trim();
+  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix))return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[]};
+  const segments=[];
+  for(let i=0;i<verbs.length;i++){
+    const start=verbs[i].index+verbs[i][0].length;
+    const end=verbs[i+1]?.index??text.length;
+    let segment=text.slice(start,end).replace(/[\s,;:]*(?:(?:and|then|also)\s*)?$/i,'').trim();
+    if(i+1<verbs.length){
+      const between=text.slice(start,end).replace(/[\s,;:]*(?:(?:and|then|also)\s*)?$/i,'').trim();
+      segment=between;
+    }
+    const issue=responseObjectIssue(verbs[i].kind,segment);
+    if(issue)return {issue,segments};
+    segments.push({kind:verbs[i].kind,text:segment});
+  }
+  return {issue:null,segments};
+}
+
 // Applies to assistant output only. The notice may legitimately contain disposal
 // attestations, URLs, e-mail destinations or contact text; those are not rejected
 // by keyword. A field fails only when its declared response type does not match
@@ -99,6 +156,7 @@ export function sourceInstructionProfile(quote){
   // a photograph cannot establish a physical return, registration or inbox reply.
   // Negative advice does not itself ask the customer to perform a handoff.
   const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?/i,'');
+  const negative=/\b(?:do not|must not|should not|not required|not necessary|no (?:photo|photograph|confirmation))\b/i.test(quote);
   const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|fill out|complete|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
   // Receiving a label/confirmation, or being told an action is not required,
   // is information rather than an affirmative instruction to perform a handoff.
@@ -120,18 +178,15 @@ export function sourceInstructionProfile(quote){
   const nonResponseVerb=/^(?:(?:please|also|then)\s+)?(?:return|ship|mail|contact|register|sign in|log in|reply|e-?mail)\b/i;
   const residualParts=quote.split(/(?:;|:|—|–|\band\b|\bthen\b|\balso\b)/i).slice(1).map(part=>part.trim()).filter(Boolean);
   const secondHandoff=residualParts.some(part=>nonResponseVerb.test(part)&&!/^(?:return\s+(?:address(?:es)?|label(?:s)?|polic(?:y|ies)|instruction(?:s)?|period(?:s)?|window(?:s)?|shipping)|e-?mail\s+(?:receipt(?:s)?|invoice(?:s)?|confirmation(?:s)?|message(?:s)?))\b/i.test(part));
-  const residual=photoResidualIssue(quote);
-  // A supported response segment is still manual when a timing, prerequisite or
-  // purchase cutoff remains anywhere in the instruction. This covers TEXT and
-  // CONFIRMATION segments as well as photograph objects.
-  const wholeInstructionResidual=/\b(?:after|before|once|upon)\b|for\s+(?:orders?|purchases?|products?|items?)\s+(?:placed|made|purchased|bought|ordered)\b/i.test(quote);
-  const externalDestination=/\b(?:by|via|through)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(quote)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(quote);
+  // Parse every response segment and the complete remainder. A response verb
+  // does not excuse an unconsumed object, connector, prerequisite or cutoff.
+  const parser=parseResponseGrammar(quote);
+  const externalDestination=!negative&&(/\b(?:by|via|through)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(quote)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(quote));
   const prerequisite=/\b(?:after|once|upon|following)\b[^.!?]{0,100}\b(?:return(?:ing|ed)?|send(?:ing)? back|ship(?:ping)? back|hav(?:e|ing) (?:returned|shipped|sent))\b/i.test(quote);
-  const applicability=/\b(?:for|only for)\s+(?:purchases?|products?|items?|orders?)\s+(?:made|purchased|bought)\b|\b(?:except|excluding|other than)\b/i.test(quote);
+  const applicability=/\b(?:for|only for)\s+(?:purchases?|products?|items?|orders?)\s+(?:made|purchased|bought|placed|ordered)\b|\b(?:orders?|purchases?|products?|items?)\s+(?:placed|made|purchased|bought|ordered)\s+(?:before|after|on|by)\b|\b(?:except|excluding|other than)\b/i.test(quote);
   const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0||secondHandoff||externalDestination)||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
   if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
-  if(residual)issues.push(residual);
-  if(wholeInstructionResidual)issues.push('Residual timing, prerequisite or purchase wording needs a manual workflow; this form supports only complete supported response segments.');
+  if(parser.issue)issues.push(parser.issue);
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(externalDestination)issues.push('Submitting evidence outside this portal needs a manual workflow; this form cannot deliver an email or third-party portal response.');
   if(prerequisite)issues.push('A return or other prerequisite needs a manual workflow; this form cannot establish that an outside action happened first.');
@@ -140,12 +195,13 @@ export function sourceInstructionProfile(quote){
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');
   const photoCount=[...quote.matchAll(/\b(?:photos?|photographs?|pictures?|images?)\b/gi)].length===1&&!/\b(?:photos|photographs|pictures|images)\b|\b(?:two|three|four|multiple|separate|distinct|several|[2-9]|[1-9][0-9]+)\s+(?:(?:distinct|separate|required)\s+)?(?:photo|photograph|picture|image)\b|\b(?:both|each|every|all)\s+(?:sides?|views?|angles?)\b/i.test(quote)?1:null;
   if(kinds.includes('PHOTO')&&photoCount!==1)issues.push('The required photograph count is multiple or unclear. This form supports exactly one photograph; keep this instruction manual.');
-  return {actor:'CUSTOMER',conditional,externalAction,applicability:issues.some(i=>i.startsWith('Conditional'))?'UNSUPPORTED':'UNCONDITIONAL',phase:issues.some(i=>i.startsWith('Post-refund'))?'UNSUPPORTED':'BEFORE_REFUND',photoCount,kinds,issues};
+  return {actor:'CUSTOMER',conditional,externalAction,applicability:issues.some(i=>i.startsWith('Conditional'))?'UNSUPPORTED':'UNCONDITIONAL',purchaseApplicability:applicability,parserIssue:parser.issue,phase:issues.some(i=>i.startsWith('Post-refund'))?'UNSUPPORTED':'BEFORE_REFUND',photoCount,kinds,issues};
 }
 export function sourceFieldIssue(field){
   const problem=aiFieldProblem(field);if(problem)return problem;
   if(sentenceSpans(field.quote).length!==1)return 'One field must quote one complete source sentence. Separate sentences need their own response obligations.';
-  return sourceInstructionProfile(field.quote).issues[0]||null;
+  const profile=sourceInstructionProfile(field.quote);
+  return profile.issues.find(issue=>issue.startsWith('Conditional'))||profile.issues[0]||null;
 }
 export function sourceCoverage(source,fields,decisions=[]){
   return sourceClauses(source).map(clause=>{
@@ -155,7 +211,12 @@ export function sourceCoverage(source,fields,decisions=[]){
     const missing=obligations.filter(o=>!o.fieldIds.length).map(o=>o.kind);
     const decision=decisions.find(d=>d.id===clause.id);
     const phaseIssue=profile.issues.find(i=>i.startsWith('Post-refund'));
-    const issue=phaseIssue||((profile.conditional||profile.externalAction)?profile.issues[0]:null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
+    // Eligibility, timing and destination constraints survive even when the
+    // sentence requests no customer response. An INFORMATION decision explains
+    // the narrative; it cannot waive an unsupported cutoff or handoff.
+    const nonWaivableIssue=profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite)/.test(i));
+    const conditionalIssue=profile.issues.find(i=>i.startsWith('Conditional'));
+    const issue=phaseIssue||nonWaivableIssue||((profile.conditional||profile.externalAction)?(conditionalIssue||profile.issues[0]):null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
     // A merchant's explicit MANUAL decision dominates any derived FIELD result.
     // It is a veto, not a note attached to an executable obligation. INFORMATION
     // is never allowed to waive a detected, still-missing customer response.

@@ -18,6 +18,9 @@ test('Pages serves the landing document at the root and keeps the workbench rout
   assert.equal((await pages.fetch(new Request('https://recall-relay.test/landing.html'),env)).status,404);
   // The training workspace is local-only; the hosted site must not expose it.
   assert.equal((await pages.fetch(new Request('https://recall-relay.test/training'),env)).status,404);
+  const favicon=await pages.fetch(new Request('https://recall-relay.test/assets/favicon.svg'),env);
+  assert.equal(favicon.status,200);
+  assert.equal(seen.at(-1).pathname,'/assets/favicon.svg');
 });
 
 test('hashed public assets are immutable while private API cache policy stays intact',async()=>{

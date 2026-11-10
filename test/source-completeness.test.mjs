@@ -351,6 +351,33 @@ test('a coordinated written object after a photo retains a TEXT obligation',asyn
   }
 });
 
+test('coordinated scalar objects require TEXT and a complete field set publishes',async()=>{
+  for(const extra of ['purchase date','quantity']){
+    const quote=`Include a photograph of the label and ${extra}.`;
+    {
+      const {desk,ws}=fixture(quote,['PHOTO']);
+      try{
+        let row=await ws.suggest((await ws.import('TEST')).id,1);
+        assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],quote);
+        row=reviewAll(ws,row,[{id:'clause-0-0',disposition:'INFORMATION',reason:'Attempt to waive the scalar object.'}]);
+        assert.notEqual(row.review.coverage[0].disposition,'FIELD',quote);
+        assert.notEqual(row.review.coverage[0].disposition,'INFORMATION',quote);
+        assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i,quote);
+      }finally{desk.close();}
+    }
+    {
+      const {desk,ws}=fixture(quote,['PHOTO','TEXT']);
+      try{
+        let row=await ws.suggest((await ws.import('TEST')).id,1);
+        assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','TEXT'],quote);
+        row=reviewAll(ws,row);
+        assert.equal(row.review.coverage[0].disposition,'FIELD',quote);
+        assert.ok(activate(ws,row,desk).publishedCampaign,quote);
+      }finally{desk.close();}
+    }
+  }
+});
+
 test('a label showing a written value remains pictured evidence only',async()=>{
   const quote='Include a photograph of the label showing your order number.';
   const {desk,ws}=fixture(quote,['PHOTO']);

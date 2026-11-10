@@ -93,6 +93,16 @@ photo photograph photographs picture pictures image images
 disposed disposed_of`.split(/\s+/));
 function responseVerb(word){return PHOTO_VERBS.test(word)||TEXT_VERBS.test(word)||CONFIRM_VERBS.test(word);}
 const TEXT_VALUE_NOUN=/\b(?:serial|lot|order|tracking|model|batch|sku|item|product)\s+(?:number|numbers|code|codes)|\b(?:name|names|address|addresses|postcode|postcodes|postal|zip|zipcode|phone|telephone|contact|date|dates|receipt|receipts|invoice|invoices|amount|amounts|price|prices|quantity|quantities)\b/i;
+function scalarValueHead(value){
+  const clean=value.trim();
+  const match=TEXT_VALUE_NOUN.exec(clean);
+  if(!match)return false;
+  // Reuse the canonical scalar vocabulary; allow only possessive/purchase
+  // lead-ins before it. This prevents "the label with the serial number" from
+  // becoming a separate written object.
+  const prefix=clean.slice(0,match.index).trim();
+  return /^(?:(?:your|the|a|an|its|their|purchase)\s*)*$/i.test(prefix);
+}
 function photoTextOutside(segment){
   const photo=/\b(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);
   if(!photo)return false;
@@ -110,12 +120,13 @@ function photoTextOutside(segment){
     if(!clean)continue;
     // A later hard-separated object with a written value head is a new
     // obligation even if that value is also described as printed on a label.
-    if(/^(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(clean))return true;
+    if(scalarValueHead(clean))return true;
     if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(clean))continue;
   }
   const tail=parts.at(-1);
   if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(tail))return false;
-  return /(?:[,;]|\b(?:and|plus)\b)\s*(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(tail);
+  const coordinated=/(?:[,;]|\b(?:and|plus)\b)\s*(?:and|plus)?\s*(.+)$/i.exec(tail);
+  return coordinated?scalarValueHead(coordinated[1]):false;
 }
 function photoObjectRequest(segment){
   const photo=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);

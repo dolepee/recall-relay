@@ -214,11 +214,14 @@ function parseResponseGrammar(quote){
     // a new response segment.
     if(word==='photograph'&&(PHOTO_PREFIX_WORDS.has(before.toLowerCase())||/^\d+$/.test(before)))continue;
     const beforeText=text.slice(0,match.index),afterText=text.slice(match.index+match[0].length).trim();
-    if(/\b(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\s+(?:(?:will|shall|must|may|can|should|is|are|has|have)\s+)?$/i.test(beforeText))continue;
-    // "Take six weeks" is timing narrative. A non-duration "take the product to
-    // the store" remains a customer handoff and must stay manual, not be ignored.
+    // A business subject can carry adverbs and auxiliaries ("will also send").
+    // It remains a notification, not a customer action.
+    const businessActor=/\b(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\s+(?:(?:will|shall|must|may|can|should|is|are|has|have|also|then|still|now|currently|generally|typically|likely)\s+)*$/i;
+    if(businessActor.test(beforeText))continue;
+    // "Take six weeks" and "take 4-6 weeks" are timing narrative. A non-duration
+    // "take the product to the store" remains a customer handoff and is manual.
     if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText)){
-      const duration=/^(?:(?:about|approximately|around|up to|as long as|another|a further|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+)*(?:business\s+)?(?:hours?|days?|weeks?|months?|years?)\b/i.test(afterText);
+      const duration=/^(?:(?:about|approximately|around|up to|as long as|another|a further|\d+(?:\s*[-–—]\s*\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|four\s+to\s+six)\s+)*(?:business\s+)?(?:hours?|days?|weeks?|months?|years?)\b/i.test(afterText);
       if(duration)continue;
     }
     if(word==='email'||word==='e-mail'){
@@ -229,7 +232,20 @@ function parseResponseGrammar(quote){
   }
   if(!verbs.length)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
   const prefix=text.slice(0,verbs[0].index).trim();
-  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix))return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text,customerIssue:true};
+  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix)){
+    // A business notification or duration narrative is not a customer issue just
+    // because a response-shaped word appears in it. A customer actor, an explicit
+    // imperative, or a later customer instruction keeps the parser error blocking.
+    const customerContext=/(?:\b(?:consumers?|customers?|you|please)\b)/i.test(prefix)||/^(?:upload|submit|submitting|send|e-?mail|take|provide|photograph|photographing|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(prefix);
+    // A business notification followed by an explicit customer instruction is
+    // still a customer response. Strip the narrative lead and parse the later
+    // instruction; a business notification alone remains non-customer.
+    const laterCustomer=/(?:\b(?:and|then|also|but)\b|[,;])\s*(?:then\s+)?(?:consumers?|customers?|you|please)\s+(?:(?:must|should|shall|may|can|will|need|have)\s*)?$/i.test(prefix);
+    if(laterCustomer){
+      const offset=verbs[0].index;text=text.slice(offset);
+      for(const verb of verbs)verb.index-=offset;
+    }else return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text,customerIssue:customerContext};
+  }
   const allKinds=new Set();
   for(let i=0;i<verbs.length;i++){
     const start=verbs[i].index+verbs[i][0].length,end=verbs[i+1]?.index??text.length;
@@ -273,6 +289,13 @@ export function canonicalResponseKinds(quote){
   return canonicalKinds(quote);
 }
 
+// A business notification can be followed by a genuine customer instruction.
+// Keep the latter available for field selection and manual review rather than
+// treating the whole sentence as business-only.
+function hasLaterCustomerInstruction(quote){
+  return /\b(?:and|then|also|but|[,;])\s*(?:then\s+)?(?:consumers?|customers?|you)\b[^.!?]{0,160}\b(?:upload|submit|send|provide|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(quote);
+}
+
 // Applies to assistant output only. The notice may legitimately contain disposal
 // attestations, URLs, e-mail destinations or contact text; those are not rejected
 // by keyword. A field fails only when its declared response type does not match
@@ -285,10 +308,11 @@ export function aiFieldProblem({kind,quote}){
   const relevant=parts.filter(part=>kind==='PHOTO'?PHOTO_CUE.test(part):kind==='TEXT'?textRequest(part):CONFIRM_CUE.test(part));
   const candidate=relevant.length?relevant.join('; '):typedQuote;
   const responseQuote=((kind==='TEXT'&&textRequest(candidate))||(kind==='CONFIRMATION'&&CONFIRM_CUE.test(candidate)))?candidate.replace(/\b(?:a |an |the )?(?:photo|photograph|picture|image)s?\s+(?:is|are)\s+not (?:required|necessary)\b|\bno (?:photo|photograph|picture|image)s? (?:is|are) (?:required|necessary)\b/gi,''):candidate;
-  if(/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(responseQuote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
+  if(!hasLaterCustomerInstruction(quote)&&/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(responseQuote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
   const explicitPhoto=/\b(?:upload|submit|send|e-?mail|take|provide)\b/i.test(quote)||/(?:^|[;,:]\s*|\b(?:consumers?|customers?|you)\s+(?:(?:should|must|shall|may|can)\s+|(?:will be|are)\s+asked to\s+|need to\s+)?)photograph\s+/i.test(quote)||/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote);
   if(kind==='PHOTO'&&!explicitPhoto&&/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm)\s+(?:receives?|has received|received)\b[^.!?]{0,120}\b(?:photo|photograph|image|proof|evidence)\b/i.test(quote)&&/\b(?:consumers?|customers?|you)\s+(?:will|may|can|should)\s+receive\b/i.test(quote))return 'Business receipt of evidence and a later refund do not request another customer response.';
-  if(/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm|we)\s+(?:will|shall|must|may|can)\s+(?:confirm|verify|provide|send|issue|take|supply)\b/i.test(quote))return 'This sentence describes an action by the business. Review the responsible actor before creating a customer field.';
+  const businessAction=/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm|we)\s+(?:will|shall|must|may|can)\s+(?:confirm|verify|provide|send|issue|take|supply)\b/i.test(quote);
+  if(businessAction&&!hasLaterCustomerInstruction(quote))return 'This sentence describes an action by the business. Review the responsible actor before creating a customer field.';
   if(kind==='CONFIRMATION'&&/\b(?:you|consumers?|customers?)\s+(?:will|may|should|can)\s+(?:be sent|receive)\b/i.test(quote))return 'Receiving a confirmation is not a customer attestation request.';
   const parser=parseResponseGrammar(quote);
   if(!canonicalKinds(quote).includes(kind)){

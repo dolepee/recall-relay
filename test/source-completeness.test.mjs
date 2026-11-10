@@ -100,7 +100,7 @@ test('a rejected proposal cannot leave coverage FIELD',async()=>{
 });
 
 test('ordinary informational narratives remain publishable beside a valid photo',async()=>{
-  for(const narrative of ['The manufacturer will send a confirmation email.','Refunds take six weeks.']){
+  for(const narrative of ['The manufacturer will send a confirmation email.','The manufacturer will also send a confirmation email.','Refunds take six weeks.','Refunds take 4-6 weeks.','The retailer will still send a receipt.','Payments take 4–6 weeks.']){
     const quote='Upload a photograph of the item.';
     const {desk,ws}=fixture([quote,narrative],[[ 'PHOTO' ],[]]);
     try{
@@ -123,6 +123,18 @@ test('INFORMATION cannot waive a customer take-to-store handoff',async()=>{
       assert.throws(()=>activate(ws,row,desk),/manual|handoff|photograph/i,handoff);
     }finally{desk.close();}
   }
+});
+
+test('a later explicit customer instruction after a business narrative remains accounted and manual',async()=>{
+  const quote='The manufacturer will also send a confirmation email, then consumers must upload a photograph.';
+  const {desk,ws}=fixture(quote,['PHOTO']);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO']);
+    row=reviewAll(ws,row);
+    assert.equal(row.review.coverage[0].disposition,'MANUAL');
+    assert.throws(()=>activate(ws,row,desk),/manual|handoff/i);
+  }finally{desk.close();}
 });
 
 test('a supported whole controlled notice keeps every response and allows INFORMATION narratives',async()=>{

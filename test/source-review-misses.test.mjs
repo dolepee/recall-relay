@@ -56,6 +56,34 @@ for(const separator of [';', ':', '—', '–'])test('explanatory return-address
  const quote='Upload one photograph of the product label'+separator+' return address must be legible.';assert.equal(sourceInstructionProfile(quote).externalAction,false);assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]));
 });
 
+
+test('the reported external, prerequisite, cutoff and exception variants stay manual',()=>{
+ for(const quote of [
+  'Submit a photograph and also return the item to the retailer.',
+  'Submit a photograph by email.',
+  'Submit a photograph by emailing recall@example.com.',
+  'Submit a photograph via the manufacturer portal.',
+  'Submit a photograph after returning the product.',
+  'Submit a photograph once the item has been returned.',
+  'Submit a photograph for purchases made before January 2025.',
+  'Submit a photograph except for items already returned.',
+ ]){
+  const profile=sourceInstructionProfile(quote);
+  assert.ok(profile.issues.length>0,quote);
+  assert.throws(()=>assertExecutableSource({remedies:[quote]},[{id:'p',kind:'PHOTO',quote}]),/manual|handoff|prerequisite|eligibility/,quote);
+ }
+});
+test('supported Relay Home and compound customer responses remain executable',()=>{
+ for(const quote of [
+  'Upload one photograph of the sample label showing the product name and lot code.',
+  'Enter the lot code printed on the sample label.',
+  'Confirm that this submission belongs to this claim.',
+  'Upload a photograph of the label and return address must be legible.',
+  'Upload a photograph of the label and confirm the product serial number.',
+  'Submit a photograph of the marked cup and attest that you disposed of it.',
+ ])assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+});
+
 test('physical product handoffs retain common particles and adverbs without becoming photo-only forms',()=>{
  for(const verb of ['return','ship','mail'])for(const modifier of ['','back ','immediately ','back immediately ','immediately back ','promptly ','directly '])for(const separator of ['; ', ', then ', ' and ', ' — ']){
   const quote=`Upload one photograph of the product label${separator}${verb} ${modifier}the recalled product to the store for a refund.`;assert.equal(sourceInstructionProfile(quote).externalAction,true,quote);assert.throws(()=>assertExecutableSource({remedies:[quote]},[{...field,quote}],[]),/handoff|manual/,quote);

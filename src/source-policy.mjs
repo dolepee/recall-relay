@@ -39,7 +39,7 @@ const normalize=s=>s.replace(/\s+/g,' ').trim();
 export function sourceClauses(source){
   return source.remedies.flatMap((text,p)=>sentenceSpans(text).map((span,i)=>({id:`clause-${p}-${i}`,quote:text.slice(span.start,span.end).trim()})));
 }
-export const SOURCE_POLICY_VERSION=7;
+export const SOURCE_POLICY_VERSION=8;
 // A bounded executable subset, not a general natural-language policy engine.
 // Drafts may retain richer quotations for review; only direct, unconditional,
 // pre-refund customer responses with one photo can become an executable form.
@@ -55,7 +55,7 @@ export function sourceInstructionProfile(quote){
   const affirmative=/^(?:please\s+)?(?:stop using|unplug|remove|destroy|cut|write|fill out|complete|return|ship|mail|contact|register|reply|e-?mail|send|submit|upload|provide|sign in|log in)\b/i.test(instruction);
   // Receiving a label/confirmation, or being told an action is not required,
   // is information rather than an affirmative instruction to perform a handoff.
-  const actionStart='(?:^(?:please\\s+)?|(?:[,;:—–]\\s*|\\b(?:and|then)\\s+))';
+  const actionStart='(?:^(?:please\\s+)?|(?:[,;:—–]\\s*|\\b(?:and|then|also)\\s+))';
   const handoffPatterns=[
     new RegExp(actionStart+'(?:return|ship|mail)\\s+(?:(?:back|immediately|promptly|directly)\\s+){0,2}(?:the|your|this|these|those|a|an|all|any|each|every|recalled|affected|it|them|products?|items?|units?|devices?|garments?|to)\\b','i'),
     new RegExp(actionStart+'contact\\b[^.!?]{0,160}\\b(?:refund|remedy)\\b','i'),
@@ -63,10 +63,25 @@ export function sourceInstructionProfile(quote){
     new RegExp(actionStart+'reply\\b[^.!?]{0,160}\\b(?:e-?mail|confirmation)\\b','i'),
     new RegExp(actionStart+'e-?mail\\b','i'),
     /\b(?:send|submit|upload|provide)\b[^.!?]{0,240}\bto\s+[^\s@]+@[^\s@]+/i,
+    /\b(?:send|submit|upload|provide|email|e-mail)\b[^.!?]{0,240}\b(?:by|via|through)\s+(?:e-?mail|email)\b/i,
+    /\b(?:send|submit|upload|provide|email|e-mail)\b[^.!?]{0,240}\b(?:by|via|through)\s+(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form)\b/i,
+    /\b(?:by|via|through)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i,
   ];
-  const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0)||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
+  // The executable subset has a positive response shape. A second action after
+  // the response is not automatically a response: returns, registration, email
+  // and similar handoffs make the whole instruction manual.
+  const nonResponseVerb=/^(?:(?:please|also|then)\s+)?(?:return|ship|mail|contact|register|sign in|log in|reply|e-?mail)\b/i;
+  const residualParts=quote.split(/(?:;|:|—|–|\band\b|\bthen\b|\balso\b)/i).slice(1).map(part=>part.trim()).filter(Boolean);
+  const secondHandoff=residualParts.some(part=>nonResponseVerb.test(part)&&!/^return\s+(?:address|label|policy|instructions?|period|window|shipping)\b/i.test(part));
+  const externalDestination=/\b(?:by|via|through)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(quote)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(quote);
+  const prerequisite=/\b(?:after|once|upon|following)\b[^.!?]{0,100}\b(?:return(?:ing|ed)?|send(?:ing)? back|ship(?:ping)? back|hav(?:e|ing) (?:returned|shipped|sent))\b/i.test(quote);
+  const applicability=/\b(?:for|only for)\s+(?:purchases?|products?|items?|orders?)\s+(?:made|purchased|bought)\b|\b(?:except|excluding|other than)\b/i.test(quote);
+  const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0)||secondHandoff||externalDestination||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
   if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
+  if(externalDestination)issues.push('Submitting evidence outside this portal needs a manual workflow; this form cannot deliver an email or third-party portal response.');
+  if(prerequisite)issues.push('A return or other prerequisite needs a manual workflow; this form cannot establish that an outside action happened first.');
+  if(applicability)issues.push('Purchase eligibility, date cutoffs and exceptions need a manual workflow; this form cannot establish who or what qualifies.');
   if(!direct.test(quote.trim())||conditional)issues.push('Conditional or indirect instructions need a manual workflow; this form supports only direct unconditional customer responses.');
   if(/\b(?:(?:after|following|once|on|upon)\b[^.!?]{0,100}\b(?:refund|reimbursement|payment)|(?:refund|reimbursement|payment)\b[^.!?]{0,60}\b(?:received|arrives|issued|paid))\b/i.test(quote))issues.push('Post-refund timing needs a manual workflow; this form collects evidence before refund review.');
   const photoCount=[...quote.matchAll(/\b(?:photos?|photographs?|pictures?|images?)\b/gi)].length===1&&!/\b(?:photos|photographs|pictures|images)\b|\b(?:two|three|four|multiple|separate|distinct|several|[2-9]|[1-9][0-9]+)\s+(?:(?:distinct|separate|required)\s+)?(?:photo|photograph|picture|image)\b|\b(?:both|each|every|all)\s+(?:sides?|views?|angles?)\b/i.test(quote)?1:null;

@@ -146,10 +146,14 @@ hides the result. The Claim guide retains the same three read-only reads
 (`get_case_brief`, `get_source_requirements`, `get_evidence_gaps`) and accepts
 natural questions through `answer_claim_question`. The answer service retrieves
 current normalized case facts, public source clauses and deterministic workspace
-amounts. It returns a short AI explanation with exact cited records; it cannot
-approve, refund or change evidence. Answers are discarded if workspace state
-changes during generation. Prior evidence changes are not reconstructed from the
-latest submission. The incident overview separates open review work, unresolved
+amounts. The model only chooses a bounded read tool and focus, or an
+actor/timing/condition label; the displayed workflow facts and prose are
+server-owned and assembled from the cited records. Exact amounts, counts and
+complete source quotations remain visible. Unsupported advice is withheld, and
+the guide cannot approve, refund or change evidence; the merchant controls remain
+authoritative. Answers are discarded if workspace state changes during
+generation. Prior evidence changes are not reconstructed from the latest
+submission. The incident overview separates open review work, unresolved
 payment outcomes and provider-confirmed receipt amounts. Unknown amounts show
 an incomplete subtotal instead of a zero total; financial summary assertions
 are rendered from recorded groups rather than free model prose; its controls filter the

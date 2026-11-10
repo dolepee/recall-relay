@@ -85,7 +85,7 @@ function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
   // A prohibition is information, not a request for evidence. Its separate,
   // affirmative clauses are still checked by the surrounding policy.
-  if(/^(?:(?:do not|must not|should not|not required|not necessary)|(?:consumers?|customers?|you)\s+(?:do not|must not|should not|are not (?:required|necessary)))/i.test(text))return {issue:null,segments:[]};
+  if(/\b(?:do not|must not|should not|not required|not necessary)\b/i.test(quote)||/^(?:not|no)\b/i.test(text))return {issue:null,segments:[]};
   const matches=[...text.matchAll(/\b(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/gi)];
   const verbs=[];
   for(const match of matches){

@@ -205,6 +205,60 @@ test('a supported whole controlled notice keeps every response and allows INFORM
   }finally{desk.close();}
 });
 
+test('a misproposed TEXT for a multi-photo instruction cannot bypass the photo guard',async()=>{
+  const {desk,ws}=fixture(['Upload a photograph of the item.','Include two photographs of the label.'],[['PHOTO'],['TEXT']]);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO']);
+    assert.equal(row.suggestion.filtered.length,1);
+    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive a second photograph as text.'}]);
+    assert.equal(row.review.coverage[1].disposition,'MANUAL');
+    assert.throws(()=>activate(ws,row,desk),/manual|photograph|missing/i);
+  }finally{desk.close();}
+});
+
+test('ambiguous supply/include/provide/send/submit verbs classify a singular photo correctly',async()=>{
+  for(const verb of ['Include','Supply','Provide','Send','Submit']){
+    const quote=`${verb} a photograph of the label.`;
+    const {desk,ws}=fixture(quote,['PHOTO']);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],quote);
+      row=reviewAll(ws,row);
+      assert.equal(row.review.coverage[0].disposition,'FIELD',quote);
+      assert.ok(activate(ws,row,desk).publishedCampaign,quote);
+    }finally{desk.close();}
+  }
+});
+
+test('ambiguous supply/include/provide/send/submit multiple-photo instructions stay manual',async()=>{
+  for(const verb of ['Include','Supply','Provide','Send','Submit']){
+    const quote=`${verb} two photographs of the label.`;
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['TEXT']]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],quote);
+      assert.equal(row.suggestion.filtered.length,1,quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive multiple photographs as text.'}]);
+      assert.equal(row.review.coverage[1].disposition,'MANUAL',quote);
+      assert.throws(()=>activate(ws,row,desk),/manual|photograph|missing/i,quote);
+    }finally{desk.close();}
+  }
+});
+
+test('a written value shown in a photograph remains TEXT',async()=>{
+  for(const quote of ['Provide the lot number shown in the photograph.','Describe the lot number shown in the photograph.','Enter the lot number shown in the photograph.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['TEXT']]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','TEXT'],quote);
+      row=reviewAll(ws,row);
+      assert.equal(row.review.coverage[1].disposition,'FIELD',quote);
+      assert.ok(activate(ws,row,desk).publishedCampaign,quote);
+    }finally{desk.close();}
+  }
+});
+
 test('the canonical response change requires a fresh review of older published sources',()=>{
   assert.throws(()=>assertExecutableCampaign({sourceDigest:'fixture',sourcePolicyVersion:8,sourceRemedies:['Upload a photograph of the item and submit your order number.'],fields:[{id:'p',kind:'PHOTO',quote:'Upload a photograph of the item and submit your order number.'}]}),/Review and republish/);
 });

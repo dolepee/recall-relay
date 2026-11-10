@@ -100,14 +100,27 @@ function photoTextOutside(segment){
   if(TEXT_VALUE_NOUN.test(before))return true;
   return /\b(?:along with|together with|plus|and include|and provide|and submit)\b[\s\S]*\b(?:name|address|order|serial|lot|code|number|postal|phone|receipt|invoice)\b/i.test(after);
 }
+function photoObjectRequest(segment){
+  const photo=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);
+  if(!photo)return false;
+  const before=segment.slice(0,photo.index);
+  // A written value can be described as shown in a photograph. That is a TEXT
+  // response, not a request for the photograph itself. A connector before the
+  // photo starts a separate photo object and retains both obligations.
+  if(!TEXT_VALUE_NOUN.test(before))return true;
+  return /(?:[;,]|\b(?:and|then|also|plus)\b)[^.!?]*$/i.test(before);
+}
 function responseKinds(word,segment){
   let kind;
   if(CONFIRM_VERBS.test(word))kind='CONFIRMATION';
-  else if(/^(?:enter|supply|state|describe|identify|list|include|write|tell)$/i.test(word))kind='TEXT';
+  // These verbs inherently ask for written content even if the wording mentions
+  // a photograph as the place where that content appears.
+  else if(/^(?:enter|state|describe|identify|list|write|tell)$/i.test(word))kind='TEXT';
+  else if(/^(?:include|supply)$/i.test(word))kind=photoObjectRequest(segment)?'PHOTO':'TEXT';
   else if(/^(?:upload|take|submitting|photograph(?:ing)?)$/i.test(word))kind='PHOTO';
   // provide/send/submit/e-mail are ambiguous until the parsed object is known.
   else if(/\b(?:attestations?|confirmations?|certifications?|declarations?)\b/i.test(segment))kind='CONFIRMATION';
-  else kind=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.test(segment)?'PHOTO':'TEXT';
+  else kind=photoObjectRequest(segment)?'PHOTO':'TEXT';
   return kind==='PHOTO'&&photoTextOutside(segment)?['PHOTO','TEXT']:[kind];
 }
 function objectTokens(value){return photoObjectTokens(value);}

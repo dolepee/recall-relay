@@ -215,9 +215,12 @@ function parseResponseGrammar(quote){
     if(word==='photograph'&&(PHOTO_PREFIX_WORDS.has(before.toLowerCase())||/^\d+$/.test(before)))continue;
     const beforeText=text.slice(0,match.index),afterText=text.slice(match.index+match[0].length).trim();
     if(/\b(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\s+(?:(?:will|shall|must|may|can|should|is|are|has|have)\s+)?$/i.test(beforeText))continue;
-    // "Take six weeks" and "take the product to the store" are timing/handoff
-    // narrative, not a photograph request. A real photograph object keeps PHOTO.
-    if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText))continue;
+    // "Take six weeks" is timing narrative. A non-duration "take the product to
+    // the store" remains a customer handoff and must stay manual, not be ignored.
+    if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText)){
+      const duration=/^(?:(?:about|approximately|around|up to|as long as|another|a further|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+)*(?:business\s+)?(?:hours?|days?|weeks?|months?|years?)\b/i.test(afterText);
+      if(duration)continue;
+    }
     if(word==='email'||word==='e-mail'){
       if(/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(afterText))continue;
       if(/\bby\s*$/i.test(beforeText)||/\b(?:receive|receives|received|receiving)\s+(?:an?|the|your)?\s*$/i.test(beforeText)||/(?:\b(?:a|an|the|your|confirmation|receipt|invoice|message)\s*)$/i.test(beforeText))continue;

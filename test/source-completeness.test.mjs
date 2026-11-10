@@ -113,6 +113,18 @@ test('ordinary informational narratives remain publishable beside a valid photo'
   }
 });
 
+test('INFORMATION cannot waive a customer take-to-store handoff',async()=>{
+  for(const handoff of ['Take the product to the store.','Take the product to the retailer.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',handoff],[['PHOTO'],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive a physical handoff.'}]);
+      assert.equal(row.review.coverage[1].disposition,'MANUAL',handoff);
+      assert.throws(()=>activate(ws,row,desk),/manual|handoff|photograph/i,handoff);
+    }finally{desk.close();}
+  }
+});
+
 test('a supported whole controlled notice keeps every response and allows INFORMATION narratives',async()=>{
   const notice=[
     'Upload a photograph of the item and submit your order number.',

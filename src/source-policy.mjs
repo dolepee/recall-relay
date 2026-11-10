@@ -272,7 +272,7 @@ function parseResponseGrammar(quote){
     }
     if(word==='email'||word==='e-mail'){
       if(/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(afterText))continue;
-      if(/\bby\s*$/i.test(beforeText)||/\b(?:receive|receives|received|receiving)\s+(?:an?|the|your)?\s*$/i.test(beforeText)||/(?:\b(?:a|an|the|your|confirmation|receipt|invoice|message)\s*)$/i.test(beforeText))continue;
+      if(/\b(?:by|via)\s*$/i.test(beforeText)||/\b(?:receive|receives|received|receiving)\s+(?:an?|the|your)?\s*$/i.test(beforeText)||/(?:\b(?:a|an|the|your|confirmation|receipt|invoice|message)\s*)$/i.test(beforeText))continue;
     }
     verbs.push({...match,word});
   }

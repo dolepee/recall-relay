@@ -255,6 +255,43 @@ test('nominal confirmation obligations survive tense changes and future waivers 
   }
 });
 
+test('an incoming confirmation via email stays informational while customer email submission stays blocked',async()=>{
+  const positive='Consumers will receive a confirmation via email.';
+  {
+    const {desk,ws}=fixture(['Upload a photograph of the item.',positive],[['PHOTO'],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO']);
+      assert.deepEqual(sourceInstructionProfile(positive).kinds,[]);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Incoming confirmation notification; no customer response requested.'}]);
+      assert.equal(row.review.coverage[1].disposition,'INFORMATION');
+      assert.ok(activate(ws,row,desk).publishedCampaign);
+    }finally{desk.close();}
+  }
+  {
+    const negative='Submit your confirmation via email.';
+    const {desk,ws}=fixture(['Upload a photograph of the item.',negative],[['PHOTO'],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive an email submission.'}]);
+      assert.equal(row.review.coverage[1].disposition,'MANUAL');
+      assert.throws(()=>activate(ws,row,desk),/manual|email|handoff|unresolved/i);
+    }finally{desk.close();}
+  }
+});
+
+test('a confirmation received by the manufacturer remains a manual handoff',async()=>{
+  const quote='Your confirmation must be received by the manufacturer.';
+  const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['CONFIRMATION']]);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
+    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive the manufacturer handoff.'}]);
+    assert.equal(row.review.coverage[1].disposition,'MANUAL');
+    assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i);
+  }finally{desk.close();}
+});
+
 test('known incoming confirmation notifications stay informational',async()=>{
   for(const quote of ['Your confirmation has been sent by the manufacturer.','Your confirmation will be issued by the manufacturer.','Your confirmation will be sent to you.','You will receive a confirmation.']){
     const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],[]]);

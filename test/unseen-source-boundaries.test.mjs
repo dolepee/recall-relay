@@ -267,6 +267,8 @@ test('incoming notifications are informational, not customer evidence handoffs',
   'Evidence should be sent by email.',
   'Evidence must be uploaded by email.',
   'Evidence must be sent by email.',
+  'The receipt must be sent by email.',
+  'The label must be sent by email.',
   'Documents are required to be sent by email.',
   'Evidence is required to be submitted by email.',
  ]){

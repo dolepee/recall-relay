@@ -376,8 +376,9 @@ stored claim state; the brief is not model output. Its content-fitted reading
 layout opens in review mode: panel heights follow their measured content, the
 page supplies scrolling, and manual **Arrange workspace** editing is not exposed
 in this mode. Open **Claim guide** when needed. Ask which customers owe
-information or which claims are ready for review. Natural questions retrieve current records and receive cited model explanations;
-exact amounts and quotations are rendered from server records. Only an explicit
+information or which claims are ready for review. Natural questions retrieve current records and receive server-owned factual
+responses; the model selects the read tool and focus, while exact amounts,
+statuses and quotations are rendered from stored records. Only an explicit
 view request changes the grid filter. It has no payment,
 evidence-review or record-edit tool. Mobile uses the ordinary case controls and the same cited Claim Guide service without loading Studio. Claim-list responses omit full
 photographs; selecting a claim retrieves only that revision’s image through an

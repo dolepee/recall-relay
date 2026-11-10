@@ -23,7 +23,7 @@ const PHOTO_RETURN_OBJECTS=new Set(['address','addresses','label','labels','rece
 const photoObjectTokens=object=>[...object.matchAll(/[A-Za-z0-9][A-Za-z0-9'’.-]*/g)].map(match=>match[0].toLowerCase().replace(/[’']s$/,'').replace(/^[.-]+|[.-]+$/g,''));
 function photoObjectIssue(object){
   const tokens=photoObjectTokens(object);
-  if(!tokens.length)return 'A photograph response needs a supported object. Keep this instruction manual.';
+  if(!tokens.length)return null;
   for(let i=0;i<tokens.length;i++){
     const word=tokens[i],next=tokens[i+1],previous=tokens[i-1];
     // A handoff noun can decorate a label, but it cannot become a second action.
@@ -61,7 +61,7 @@ const textRequest=quote=>TEXT_CUE.test(quote.replace(/[^\s@<>]+@[^\s@<>]+/g,'des
 // A response instruction is executable only when every response segment and every
 // connector/object token is consumed by the supported grammar. This is a bounded
 // parser, not a general semantic understanding of the notice.
-const PHOTO_VERBS=/^(?:upload|submit|send|e-?mail|take|provide|photograph)$/i;
+const PHOTO_VERBS=/^(?:upload|submit|submitting|send|e-?mail|take|provide|photograph|photographing)$/i;
 const TEXT_VERBS=/^(?:enter|provide|send|e-?mail|submit|supply|state|describe|identify|list|include|write|tell)$/i;
 const CONFIRM_VERBS=/^(?:confirm|attest|certify|verify|declare)$/i;
 const PHOTO_PREFIX_WORDS=new Set(`a an the this that these those your its their our one two both any each every all a single clear digital new original marked damaged destroyed recalled provided`.split(/\s+/));
@@ -80,22 +80,106 @@ on in at of from for with and or
 must be legible
 submission claim claims ownership disposed disposal proper has have been was were is are you it they them
 belongs this that from linked
-first last home shipping billing work notice notices required step steps described mention mentions`.split(/\s+/));
+first last home shipping billing work notice notices required step steps described mention mentions
+photo photograph photographs picture pictures image images`.split(/\s+/));
 const CONFIRM_OBJECT_WORDS=new Set(`a an the this that these those your my its their our one two both
 submission claim claims ownership disposed disposal proper commitment product products item items unit units device devices
 serial serials lot lots order orders purchase purchases number numbers code codes identifier identifiers id ids
 has have been was were is are you it they them belongs from linked original affected recalled new used opened sealed
 of to in on at for with by and or the
 label labels sample samples packaging box boxes carton cartons container containers base bases
-provided showing printed written marked engraved stamped verified complete completed required step steps described notice notices mention mentions
+provided showing shown printed written marked engraved stamped verified complete completed required step steps described notice notices mention mentions
+photo photograph photographs picture pictures image images
 disposed disposed_of`.split(/\s+/));
 function responseVerb(word){return PHOTO_VERBS.test(word)||TEXT_VERBS.test(word)||CONFIRM_VERBS.test(word);}
-function responseKind(word,segment){
-  if(CONFIRM_VERBS.test(word))return 'CONFIRMATION';
-  if(/^(?:enter|supply|state|describe|identify|list|include|write|tell)$/i.test(word))return 'TEXT';
-  if(/^(?:upload|take|photograph)$/i.test(word))return 'PHOTO';
+const TEXT_VALUE_NOUN=/\b(?:serial|lot|order|tracking|model|batch|sku|item|product)\s+(?:number|numbers|code|codes)|\b(?:name|names|address|addresses|postcode|postcodes|postal|zip|zipcode|phone|telephone|contact|date|dates|receipt|receipts|invoice|invoices|amount|amounts|price|prices|quantity|quantities)\b/i;
+function scalarValueHead(value){
+  const clean=value.trim();
+  const match=TEXT_VALUE_NOUN.exec(clean);
+  if(!match)return false;
+  // Reuse the canonical scalar vocabulary; allow only possessive/purchase
+  // lead-ins before it. This prevents "the label with the serial number" from
+  // becoming a separate written object.
+  const prefix=clean.slice(0,match.index).trim();
+  return /^(?:(?:your|the|a|an|its|their|purchase)\s*)*$/i.test(prefix);
+}
+function photoTextOutside(segment){
+  const photo=/\b(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);
+  if(!photo)return false;
+  const before=segment.slice(0,photo.index),after=segment.slice(photo.index+photo[0].length);
+  // A written value before a connector is a separate object. Without a
+  // connector, "order-number image" is a photo object name, not a TEXT request.
+  if(TEXT_VALUE_NOUN.test(before)&&/(?:[;,]|\b(?:and|then|also|plus)\b)/i.test(before))return true;
+  if(/\b(?:along with|together with|plus|and include|and provide|and submit)\b[\s\S]*\b(?:name|address|order|serial|lot|code|number|postal|phone|receipt|invoice)\b/i.test(after))return true;
+  // A pictured modifier only covers its own image-object clause. Walk every
+  // hard-separated object, not just the final tail: a scalar later object with
+  // no internal connector still requires TEXT or manual review.
+  const parts=after.split(/[;:—–]/);
+  for(const part of parts.slice(1)){
+    const clean=part.trim().replace(/^(?:and|plus)\s+/i,'');
+    if(!clean)continue;
+    // A later hard-separated object with a written value head is a new
+    // obligation even if that value is also described as printed on a label.
+    if(scalarValueHead(clean))return true;
+    if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(clean))continue;
+  }
+  const tail=parts.at(-1);
+  if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(tail))return false;
+  // Inspect every coordinated object, not only the first connector capture.
+  // A pictured modifier on its own object keeps that object inside the photo.
+  for(const part of tail.split(/[,;]|\b(?:and|plus)\b/i).slice(1)){
+    const clean=part.trim();
+    if(!clean)continue;
+    if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(clean))continue;
+    if(scalarValueHead(clean))return true;
+  }
+  return false;
+}
+function photoObjectRequest(segment){
+  const photo=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);
+  if(!photo)return false;
+  const before=segment.slice(0,photo.index);
+  // A written value is a TEXT request only with a positive written-reference
+  // relationship ("lot number shown in the photograph"). A compound photo name
+  // such as "order number image" is not such a relationship and stays PHOTO.
+  if(!TEXT_VALUE_NOUN.test(before))return true;
+  return !/\b(?:shown|printed|visible|displayed|written|readable|legible|appearing)\s+(?:in|on)\b[^.!?]*$/i.test(before);
+}
+function coordinatedPhotoPart(segment,index){
+  const prefix=segment.slice(0,index);
+  const connectors=[...prefix.matchAll(/[,;]|\b(?:and|then|also|plus)\b/gi)];
+  const start=connectors.length?connectors.at(-1).index+connectors.at(-1)[0].length:0;
+  const after=segment.slice(index);
+  const next=/[,;]|\b(?:and|then|also|plus)\b/i.exec(after);
+  const end=next?index+next.index:segment.length;
+  return segment.slice(start,end).trim();
+}
+function textThenPhoto(segment){
+  const photos=[...segment.matchAll(/\b(?:photographs?|photos?|pictures?|images?)\b/gi)];
+  return photos.some((photo,index)=>{
+    // The part's own head decides. A scalar part that merely mentions a
+    // photograph as the place a value appears is still TEXT.
+    const part=coordinatedPhotoPart(segment,photo.index);
+    if(!/^(?:(?:a|an|the|your|its|their|one|two|three|both|each|every|all|clear|digital|new|original|marked|damaged|destroyed|recalled|provided|\d+)\s+)*(?:photographs?|photos?|pictures?|images?)\b/i.test(part))return false;
+    const before=segment.slice(0,photo.index);
+    return /(?:[,;]|\b(?:and|then|also|plus)\b)[^.!?]*$/i.test(before)
+      && TEXT_VALUE_NOUN.test(before)
+      && /\b(?:shown|printed|visible|displayed|written|readable|legible|appearing)\s+(?:in|on)\b/i.test(before);
+  });
+}
+function responseKinds(word,segment){
+  let kind;
+  if(CONFIRM_VERBS.test(word))kind='CONFIRMATION';
+  // These verbs inherently ask for written content even if the wording mentions
+  // a photograph as the place where that content appears.
+  else if(/^(?:enter|state|describe|identify|list|write|tell)$/i.test(word))kind='TEXT';
+  else if(/^(?:include|supply)$/i.test(word))kind=photoObjectRequest(segment)?'PHOTO':'TEXT';
+  else if(/^(?:upload|take|submitting|photograph(?:ing)?)$/i.test(word))kind='PHOTO';
   // provide/send/submit/e-mail are ambiguous until the parsed object is known.
-  return /(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.test(segment)?'PHOTO':'TEXT';
+  else if(/\b(?:attestations?|confirmations?|certifications?|declarations?)\b/i.test(segment))kind='CONFIRMATION';
+  else kind=photoObjectRequest(segment)?'PHOTO':'TEXT';
+  if(textThenPhoto(segment))return ['TEXT','PHOTO'];
+  return kind==='PHOTO'&&photoTextOutside(segment)?['PHOTO','TEXT']:[kind];
 }
 function objectTokens(value){return photoObjectTokens(value);}
 const TEXT_OBJECT_CORE=new Set(`serial serials lot lots order orders purchase purchases product products item items unit units device devices
@@ -104,9 +188,10 @@ name names address addresses postcode postcodes postal zip zipcode e-mail email 
 date dates receipt receipts invoice invoices proof amount amounts price prices cost costs quantity quantities size sizes color colour
 description descriptions detail details reason reasons damage damaged condition condition defect defects issue issue
 label labels sample samples packaging box boxes carton cartons container containers base bases
-submission claim claims ownership disposed disposal commitment notice notices step steps original linked affected recalled new used opened sealed`.split(/\s+/));
+submission claim claims ownership disposed disposal commitment notice notices step steps original linked affected recalled new used opened sealed
+photo photograph photographs picture pictures image images`.split(/\s+/));
 function unsupportedCharacterIssue(value){
-  const leftover=String(value).replace(/[A-Za-z0-9\s'’"“”‘.,;:!?()\/&+\-—–]/g,'');
+  const leftover=String(value).replace(/[A-Za-z0-9\s'’"“”‘.,;:!?()\/&+@\-—–]/g,'');
   return leftover?'The response contains an unsupported character or script. Keep this instruction manual.':null;
 }
 function closedObjectIssue(kind,object){
@@ -151,29 +236,60 @@ function prohibitionObjectAllowed(part){
   const tokens=photoObjectTokens(part);
   return Boolean(tokens.length)&&tokens.every(token=>PHOTO_OBJECT_WORDS.has(token)||/^\d+$/.test(token));
 }
+const businessSubject=/^(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\b/i;
+function positiveBusinessPrefix(value){
+  return /^(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand|we|it)(?:\s+(?:will|shall|must|may|can|should|is|are|has|have|also|then|still|now|just|already|even|only|again|soon|later|[a-z]+ly)){1,6}\s*$/i.test(value)
+    && !/\b(?:consumers?|customers?|you|please)\b/i.test(value);
+}
+const businessActionVerb=/^(?:send|sent|provide|provides|issue|issues|email|e-mail)$/i;
+const businessConnector=/[;,:—–]|\b(?:and|then|also|but)\b/i;
+function firstBusinessAction(beforeText,word){
+  if(!businessActionVerb.test(word))return false;
+  // The actor must be the subject of the current clause, not merely a business
+  // noun in the object ("contact the manufacturer"). Hard connectors start a new
+  // clause; "also" remains an adverb until the first business action completes.
+  const clause=beforeText.split(/[;,:—–]|\b(?:and|then|but)\b/i).at(-1).trim();
+  return positiveBusinessPrefix(clause);
+}
 
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'').replace(/^(?:(?:fill out|complete)\s+(?:an?|the)\s+(?:online\s+)?form\s+and\s+)/i,'');
-  const prohibited=/\b(?:do not|must not|should not|not required|not necessary)\b/i.test(quote)||/^(?:not|no)\b/i.test(text);
+  // A conditional or preparatory prefix can precede the response. The condition
+  // itself stays in sourceInstructionProfile's issues, but it must not hide the
+  // response kind from the same parser used for coverage and publication.
+  const firstResponseWord=/\b(?:upload|submit|submitting|send|e-?mail|take|provide|photograph|photographing|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.exec(text);
+  if(firstResponseWord&&firstResponseWord.index>0){
+    const prefix=text.slice(0,firstResponseWord.index).trim();
+    if(/^(?:if|when|where|unless|for|only for|before|after|at|once|upon|by)\b/i.test(prefix)||/\b(?:without|who|with|damaged|unreadable|cannot|not|remove|unplug|cut|write)\b/i.test(prefix))text=text.slice(firstResponseWord.index);
+  }
+  const prohibitionScope=quote.replace(/\((?:not (?:required|necessary)|optional)\)/gi,'');
+  const prohibited=/\b(?:do not|must not|should not|not required|not necessary)\b/i.test(prohibitionScope)||/^(?:not|no)\b/i.test(text);
   if(prohibited){
     // A prohibition is information, but a later affirmative response after a
     // separator is still parsed. Do not swallow the rest of the sentence.
     const separator=/[;—–]|:(?=\s)|\b(?:and|then|also|but)\b/i.exec(text);
-    if(!separator)return {issue:null,segments:[],consumed:text,remainder:''};
+    if(!separator)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
     const rest=text.slice(separator.index+separator[0].length).trim();
-    if(!rest)return {issue:null,segments:[],consumed:text,remainder:''};
-    const responseStart=/^(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i;
+    if(!rest)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
+    // "..., but a photo is not required" waives the photo, not the preceding
+    // written request. Keep the preceding response for canonical classification;
+    // the waiver itself remains a manual issue in sourceInstructionProfile.
+    if(/^(?:a|the|no)?\s*(?:photo|photograph|picture|image)s?\s+(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(rest)){
+      text=text.slice(0,separator.index).trim();
+    }else{
+    const responseStart=/^(?:upload|submit|submitting|send|e-?mail|take|provide|photograph|photographing|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i;
     const tailParts=rest.split(/[;—–]|:(?=\s)|\b(?:and|then|also|but)\b/i).map(part=>part.trim()).filter(Boolean);
     let firstResponse=-1;
     for(const [index,part] of tailParts.entries()){
       if(responseStart.test(part)){firstResponse=index;break;}
       if(PROHIBITION_CONTINUATION.test(part)||prohibitionObjectAllowed(part))continue;
-      return {issue:'The instruction after a prohibition is unsupported. Keep this instruction manual.',segments:[],consumed:text.slice(0,separator.index+separator[0].length),remainder:rest};
+      return {issue:'The instruction after a prohibition is unsupported. Keep this instruction manual.',segments:[],consumed:text.slice(0,separator.index+separator[0].length),remainder:rest,customerIssue:true};
     }
-    if(firstResponse<0)return {issue:null,segments:[],consumed:text,remainder:''};
+    if(firstResponse<0)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
     text=rest.slice(rest.indexOf(tailParts[firstResponse]));
+    }
   }
-  const matches=[...text.matchAll(/\b(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/gi)];
+  const matches=[...text.matchAll(/\b(?:upload|submit|submitting|send|e-?mail|take|provide|photograph|photographing|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/gi)];
   const verbs=[];
   for(const match of matches){
     const word=match[0].toLowerCase();
@@ -183,24 +299,139 @@ function parseResponseGrammar(quote){
     // 'a digital photograph'), not only a determiner. A verb position still starts
     // a new response segment.
     if(word==='photograph'&&(PHOTO_PREFIX_WORDS.has(before.toLowerCase())||/^\d+$/.test(before)))continue;
-    if((word==='email'||word==='e-mail')&&/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(text.slice(match.index+match[0].length).trim()))continue;
+    const beforeText=text.slice(0,match.index),afterText=text.slice(match.index+match[0].length).trim();
+    // A positive business subject with no customer actor is a notification
+    // context. Do not enumerate adverbs; the subject and absence of a customer
+    // actor are the boundary. Notification verbs are skipped, while later
+    // customer instructions keep their own verb and remain parseable.
+    if(firstBusinessAction(beforeText,word))continue;
+    // "Take six weeks" and "take 4-6 weeks" are timing narrative. A non-duration
+    // "take the product to the store" remains a customer handoff and is manual.
+    if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText)){
+      const duration=/^(?:(?:about|approximately|around|up to|as long as|another|a further|\d+(?:\s*[-–—]\s*\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|four\s+to\s+six)\s+)*(?:business\s+)?(?:hours?|days?|weeks?|months?|years?)\b/i.test(afterText);
+      if(duration)continue;
+    }
+    if(word==='email'||word==='e-mail'){
+      if(/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(afterText))continue;
+      if(/\b(?:by|via)\s*$/i.test(beforeText)||/\b(?:receive|receives|received|receiving)\s+(?:an?|the|your)?\s*$/i.test(beforeText)||/(?:\b(?:a|an|the|your|confirmation|receipt|invoice|message)\s*)$/i.test(beforeText))continue;
+    }
     verbs.push({...match,word});
   }
-  if(!verbs.length)return {issue:null,segments:[],consumed:text,remainder:''};
+  if(!verbs.length)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
   const prefix=text.slice(0,verbs[0].index).trim();
-  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix))return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text};
+  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix)){
+    // A parser error is customer-facing unless the prefix is positively a known
+    // business/no-action narrative. Absence of "you/consumer" is not evidence of
+    // non-customer context: an unknown prefix is ambiguous and fails closed.
+    const knownBusiness=positiveBusinessPrefix(prefix);
+    // A business notification followed by an explicit customer instruction is
+    // still a customer response. Strip the narrative lead and parse the later
+    // instruction; a business notification alone remains non-customer.
+    const laterCustomer=/(?:\b(?:and|then|also|but)\b|[,;])\s*(?:then\s+)?(?:consumers?|customers?|you|please)\s+(?:(?:must|should|shall|may|can|will|need|have)\s*)?$/i.test(prefix);
+    if(laterCustomer){
+      const offset=verbs[0].index;text=text.slice(offset);
+      for(const verb of verbs)verb.index-=offset;
+    }else return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text,customerIssue:!knownBusiness};
+  }
+  const allKinds=new Set();
+  for(let i=0;i<verbs.length;i++){
+    const start=verbs[i].index+verbs[i][0].length,end=verbs[i+1]?.index??text.length;
+    let segment=text.slice(start,end).replace(/[\s,;:—–-]*(?:(?:and|then|also)\s*)?$/i,'').trim();
+    if(verbs[i].word==='tell')segment=segment.replace(/^us\s+/i,'');
+    for(const kind of responseKinds(verbs[i].word,segment))allKinds.add(kind);
+  }
   const segments=[];
   for(let i=0;i<verbs.length;i++){
     const start=verbs[i].index+verbs[i][0].length;
     const end=verbs[i+1]?.index??text.length;
     let segment=text.slice(start,end).replace(/[\s,;:—–-]*(?:(?:and|then|also)\s*)?$/i,'').trim();
     if(verbs[i].word==='tell')segment=segment.replace(/^us\s+/i,'');
-    const kind=responseKind(verbs[i].word,segment);
-    const issue=responseObjectIssue(kind,segment);
-    if(issue)return {issue,segments,consumed:text.slice(0,start),remainder:text.slice(start)};
-    segments.push({kind,text:segment});
+    const kinds=responseKinds(verbs[i].word,segment);
+    const issue=responseObjectIssue(kinds[0],segment);
+    if(issue)return {issue,segments,consumed:text.slice(0,start),remainder:text.slice(start),kinds:[...allKinds],customerIssue:true};
+    segments.push({kind:kinds[0],kinds,text:segment});
   }
-  return {issue:null,segments,consumed:text,remainder:''};
+  return {issue:null,segments,consumed:text,remainder:'',kinds:[...allKinds],customerIssue:false};
+}
+
+// One response-classification source for drafting, coverage and publication.
+// If the bounded parser cannot consume a required segment, the issue is retained
+// and the whole instruction remains manual; a kind is never inferred by a
+// different regex in a later layer.
+function parsedKinds(parser){
+  const found=new Set((parser.kinds||[]).filter(kind=>KINDS.includes(kind)));
+  for(const segment of parser.segments)for(const kind of segment.kinds||[segment.kind])if(KINDS.includes(kind))found.add(kind);
+  return KINDS.filter(kind=>found.has(kind));
+}
+const NOMINAL_CONFIRMATION_NOUN=/(?:attestations?|confirmations?|certifications?|declarations?)/i;
+const NOMINAL_CONFIRMATION_OBLIGATION=/(?:\b(?:is|are|will be|shall be|must be|is to be|are to be|has to be|have to be|was|were)\s+(?:required|requested|needed|mandatory|necessary|provided|completed|signed|returned|submitted)\b|\b(?:must|shall|will|should)\s+(?:be\s+)?(?:provide|provided|complete|completed|sign|signed|return|returned|submit|submitted|accompany)\b)/i;
+function nominalConfirmationObligation(quote){
+  return quote.split(/[;,]|\b(?:but|and|then|also)\b/i).some(part=>{
+    const noun=NOMINAL_CONFIRMATION_NOUN.exec(part);
+    if(!noun)return false;
+    const before=part.slice(0,noun.index),after=part.slice(noun.index+noun[0].length);
+    if(/^\s*e-?mail\b/i.test(after))return false;
+    if(/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?$/i.test(before))return false;
+    if(/^\s*(?:(?:will|shall|must|is|are)\s+)?not\s+(?:be\s+)?(?:required|requested|needed|necessary|mandatory)\b/i.test(after))return false;
+    return NOMINAL_CONFIRMATION_OBLIGATION.test(after);
+  });
+}
+function positiveBusinessSender(part){
+  return [...part.matchAll(/\b(?:send|sent|provide|provided|issue|issued|email|emailed)\b/gi)].some(match=>{
+    const clause=part.slice(0,match.index).split(/[;,:—–]|\b(?:and|then|but)\b/i).at(-1).trim();
+    return positiveBusinessPrefix(clause);
+  });
+}
+function knownNominalNotification(part){
+  const business='(?:manufacturer|retailer|merchant|company|firm|brand|we|it)';
+  const verb='(?:send|sent|provide|provided|issue|issued|email|emailed)';
+  // Require a positive business subject before the notification verb, not a
+  // business noun that happens to appear earlier as an object or recipient.
+  if(positiveBusinessSender(part))return true;
+  // A passive notification explicitly attributed to a business sender.
+  if(new RegExp(`\\b(?:has|have|was|were|will be|is being)\\s+(?:been\\s+)?${verb}\\b[^.!?]{0,40}\\bby\\s+(?:the\\s+)?${business}\\b`,'i').test(part))return true;
+  // A positively named customer recipient.
+  if(/\b(?:you|consumers?|customers?)\b[^.!?]{0,50}\b(?:will|may|should|can|are|is)\s+(?:be sent|receive|be given|get)\b[^.!?]{0,50}\b(?:confirmation|attestation|certification|declaration)\b/i.test(part))return true;
+  if(/\b(?:confirmation|attestation|certification|declaration)\b[^.!?]{0,50}\b(?:will|shall|may|should|can|is|are)\s+(?:be\s+)?(?:sent|provided|issued|emailed|given)\s+(?:to|for)\s+you\b/i.test(part))return true;
+  return false;
+}
+function nominalConfirmationFallback(quote){
+  // "also" remains an adverb before the first business action; the positive
+  // sender predicate handles that case without splitting the notification.
+  return quote.split(/[;,]|\b(?:but|and|then)\b/i).some(part=>{
+    const noun=NOMINAL_CONFIRMATION_NOUN.exec(part);
+    if(!noun)return false;
+    const before=part.slice(0,noun.index),after=part.slice(noun.index+noun[0].length);
+    if(/^\s*e-?mail\b/i.test(after))return false;
+    if(/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?$/i.test(before))return false;
+    if(/^\s*(?:(?:will|shall|must|is|are)\s+)?not\s+(?:be\s+)?(?:required|requested|needed|necessary|mandatory)\b/i.test(after))return false;
+    if(/\b(?:optional|not\s+(?:required|necessary|mandatory))\b/i.test(after))return false;
+    if(knownNominalNotification(part))return false;
+    return true;
+  });
+}
+function nominalKinds(quote,parser=parseResponseGrammar(quote)){
+  const waived=/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?(?:photo|photograph|picture|image)s?\b|\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,30}\b(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(quote);
+  const kinds=[];
+  if(!waived&&/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote))kinds.push('PHOTO');
+  if(nominalConfirmationObligation(quote))kinds.push('CONFIRMATION');
+  if(!parsedKinds(parser).length&&nominalConfirmationFallback(quote))kinds.push('CONFIRMATION');
+  return kinds;
+}
+function canonicalKinds(quote){
+  const parser=parseResponseGrammar(quote);
+  const found=new Set([...parsedKinds(parser),...nominalKinds(quote,parser)]);
+  return KINDS.filter(kind=>found.has(kind));
+}
+export function canonicalResponseKinds(quote){
+  return canonicalKinds(quote);
+}
+
+// A business notification can be followed by a genuine customer instruction.
+// Keep the latter available for field selection and manual review rather than
+// treating the whole sentence as business-only.
+function hasLaterCustomerInstruction(quote){
+  return /\b(?:and|then|also|but|[,;])\s*(?:then\s+)?(?:consumers?|customers?|you)\b[^.!?]{0,160}\b(?:upload|submit|send|provide|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(quote);
 }
 
 // Applies to assistant output only. The notice may legitimately contain disposal
@@ -215,18 +446,30 @@ export function aiFieldProblem({kind,quote}){
   const relevant=parts.filter(part=>kind==='PHOTO'?PHOTO_CUE.test(part):kind==='TEXT'?textRequest(part):CONFIRM_CUE.test(part));
   const candidate=relevant.length?relevant.join('; '):typedQuote;
   const responseQuote=((kind==='TEXT'&&textRequest(candidate))||(kind==='CONFIRMATION'&&CONFIRM_CUE.test(candidate)))?candidate.replace(/\b(?:a |an |the )?(?:photo|photograph|picture|image)s?\s+(?:is|are)\s+not (?:required|necessary)\b|\bno (?:photo|photograph|picture|image)s? (?:is|are) (?:required|necessary)\b/gi,''):candidate;
-  if(/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(responseQuote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
+  if(!hasLaterCustomerInstruction(quote)&&/\b(?:do not|must not|not required|not necessary|no (?:photo|photograph|confirmation)|confirmation e-?mail)\b/i.test(responseQuote))return 'This sentence may prohibit information or describe a notification, rather than request customer evidence. Review it manually.';
   const explicitPhoto=/\b(?:upload|submit|send|e-?mail|take|provide)\b/i.test(quote)||/(?:^|[;,:]\s*|\b(?:consumers?|customers?|you)\s+(?:(?:should|must|shall|may|can)\s+|(?:will be|are)\s+asked to\s+|need to\s+)?)photograph\s+/i.test(quote)||/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote);
   if(kind==='PHOTO'&&!explicitPhoto&&/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm)\s+(?:receives?|has received|received)\b[^.!?]{0,120}\b(?:photo|photograph|image|proof|evidence)\b/i.test(quote)&&/\b(?:consumers?|customers?|you)\s+(?:will|may|can|should)\s+receive\b/i.test(quote))return 'Business receipt of evidence and a later refund do not request another customer response.';
-  if(/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm|we)\s+(?:will|shall|must|may|can)\s+(?:confirm|verify|provide|send|issue|take|supply)\b/i.test(quote))return 'This sentence describes an action by the business. Review the responsible actor before creating a customer field.';
+  const businessAction=/\b(?:the )?(?:manufacturer|retailer|merchant|company|firm|we)\s+(?:will|shall|must|may|can)\s+(?:confirm|verify|provide|send|issue|take|supply)\b/i.test(quote);
+  if(businessAction&&!hasLaterCustomerInstruction(quote))return 'This sentence describes an action by the business. Review the responsible actor before creating a customer field.';
   if(kind==='CONFIRMATION'&&/\b(?:you|consumers?|customers?)\s+(?:will|may|should|can)\s+(?:be sent|receive)\b/i.test(quote))return 'Receiving a confirmation is not a customer attestation request.';
-  if(kind==='PHOTO'&&!PHOTO_CUE.test(quote))return 'A photograph field needs a request for a photograph or image.';
-  if(kind==='CONFIRMATION'&&!CONFIRM_CUE.test(responseQuote))return 'A confirmation field needs an explicit confirm, attest, certify, verify or declare request, including its noun form.';
-  if(kind==='TEXT'&&!textRequest(responseQuote))return 'A written field needs an explicit request for a value, identifier or description, not a photograph.';
+  const parser=parseResponseGrammar(quote);
+  if(!canonicalKinds(quote).includes(kind)){
+    if(kind==='TEXT')return 'A written field needs an explicit request for a value, identifier or description, not a photograph.';
+    if(parser.issue)return parser.issue;
+    if(kind==='PHOTO')return 'A photograph field needs a request for a photograph or image.';
+    return 'A confirmation field needs an explicit confirm, attest, certify, verify or declare request, including its noun form.';
+  }
+  // Writing a marking or a code physically onto the product is a preparation
+  // step, not a separate TEXT response. A genuine written value remains valid.
+  if(kind==='TEXT'&&/\bwrite\b/i.test(quote)&&!TEXT_CUE.test(quote)&&!TEXT_VALUE_NOUN.test(quote))
+    return 'A written field needs a value, identifier or description request; this wording describes a physical marking or preparation step.';
+  // The kind is canonical. Any parser issue remains attached to the sentence and
+  // blocks publication/field acceptance later; it must not reject a field that
+  // correctly represents one recognized response in a mixed instruction.
   return null;
 }
 
-const RESPONSE_VERB_SOURCE='(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell(?:\\s+us)?|confirm|attest|certify|verify|declare)';
+const RESPONSE_VERB_SOURCE='(?:upload|submit|submitting|send|e-?mail|take|provide|photograph|photographing|enter|supply|state|describe|identify|list|include|write|tell(?:\\s+us)?|confirm|attest|certify|verify|declare)';
 function responseClauseParts(quote){
   const separator=new RegExp(`(\\s*[;:—–]\\s*|\\s+(?:and|then|also)\\s+)(?=${RESPONSE_VERB_SOURCE}\\b)`,'gi');
   return quote.split(separator).filter((part,index)=>index%2===0&&part.trim()).map(part=>part.trim());
@@ -245,7 +488,7 @@ const normalize=s=>s.replace(/\s+/g,' ').trim();
 export function sourceClauses(source){
   return source.remedies.flatMap((text,p)=>sentenceSpans(text).map((span,i)=>({id:`clause-${p}-${i}`,quote:text.slice(span.start,span.end).trim()})));
 }
-export const SOURCE_POLICY_VERSION=8;
+export const SOURCE_POLICY_VERSION=9;
 // A bounded executable subset, not a general natural-language policy engine.
 // A destination matters only when the customer is being asked to send something
 // out. Business notifications and the noun "email" are not customer submissions.
@@ -275,7 +518,8 @@ function customerOutgoingDestination(quote){
 // Drafts may retain richer quotations for review; only direct, unconditional,
 // pre-refund customer responses with one photo can become an executable form.
 export function sourceInstructionProfile(quote){
-  const kinds=KINDS.filter(kind=>!aiFieldProblem({kind,quote}));
+  const parser=parseResponseGrammar(quote);
+  const kinds=canonicalKinds(quote);
   const issues=[];
   const direct=/^(?:(?:consumers?|customers?|you)\s+(?:(?:should|must|shall)\s+|(?:will be|are)\s+asked to\s+|need to\s+)|(?:the )?(?:firm|manufacturer|retailer|company) will ask (?:consumers?|customers?|you) to\s+)?(?:(?:fill out|complete) (?:an?|the) (?:online )?form and )?(?:upload|submit|send|email|e-mail|take|provide|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i;
   const conditional=hasSourceCondition(quote);
@@ -301,9 +545,8 @@ export function sourceInstructionProfile(quote){
   const nonResponseVerb=/^(?:(?:please|also|then)\s+)?(?:return|ship|mail|contact|register|sign in|log in|reply|e-?mail)\b/i;
   const residualParts=quote.split(/(?:;|:|—|–|\band\b|\bthen\b|\balso\b)/i).slice(1).map(part=>part.trim()).filter(Boolean);
   const secondHandoff=residualParts.some(part=>nonResponseVerb.test(part)&&!/^(?:return\s+(?:address(?:es)?|label(?:s)?|polic(?:y|ies)|instruction(?:s)?|period(?:s)?|window(?:s)?|shipping)|e-?mail\s+(?:receipt(?:s)?|invoice(?:s)?|confirmation(?:s)?|message(?:s)?))\b/i.test(part));
-  // Parse every response segment and the complete remainder. A response verb
-  // does not excuse an unconsumed object, connector, prerequisite or cutoff.
-  const parser=parseResponseGrammar(quote);
+  // A response verb does not excuse an unconsumed object, connector,
+  // prerequisite or cutoff; parser issues stay manual below.
   const outgoingVerb='(?:send|submit|upload|provide|e-?mail)';
   const externalDestination=!negative&&customerOutgoingDestination(quote);
   const prerequisite=/\b(?:after|once|upon|following)\b[^.!?]{0,100}\b(?:return(?:ing|ed)?|send(?:ing)? back|ship(?:ping)? back|hav(?:e|ing) (?:returned|shipped|sent))\b/i.test(quote);
@@ -342,7 +585,8 @@ export function sourceCoverage(source,fields,decisions=[]){
     // Eligibility, timing and destination constraints survive even when the
     // sentence requests no customer response. An INFORMATION decision explains
     // the narrative; it cannot waive an unsupported cutoff or handoff.
-    const nonWaivableIssue=profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite|An unrecognized mandatory customer instruction|The instruction after a prohibition)/.test(i));
+    const parserIssue=profile.parser?.customerIssue?profile.parser.issue:null;
+    const nonWaivableIssue=parserIssue||profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite|An unrecognized mandatory customer instruction|The instruction after a prohibition)/.test(i));
     const conditionalIssue=profile.issues.find(i=>i.startsWith('Conditional'));
     const issue=phaseIssue||nonWaivableIssue||((profile.conditional||profile.externalAction)?(conditionalIssue||profile.issues[0]):null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
     // A merchant's explicit MANUAL decision dominates any derived FIELD result.

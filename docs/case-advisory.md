@@ -31,7 +31,9 @@ strengthened should/may, unsupported timing, or replacing confirmation with
 verification) are withheld per clause. Withheld clauses retain their complete
 source quotation and a server-authored abstention message. The response is
 `INSUFFICIENT` if any interpretation is withheld. These checks are conservative,
-incomplete safeguards, not a proof that accepted prose is correct. Suspicious
+incomplete safeguards, not a proof that the selected classification is correct.
+The displayed explanation is server-owned factual prose, not free-form model
+prose. Suspicious
 instruction text and missing or oversized source context abstain before inference.
 
 Compare every explanation with its quotation. The source remains authoritative;

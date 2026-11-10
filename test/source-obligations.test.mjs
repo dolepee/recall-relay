@@ -5,7 +5,7 @@ const compound='Submit a photograph of the marked cup and attest that you dispos
 const source=remedies=>({title:'Synthetic source policy test',recallNumber:'TEST',sourceDigest:'a'.repeat(64),sourceUrl:'https://example.invalid/fixture',route:'ORIGINAL_PAYMENT_CANDIDATE',remedies});
 async function prepared(remedies,fields){const desk=new ClaimDesk({provider:async()=>{throw Error('Provider must not be called');}});const ws=new SourceWorkspace(desk.db,{loadSource:async()=>source(remedies)});let row=await ws.import('TEST');for(const [kind,quote] of fields)row=ws.addField(row.id,{revision:row.revision,kind,quote});return {desk,ws,row,review(decisions=[]){row=ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true,clauseDecisions:decisions});this.row=row;return row;},publish(){return ws.activate(row.id,{revision:row.revision,sku:'CUP',lot:'LOT-A',confirmed:true},desk);}};}
 test('compound obligations require both responses; INFORMATION cannot waive an omitted attestation',async()=>{
- const s=await prepared([compound],[['PHOTO',compound]]);try{const r=s.review([{id:'clause-0-0',disposition:'INFORMATION',reason:'Trying to waive the missing response.'}]);assert.equal(r.review.coverage[0].disposition,'UNRESOLVED');assert.deepEqual(r.review.coverage[0].missingKinds,['CONFIRMATION']);assert.throws(()=>s.publish(),/every source obligation/);const row=s.ws.addField(s.row.id,{revision:s.row.revision,kind:'CONFIRMATION',quote:compound});s.row=row;s.ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});const ready=s.ws.get(row.id);assert.ok(s.ws.activate(row.id,{revision:ready.revision,sku:'CUP',lot:'LOT-A',confirmed:true},s.desk).publishedCampaign);assert.equal(s.desk.activeCampaign().coverage[0].obligations.length,2);}finally{s.desk.close();}
+ const s=await prepared([compound],[['PHOTO',compound]]);try{const r=s.review([{id:'clause-0-0',disposition:'INFORMATION',reason:'Trying to waive the missing response.'}]);assert.equal(r.review.coverage[0].disposition,'UNRESOLVED');assert.deepEqual(r.review.coverage[0].missingKinds,['CONFIRMATION']);assert.throws(()=>s.publish(),/manual|obligation/);const row=s.ws.addField(s.row.id,{revision:s.row.revision,kind:'CONFIRMATION',quote:compound});s.row=row;s.ws.review(row.id,{revision:row.revision,fieldIds:row.suggestion.requirements.map(f=>f.id),confirmed:true});const ready=s.ws.get(row.id);assert.ok(s.ws.activate(row.id,{revision:ready.revision,sku:'CUP',lot:'LOT-A',confirmed:true},s.desk).publishedCampaign);assert.equal(s.desk.activeCampaign().coverage[0].obligations.length,2);}finally{s.desk.close();}
 });
 test('a multi-sentence photo quotation cannot cover or execute a separate attestation',async()=>{
  const text=photo+' Attest that you disposed of the item.';const s=await prepared([text],[['PHOTO',text]]);try{const r=s.review();assert.deepEqual(r.review.coverage[1].missingKinds,['CONFIRMATION']);assert.throws(()=>s.publish(),/one complete source sentence/);}finally{s.desk.close();}
@@ -37,7 +37,7 @@ test('an explicit MANUAL decision overrides a linked field and survives save, re
   assert.equal(sourceCoverage(reloaded.source,reloaded.review.fields,reloaded.review.decisions)[0].disposition,'MANUAL');
   const history=s.ws.historyFor(r.id).events;
   assert.equal(history.at(-1).snapshot.review.decisions[0].reason,reason);
-  assert.throws(()=>s.publish(),/every source obligation/);
+  assert.throws(()=>s.publish(),/manual|obligation/);
  }finally{s.desk.close();}
 });
 

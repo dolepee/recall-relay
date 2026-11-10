@@ -114,7 +114,11 @@ export function SourceSetup(){
           <p className="mt-2 text-sm leading-6">Each source sentence needs a response type. Conditions and unsupported details stay manual. A manual decision always blocks publication, even when a field is linked.</p>
           {coverage.map(c=>{
             const chosen=decisions[c.id]?.disposition||'';
-            const blankLabel=c.disposition==='FIELD'?'Use linked response':c.disposition==='INFORMATION'?'Information only':c.disposition==='MANUAL'?'Manual handling required':'Unresolved — choose a treatment';
+            // The blank option describes the state after removing this clause's explicit
+            // override. A saved MANUAL must not make its own removal look like another
+            // manual choice when the underlying coverage is a linked response.
+            const automatic=c.issue?'MANUAL':c.obligations.length?(c.missingKinds.length?'UNRESOLVED':'FIELD'):c.fieldIds.length?'MANUAL':'UNRESOLVED';
+            const blankLabel=automatic==='FIELD'?(chosen==='MANUAL'?'Remove override — use linked response':'Use linked response'):automatic==='MANUAL'?'Manual handling required':'Unresolved — choose a treatment';
             return <div key={c.id} className="rr-card mt-3 p-4">
               <blockquote className="text-sm leading-6">{c.quote}</blockquote>
               {c.obligations.length>0&&<ul className="mt-2 space-y-2 text-sm">{c.obligations.map(o=><li key={o.id}><strong>{kindLabel[o.kind]}</strong>: {o.fieldIds.length?'Response linked':'Missing response'} · customer · {o.applicability==='UNCONDITIONAL'?'unconditional':'applicability unsupported'} · {o.phase==='BEFORE_REFUND'?'before refund':'timing unsupported'}{o.kind==='PHOTO'?` · ${o.evidenceCount===1?'one photograph':'photograph count unsupported'}`:''}</li>)}</ul>}

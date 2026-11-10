@@ -265,3 +265,24 @@ test('a linked field reads as a linked response, not an unresolved extra step',a
  assert.equal([...document.querySelectorAll('label')].some(l=>l.textContent.startsWith('Reason')),true,'manual treatment requires a reason');
  await act(async()=>root.unmount());
 });
+
+test('clearing a saved manual override returns to the automatic linked response',async()=>{
+ const quote='Upload one photograph of the marked cup.';
+ const field={id:'field-1',kind:'PHOTO',quote};
+ const coverage={id:'clause-0-0',quote,fieldIds:['field-1'],disposition:'MANUAL',reason:'Merchant keeps this manual for now.'};
+ const setup={id:'manual-copy-state',revision:2,source:{recallNumber:'MANCOPY',title:'Synthetic manual copy test',products:[{name:'Fictional cup'}],description:'Controlled copy fixture',retrievedAt:'2026-11-10T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:'m'.repeat(64),remedies:[quote],requirements:[]},suggestion:{model:'fixture',createdAt:'2026-11-10T00:00:00Z',requirements:[field]},review:{revision:2,digest:'n'.repeat(64),fields:[field],coverage:[coverage],decisions:[{id:coverage.id,disposition:'MANUAL',reason:coverage.reason}]}};
+ const state={ai:{available:false},activeCampaign:null,setups:[setup]};
+ globalThis.fetch=async()=>new Response(JSON.stringify(state));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ await act(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Edit reviewed fields').click();});
+ let treatment=[...document.querySelectorAll('select')].find(s=>s.parentElement.textContent.startsWith('Treatment'));
+ assert.ok(treatment);assert.match(treatment.textContent,/Remove override — use linked response/);
+ assert.match(document.body.textContent,/Manual handling blocks connected publication/);
+ await act(async()=>{treatment.value='';treatment.dispatchEvent(new Event('change',{bubbles:true}));});
+ treatment=[...document.querySelectorAll('select')].find(s=>s.parentElement.textContent.startsWith('Treatment'));
+ assert.match(treatment.textContent,/Use linked response/);assert.doesNotMatch(treatment.textContent,/Manual handling required/);
+ assert.doesNotMatch(document.body.textContent,/Manual handling blocks connected publication/);
+ assert.equal([...document.querySelectorAll('label')].some(l=>l.textContent.startsWith('Reason')),false);
+ await act(async()=>root.unmount());
+});

@@ -76,7 +76,7 @@ description descriptions detail details reason reasons damage damaged condition 
 label labels sample samples packaging box boxes carton cartons container containers base bases
 original linked affected recalled new used opened sealed full
 printed writing written shown showing marked engraved stamped listed
-on in at of from for with by and or
+on in at of from for with and or
 must be legible
 submission claim claims ownership disposed disposal proper has have been was were is are you it they them
 belongs this that from linked
@@ -139,6 +139,10 @@ function responseObjectIssue(kind,segment){
   }
   const object=segment.trim().replace(/^[:\s]+/,'');
   return closedObjectIssue(kind,object);
+}
+function mandatoryCustomerIssue(quote){
+  const parts=quote.split(/[;—–:]|\b(?:and|then|also|but)\b/i);
+  return parts.some(part=>/^(?:consumers?|customers?|you)\s+(?:(?:must|shall)(?!\s+not)\b|(?:are|is)\s+required\s+to\b|(?:need|have)\s+to\b|will\s+be\s+asked\s+to\b)/i.test(part.trim()));
 }
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
@@ -253,6 +257,7 @@ export function sourceInstructionProfile(quote){
   const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0||secondHandoff||externalDestination)||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
   if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
   if(parser.issue)issues.push(parser.issue);
+  if(mandatoryCustomerIssue(quote)&&(!parser.segments.length||parser.issue||parser.remainder))issues.push('An unrecognized mandatory customer instruction must be handled manually; the parser could not consume it.');
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');
   if(externalDestination)issues.push('Submitting evidence outside this portal needs a manual workflow; this form cannot deliver an email or third-party portal response.');
   if(prerequisite)issues.push('A return or other prerequisite needs a manual workflow; this form cannot establish that an outside action happened first.');
@@ -280,7 +285,7 @@ export function sourceCoverage(source,fields,decisions=[]){
     // Eligibility, timing and destination constraints survive even when the
     // sentence requests no customer response. An INFORMATION decision explains
     // the narrative; it cannot waive an unsupported cutoff or handoff.
-    const nonWaivableIssue=profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite)/.test(i));
+    const nonWaivableIssue=profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite|An unrecognized mandatory customer instruction)/.test(i));
     const conditionalIssue=profile.issues.find(i=>i.startsWith('Conditional'));
     const issue=phaseIssue||nonWaivableIssue||((profile.conditional||profile.externalAction)?(conditionalIssue||profile.issues[0]):null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
     // A merchant's explicit MANUAL decision dominates any derived FIELD result.

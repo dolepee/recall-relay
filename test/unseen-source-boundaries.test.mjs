@@ -372,3 +372,24 @@ test('response-specific relations, prohibition parsing and parser consumption ar
  assert.equal(ok.parser.remainder,'');
  assert.ok(ok.parser.segments.length);
 });
+
+test('phone relations, unknown scripts and unparsed mandatory instructions stay manual',()=>{
+ const photo='Upload one photograph of the product label.';
+ for(const [quote,issue] of [
+  ['Provide the serial number by phone.',/unsupported word|manual/i],
+  ['Enter the lot code请联系厂家.',/unsupported character|script|manual/i],
+  ['Consumers must furnish the lot code.',/mandatory|manual/i],
+  ['Do not upload a photograph; consumers must furnish the lot code.',/mandatory|manual/i],
+ ]){
+  const profile=sourceInstructionProfile(quote);
+  assert.ok(profile.issues.length>0,quote);
+  assert.match(profile.issues.join(' '),issue,quote);
+  const kinds=profile.kinds;
+  const fields=[];
+  if(!kinds.includes('PHOTO'))fields.push({id:'p',kind:'PHOTO',quote:photo});
+  for(const [i,kind] of kinds.entries())fields.push({id:`f${i}`,kind,quote});
+  assert.equal(sourceCoverage({remedies:[photo,quote]},fields,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Cannot waive this instruction.'}])[1].disposition,'MANUAL',quote);
+  assert.throws(()=>assertExecutableSource({remedies:[photo,quote]},fields,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Cannot waive this instruction.'}]),/manual|unsupported|mandatory/i,quote);
+ }
+ assert.doesNotThrow(()=>assertExecutableSource({remedies:['Provide the serial number.','Upload one photograph of the product label.']},[{id:'t',kind:'TEXT',quote:'Provide the serial number.'},{id:'p',kind:'PHOTO',quote:'Upload one photograph of the product label.'}]));
+});

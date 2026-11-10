@@ -162,3 +162,14 @@ test('a prohibition does not become an external handoff and photographed receipt
   assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{id:'p',kind:'PHOTO',quote}]),quote);
  }
 });
+
+test('supported responses after a semicolon are not treated as photograph objects',()=>{
+ for(const [quote,kinds] of [
+  ['Upload one photograph of the product label; enter the serial number.',['PHOTO','TEXT']],
+  ['Upload one photograph of the product label; confirm the product serial number.',['PHOTO','CONFIRMATION']],
+ ]){
+  const fields=kinds.map((kind,i)=>({id:`p${i}`,kind,quote}));
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},fields),quote);
+ }
+});

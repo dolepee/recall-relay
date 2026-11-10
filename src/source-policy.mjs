@@ -50,7 +50,7 @@ function photoResidualIssue(quote){
   const instruction=quote.trim().replace(/^(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?/i,'').replace(/^please\s+/i,'');
   // A recognized response verb after a connector starts another supported response.
   // Everything else remains in the photograph clause and must fit the closed object grammar.
-  const first=instruction.replace(/\b(?:and|then|also)\s+(?=(?:upload|submit|send|email|e-mail|take|provide|enter|supply|state|describe|identify|list|include|write|tell(?:\s+us)?|confirm|attest|certify|verify|declare)\b)/gi,' |SECOND| ').split(' |SECOND| ')[0];
+  const first=instruction.replace(/(?:(?:\b(?:and|then|also)\s+)|(?:;\s*))(?=(?:upload|submit|send|email|e-mail|take|provide|enter|supply|state|describe|identify|list|include|write|tell(?:\s+us)?|confirm|attest|certify|verify|declare)\b)/gi,' |SECOND| ').split(' |SECOND| ')[0];
   const match=/^(?:(?:fill out|complete) (?:an?|the) (?:online )?form and )?(?:upload|submit|send|email|e-mail|take|provide|photograph)\b[\s\S]*?\b(?:photographs?|photos?|pictures?|images?)\b\s*(?:of|showing)?\s*([\s\S]*)$/i.exec(first);
   return match?photoObjectIssue(match[1]):null;
 }

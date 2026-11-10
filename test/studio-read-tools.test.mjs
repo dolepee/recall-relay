@@ -103,13 +103,14 @@ test('the shared desktop/mobile answer reader discards a review change without a
  globalThis.fetch=async()=>new Response(JSON.stringify({readOnly:true,selected:{caseId:'other',revision:2},message:'Wrong claim',citations:[]}),{status:200});
  await assert.rejects(readClaimAnswer('Summarize',()=>current),/different case revision/);
 });
-test('the sample overview filters fictional claims without contacting the API or exposing a real payment claim',async()=>{
+test('the compact sample filter works without contacting the API or exposing a real payment claim',async()=>{
  let calls=0;globalThis.fetch=async()=>{calls++;throw new Error('Sample must not call the API');};
- await render(React.createElement(SampleDesk),()=>button('Needs manual review0')||[...document.querySelectorAll('button')].some(b=>/Needs manual review/.test(text(b))));
+ await render(React.createElement(SampleDesk),()=>[...document.querySelectorAll('select')].some(s=>/Needs manual review/.test(text(s))));
  await step();
- assert.match(text(document.body),/Fictional receipt states; no funds moved/);assert.doesNotMatch(text(document.querySelector('[aria-label="Incident overview"]')),/Completed receipts recorded by PayPal/);
- const filter=[...document.querySelectorAll('button')].find(b=>/Needs manual review/.test(text(b)));assert.ok(filter);
- await act(async()=>{filter.click();await tick();});
+ assert.match(text(document.body),/Fictional receipt states; no funds moved/);
+ assert.equal(document.querySelector('[aria-label="Incident overview"]'),null,'the sample keeps the decision surface compact');
+ const filter=[...document.querySelectorAll('select')].find(s=>/Needs manual review/.test(text(s)));assert.ok(filter);
+ await act(async()=>{filter.value='MANUAL';filter.dispatchEvent(new Event('change',{bubbles:true}));await tick();});
  assert.ok(await settle(()=>document.body.textContent.includes('No sample claim in this view')));assert.equal(calls,0);
 });
 test('an unknown amount is visibly incomplete rather than presented as a zero total',async()=>{

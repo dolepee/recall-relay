@@ -1,18 +1,19 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';
 import {answerClaimQuestion} from '../src/claim-guide.mjs';
+import {ClaimDesk} from '../src/claims.mjs';
 const make=()=>{
  const db=new DatabaseSync(':memory:');let status='SUBMITTED';
  const claim={id:'a',revision:3,submission:{photo:'SECRET_IMAGE',extra:{secret:'CUSTOMER_FREE_TEXT'}},review:null,correction:{state:'RESPONDED'},purchase:{captureId:'PRIVATE_CAPTURE'}};
  const campaign={sourceDigest:'digest',lot:'LOT-A',coverage:[{id:'c1',quote:'Upload a label photograph.',disposition:'FIELD'}]};
  const desk={db,claim:()=>claim,campaignFor:()=>campaign,missing:()=>[],reservation:()=>null,merchantState:()=>({cases:[{id:'a',revision:3,amountCents:3875,status:{code:status,reason:'Current evidence needs merchant review.'}}]})};
- return {desk,claim,db,change:()=>{status='READY_FOR_APPROVAL';}};
+ return {desk,claim,db,change:()=>{status='READY_FOR_APPROVAL';},setStatus:s=>{status=s;}};
 };
 const output=(overrides={})=>JSON.stringify({tool:'get_evidence_gaps',view:'ALL',answer:'Inspect the replacement label before recording a fresh review.',citations:['case-review'],...overrides});
 test('natural questions receive cited latest-state answers without sending customer evidence or capture data',async()=>{
  const {desk,db}=make();let sent;
  const ai={generate:async(prompt,input)=>{sent=JSON.stringify(input);return output();},status:()=>({model:'test-double'})};
  const r=await answerClaimQuestion(ai,desk,{question:'What is holding this up?',caseId:'a',revision:3});
- assert.equal(r.tool,'get_evidence_gaps');assert.equal(r.view,null);assert.match(r.citations[0].text,/RESPONDED/);assert.match(r.message,/AI explanation/);
+ assert.equal(r.tool,'get_evidence_gaps');assert.equal(r.view,null);assert.match(r.citations[0].text,/RESPONDED/);assert.match(r.message,/Recorded case summary/);
  assert.doesNotMatch(sent,/SECRET_IMAGE|CUSTOMER_FREE_TEXT|PRIVATE_CAPTURE/);assert.match(sent,/earlier photograph\/text changes are not reconstructed/);db.close();
 });
 test('invalid citations, invented figures, stale state and malformed output are not displayed',async()=>{
@@ -29,7 +30,7 @@ test('financial questions use deterministic amounts and only an explicit view to
 test('correction questions never infer a difference from an unavailable earlier submission',async()=>{
  const {desk,db}=make();const ai={generate:async()=>output({tool:'get_case_changes',answer:'The customer added a different photo and changed the lot.'}),status:()=>({model:'double'})};
  const result=await answerClaimQuestion(ai,desk,{question:'What changed after the correction?',caseId:'a',revision:3});
- assert.doesNotMatch(result.answer,/customer added/);assert.match(result.answer,/Earlier submissions are not reconstructed/);assert.match(result.citations[0].text,/RESPONDED/);db.close();
+ assert.doesNotMatch(result.answer,/customer added/);assert.match(result.answer,/Earlier submissions are not reconstructed/);assert.match(result.answer,/History and refund recovery/);assert.match(result.citations[0].text,/RESPONDED/);db.close();
 });
 test('unsupported mutation requests receive a server-owned refusal with no view change',async()=>{
  const {desk,db}=make();const ai={generate:async()=>JSON.stringify({tool:'UNSUPPORTED',view:null,answer:'Cannot pay',citations:[]}),status:()=>({model:'double'})};
@@ -68,4 +69,92 @@ test('model advice cannot reopen completed evidence or suggest replacement refun
 test('financial summaries retain payment outcomes and receipts when the model fills its optional citations',async()=>{
  const {desk,db}=make();const ai={generate:async()=>output({tool:'get_financial_summary',citations:['amount-ALL','amount-REVIEW','amount-READY','amount-WAITING','amount-MANUAL','amount-OPEN']}),status:()=>({model:'double'})};
  const result=await answerClaimQuestion(ai,desk,{question:'Summarize workspace amounts'});assert.equal(result.citations.length,6);assert.deepEqual(result.citations.slice(0,3).map(c=>c.id),['amount-OPEN','amount-PAYMENT','amount-COMPLETED']);db.close();
+});
+
+test('server facts replace unsafe photo, review and refund claims in non-completed states',async()=>{
+ const {desk,db,setStatus}=make();
+ for(const status of ['SUBMITTED','NEEDS_INFORMATION','READY_FOR_APPROVAL']){
+  setStatus(status);
+  const ai={generate:async()=>output({tool:'get_case_brief',answer:'The photograph has been verified as authentic and the refund is complete.',citations:['case-review']}),status:()=>({model:'double'})};
+  const result=await answerClaimQuestion(ai,desk,{question:'What is the state of this claim?',caseId:'a',revision:3});
+  assert.doesNotMatch(result.answer,/verified as authentic|refund is complete/i,status);
+  assert.match(result.message,/file format validated only, not authenticity/,status);
+  assert.match(result.message,/no current merchant review recorded|current merchant review recorded/,status);
+ }
+ db.close();
+});
+
+test('selected-case answers are server-owned and cannot repeat contradictory refund, review or authenticity claims',async()=>{
+ const {desk,db}=make();
+ const contradiction='The original capture has been fully refunded. The funds have arrived in the customer account. Evidence review has finished successfully. Authenticity of the photograph is established.';
+ for(const tool of ['get_case_brief','get_evidence_gaps','get_source_requirements']){
+  const ai={generate:async()=>output({tool,answer:contradiction,citations:['case-review']}),status:()=>({model:'double'})};
+  const result=await answerClaimQuestion(ai,desk,{question:'What is the state of this claim?',caseId:'a',revision:3});
+  assert.doesNotMatch(result.answer,/fully refunded|funds have arrived|review has finished successfully|Authenticity of the photograph is established/i,tool);
+  assert.match(result.answer,/not its authenticity|No current merchant review|no photograph|No recorded evidence gap|reviewed source/i,tool);
+  assert.equal(result.nextActions[0].id,'record-review',tool);
+  assert.match(result.message,/Recorded case summary/,tool);
+ }
+ db.close();
+});
+
+test('queue and financial tools also use server-owned answers, not model prose',async()=>{
+ const {desk,db}=make();
+ const view=await answerClaimQuestion({generate:async()=>output({tool:'show_claim_view',view:'COMPLETED',answer:'All refunds are complete.',citations:['workspace']}),status:()=>({model:'double'})},desk,{question:'Show completed claims'});
+ assert.equal(view.view,'COMPLETED');
+ assert.doesNotMatch(view.answer,/All refunds are complete/i);
+ assert.match(view.answer,/Showing the completed queue: 0 claims/);assert.deepEqual(view.citations.map(c=>c.id),['workspace','amount-COMPLETED']);
+ const money=await answerClaimQuestion({generate:async()=>output({tool:'get_financial_summary',answer:'All refunds are approved.',citations:['amount-COMPLETED']}),status:()=>({model:'double'})},desk,{question:'How much awaits review?',caseId:'a',revision:3});
+ assert.doesNotMatch(money.answer,/All refunds are approved/i);
+ assert.match(money.answer,/incomplete subtotal is not a zero total/);
+ assert.equal(money.citations[0].id,'amount-OPEN');
+ db.close();
+});
+
+test('manual or waiting claims never recommend approval even with a retained current review',async()=>{
+ const {desk,db}=make();
+ desk.merchantState=()=>({cases:[{id:'a',order:'RR-A',revision:3,amountCents:3875,status:{code:'MANUAL',reason:'Source policy requires manual resolution.'},submission:{lot:'LOT-A',photo:'photo',extra:{}},review:{revision:3,reviewedAt:'2026-11-10T00:00:00Z'},payment:null,receipt:null}]});
+ const ai={generate:async()=>output({tool:'get_case_brief',answer:'The original capture has been fully refunded.',citations:['case-review']}),status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'a',revision:3});
+ assert.equal(result.nextActions[0].id,'resolve-manual');
+ assert.doesNotMatch(result.answer,/approval controls/i);
+ assert.match(result.answer,/manual source or evidence requirement/i);
+ for(const [status,id] of [['WAITING','wait-customer'],['NEEDS_INFORMATION','obtain-information']]){
+  desk.merchantState=()=>({cases:[{id:'a',order:'RR-A',revision:3,amountCents:3875,status:{code:status,reason:'Recorded state.'},submission:{lot:'LOT-A',photo:'photo',extra:{}},review:{revision:3},payment:null,receipt:null}]});
+  const r=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'a',revision:3});
+  assert.equal(r.nextActions[0].id,id,status);assert.doesNotMatch(r.answer,/approval controls/i,status);
+ }
+ db.close();
+});
+
+test('actual ClaimDeskCore AWAITING_CUSTOMER maps to waiting, not review',async()=>{
+ const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No provider');}});
+ const campaign=desk.activeCampaign();
+ desk.saveClaim({id:'real-a',campaign,access:'token',createdAt:'2026-11-10T00:00:00.000Z',purchase:{id:'RR-REAL',version:1,merchantId:'merchant',captureId:'capture',lineId:'CUP-01-LINE',sku:'CUP-01',lot:'LOT-A',capturedAt:'2026-11-10T00:00:00.000Z',currency:'USD',linePaidCents:5999,lineRefundedCents:0,captureRemainingCents:5999,originalCaptureCents:5999},submission:null,revision:0,review:null});
+ assert.equal(desk.merchantState().cases[0].status.code,'AWAITING_CUSTOMER');
+ const ai={generate:async()=>output({tool:'get_case_brief',answer:'The funds have arrived in the customer account.',citations:['case-review']}),status:()=>({model:'double'})};
+ const result=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'real-a',revision:0});
+ assert.equal(result.nextActions[0].id,'wait-customer');
+ assert.doesNotMatch(result.answer,/funds have arrived|record a human evidence review/i);
+ assert.match(result.answer,/Wait for the customer to complete the claim/);
+ desk.close();
+});
+
+test('actual ClaimDeskCore missing, manual and ready statuses map to their safe controls',async()=>{
+ const base={id:'real-state',access:'token',createdAt:'2026-11-10T00:00:00.000Z',purchase:{id:'RR-REAL',version:1,merchantId:'merchant',captureId:'capture',lineId:'CUP-01-LINE',sku:'CUP-01',lot:'LOT-A',capturedAt:'2026-11-10T00:00:00.000Z',currency:'USD',linePaidCents:5999,lineRefundedCents:0,captureRemainingCents:5999,originalCaptureCents:5999},submission:null,revision:0,review:null};
+ const cases=[
+  {status:'NEEDS_INFORMATION',next:'obtain-information',claim:{submission:{lot:'LOT-A',acknowledged:false,extra:{},photo:'p'}}},
+  {status:'MANUAL',next:'resolve-manual',claim:{campaign:{...new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No provider');}}).activeCampaign(),sourceDigest:'d',sourcePolicyVersion:7,sourceRemedies:[]}}},
+  {status:'READY_FOR_APPROVAL',next:'approval-controls',claim:{submission:{lot:'LOT-A',acknowledged:true,extra:{},photo:'p'},revision:1,review:{revision:1,reviewedAt:'2026-11-10T00:00:00.000Z'}}},
+ ];
+ for(const item of cases){
+  const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No provider');}});
+  if(item.next==='approval-controls')desk.publish(true);
+  desk.saveClaim({...base,...item.claim});
+  assert.equal(desk.merchantState().cases[0].status.code,item.status);
+  const ai={generate:async()=>output({tool:'get_case_brief',answer:'Use the merchant approval controls.',citations:['case-review']}),status:()=>({model:'double'})};
+  const result=await answerClaimQuestion(ai,desk,{question:'What next?',caseId:'real-state',revision:desk.claim('real-state').revision});
+  assert.equal(result.nextActions[0].id,item.next,item.status);
+  desk.close();
+ }
 });

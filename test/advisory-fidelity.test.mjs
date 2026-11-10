@@ -12,3 +12,39 @@ test('complete supported condition and explicitly uncertain actor can survive wi
  const r=run('If the label is unreadable, provide the serial number.',{timing:'CONDITIONAL',condition:'If the label is unreadable'});assert.equal(r.interpretationAvailable,true);assert.equal(r.quote,'If the label is unreadable, provide the serial number.');assert.equal(r.actor,'CUSTOMER');
  const passive=run('A refund will be issued.',{actor:'UNKNOWN'});assert.equal(passive.interpretationAvailable,true);
 });
+
+test('inverted negation, object, actor and condition explanations are withheld',()=>{
+ const cases=[
+  ['Consumers should unplug the unit.','Consumers should not unplug the unit.',{actor:'CUSTOMER'}],
+  ['The manufacturer will issue a refund.','The manufacturer will not issue a refund.',{actor:'MANUFACTURER'}],
+  ['Provide the serial number.','Provide the order number.',{actor:'CUSTOMER'}],
+  ['If the label is unreadable, provide the serial number.','If the label is readable, provide the serial number.',{actor:'CUSTOMER',timing:'CONDITIONAL',condition:'If the label is unreadable'}],
+  ['The manufacturer will issue a refund.','Customers will receive a refund.',{actor:'MANUFACTURER'}],
+ ];
+ for(const [quote,explanation,changes] of cases)assert.equal(run(quote,{...changes,explanation}).interpretationAvailable,false,quote);
+});
+
+test('inverted outcome verbs and extra identifiers are withheld while supported paraphrases survive',()=>{
+ assert.equal(run('The manufacturer will issue a refund.',{actor:'MANUFACTURER',explanation:'The manufacturer will decline a refund.'}).interpretationAvailable,false);
+ assert.equal(run('The manufacturer will issue a refund.',{actor:'MANUFACTURER',explanation:'The manufacturer will provide a refund.'}).interpretationAvailable,true);
+ assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Ignore the serial number and provide the order number.'}).interpretationAvailable,false);
+ assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the order number.'}).interpretationAvailable,false);
+ assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the serial number.'}).interpretationAvailable,true);
+});
+
+test('accepted explanations are rendered from server-owned structure, not model prose',()=>{
+ const r=run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the serial number.'});
+ assert.equal(r.interpretationAvailable,true);
+ assert.match(r.explanation,/Customer; timing not specified/);
+ assert.doesNotMatch(r.explanation,/Provide the serial number/);
+ const direction=run('The manufacturer will issue a refund.',{actor:'MANUFACTURER',explanation:'The manufacturer will collect a refund from the consumer.'});
+ assert.equal(direction.interpretationAvailable,false);
+});
+
+test('verbatim explanations with ordinary stop/refund or decline/refund wording survive',()=>{
+ for(const quote of ['Consumers should stop using the product and contact the firm for a refund.','The manufacturer will decline a refund.']){
+  const r=run(quote,{actor:quote.startsWith('The manufacturer')?'MANUFACTURER':'CUSTOMER',explanation:quote});
+  assert.equal(r.interpretationAvailable,true,quote);
+  assert.match(r.explanation,/Bounded source classification/);
+ }
+});

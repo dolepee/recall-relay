@@ -233,10 +233,10 @@ function parseResponseGrammar(quote){
   if(!verbs.length)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
   const prefix=text.slice(0,verbs[0].index).trim();
   if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix)){
-    // A business notification or duration narrative is not a customer issue just
-    // because a response-shaped word appears in it. A customer actor, an explicit
-    // imperative, or a later customer instruction keeps the parser error blocking.
-    const customerContext=/(?:\b(?:consumers?|customers?|you|please)\b)/i.test(prefix)||/^(?:upload|submit|submitting|send|e-?mail|take|provide|photograph|photographing|enter|supply|state|describe|identify|list|include|write|tell|confirm|attest|certify|verify|declare)\b/i.test(prefix);
+    // A parser error is customer-facing unless the prefix is positively a known
+    // business/no-action narrative. Absence of "you/consumer" is not evidence of
+    // non-customer context: an unknown prefix is ambiguous and fails closed.
+    const knownBusiness=/\b(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\s+(?:(?:will|shall|must|may|can|should|is|are|has|have|also|then|still|now|currently|generally|typically|likely)\s+)*$/i.test(prefix);
     // A business notification followed by an explicit customer instruction is
     // still a customer response. Strip the narrative lead and parse the later
     // instruction; a business notification alone remains non-customer.
@@ -244,7 +244,7 @@ function parseResponseGrammar(quote){
     if(laterCustomer){
       const offset=verbs[0].index;text=text.slice(offset);
       for(const verb of verbs)verb.index-=offset;
-    }else return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text,customerIssue:customerContext};
+    }else return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text,customerIssue:!knownBusiness};
   }
   const allKinds=new Set();
   for(let i=0;i<verbs.length;i++){

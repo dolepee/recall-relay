@@ -125,6 +125,18 @@ test('INFORMATION cannot waive a customer take-to-store handoff',async()=>{
   }
 });
 
+test('unknown customer-shaped prefixes fail closed instead of becoming INFORMATION',async()=>{
+  for(const instruction of ['Carefully upload a photograph of the item.','Kindly submit your order number.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',instruction],[['PHOTO'],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive an unsupported customer instruction.'}]);
+      assert.equal(row.review.coverage[1].disposition,'MANUAL',instruction);
+      assert.throws(()=>activate(ws,row,desk),/manual|unsupported/i,instruction);
+    }finally{desk.close();}
+  }
+});
+
 test('a later explicit customer instruction after a business narrative remains accounted and manual',async()=>{
   const quote='The manufacturer will also send a confirmation email, then consumers must upload a photograph.';
   const {desk,ws}=fixture(quote,['PHOTO']);

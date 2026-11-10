@@ -125,8 +125,15 @@ function photoTextOutside(segment){
   }
   const tail=parts.at(-1);
   if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(tail))return false;
-  const coordinated=/(?:[,;]|\b(?:and|plus)\b)\s*(?:and|plus)?\s*(.+)$/i.exec(tail);
-  return coordinated?scalarValueHead(coordinated[1]):false;
+  // Inspect every coordinated object, not only the first connector capture.
+  // A pictured modifier on its own object keeps that object inside the photo.
+  for(const part of tail.split(/[,;]|\b(?:and|plus)\b/i).slice(1)){
+    const clean=part.trim();
+    if(!clean)continue;
+    if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(clean))continue;
+    if(scalarValueHead(clean))return true;
+  }
+  return false;
 }
 function photoObjectRequest(segment){
   const photo=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.exec(segment);

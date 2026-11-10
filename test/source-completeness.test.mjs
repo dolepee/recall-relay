@@ -351,6 +351,31 @@ test('a coordinated written object after a photo retains a TEXT obligation',asyn
   }
 });
 
+test('every coordinated object after a photo is checked, not only the first',async()=>{
+  const quote='Include a photograph of the label and packaging, your name and address.';
+  {
+    const {desk,ws}=fixture(quote,['PHOTO']);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO']);
+      row=reviewAll(ws,row,[{id:'clause-0-0',disposition:'INFORMATION',reason:'Attempt to waive the later coordinated written object.'}]);
+      assert.notEqual(row.review.coverage[0].disposition,'FIELD');
+      assert.notEqual(row.review.coverage[0].disposition,'INFORMATION');
+      assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i);
+    }finally{desk.close();}
+  }
+  {
+    const {desk,ws}=fixture(quote,['PHOTO','TEXT']);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','TEXT']);
+      row=reviewAll(ws,row);
+      assert.equal(row.review.coverage[0].disposition,'FIELD');
+      assert.ok(activate(ws,row,desk).publishedCampaign);
+    }finally{desk.close();}
+  }
+});
+
 test('coordinated scalar objects require TEXT and a complete field set publishes',async()=>{
   for(const extra of ['purchase date','quantity']){
     const quote=`Include a photograph of the label and ${extra}.`;

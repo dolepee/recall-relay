@@ -15,6 +15,22 @@ test('quoted sentence endings preserve separate source IDs and cannot hide a fol
   assert.equal(validateManualField({kind:'PHOTO',quote:second},source).quote,second);
  }
 });
+test('colon and dash response clauses link both selected fields without weakening the full remainder',()=>{
+ for(const [quote,first,second,kind] of [
+  ['Upload one photograph of the product label: enter the serial number.','Upload one photograph of the product label:','enter the serial number.','TEXT'],
+  ['Upload one photograph of the product label — confirm the product serial number.','Upload one photograph of the product label —','confirm the product serial number.','CONFIRMATION'],
+ ]){
+  const source={remedies:[quote]},fields=[{id:'p',kind:'PHOTO',quote:first},{id:'r',kind,quote:second}];
+  assert.deepEqual(sourceCoverage(source,fields)[0].missingKinds,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource(source,fields),quote);
+  assert.doesNotThrow(()=>assertExecutableSource(source,[{id:'p',kind:'PHOTO',quote:quote},{id:'r',kind,quote:quote}]),quote);
+ }
+ for(const quote of ['Upload one photograph of the product label: wug the serial number.','Upload one photograph of the product label — wug the serial number.']){
+  assert.ok(sourceInstructionProfile(quote).issues.length,quote);
+  assert.throws(()=>assertExecutableSource({remedies:[quote]},[{id:'p',kind:'PHOTO',quote},{id:'r',kind:'TEXT',quote}]),/manual|unsupported/i,quote);
+ }
+});
+
 test('conditional customer groups and purchase cutoffs cannot be waived into executable forms',()=>{
  for(const quote of ['Upload a photograph of the label only for products purchased before September 15.','Consumers without a purchase receipt must provide the lot code.','Consumers who have the order number will receive a full refund.','For customers with a damaged label, provide the serial number.']){
   const source={remedies:[photo,quote]},decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'Trying to waive a customer qualifier.'}];

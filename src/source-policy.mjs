@@ -211,6 +211,20 @@ export function aiFieldProblem({kind,quote}){
   return null;
 }
 
+const RESPONSE_VERB_SOURCE='(?:upload|submit|send|e-?mail|take|provide|photograph|enter|supply|state|describe|identify|list|include|write|tell(?:\s+us)?|confirm|attest|certify|verify|declare)';
+function responseClauseParts(quote){
+  const separator=new RegExp(`(\\s*[;:—–]\\s*|\\s+(?:and|then|also)\\s+)(?=${RESPONSE_VERB_SOURCE}\\b)`,'gi');
+  return quote.split(separator).filter((part,index)=>index%2===0&&part.trim()).map(part=>part.trim());
+}
+function sameResponseQuote(left,right){
+  const clean=value=>normalize(value).replace(/[;:—–,]+$/,'').trim();
+  return clean(left)===clean(right);
+}
+function fieldLinksClause(field,clause){
+  if(normalize(field.quote).includes(normalize(clause.quote)))return true;
+  return responseClauseParts(clause.quote).some(part=>sameResponseQuote(part,field.quote));
+}
+
 const normalize=s=>s.replace(/\s+/g,' ').trim();
 // Every remedy sentence remains visible, including sentences the model omits.
 export function sourceClauses(source){
@@ -283,8 +297,8 @@ export function sourceFieldIssue(field){
 export function sourceCoverage(source,fields,decisions=[]){
   return sourceClauses(source).map(clause=>{
     const profile=sourceInstructionProfile(clause.quote);
-    const linked=fields.filter(f=>normalize(f.quote).includes(normalize(clause.quote)));
-    const obligations=profile.kinds.map(kind=>({id:`${clause.id}-${kind}`,kind,actor:profile.actor,applicability:profile.applicability,phase:profile.phase,evidenceCount:kind==='PHOTO'?profile.photoCount:null,fieldIds:linked.filter(f=>f.kind===kind&&normalize(f.quote)===normalize(clause.quote)).map(f=>f.id)}));
+    const linked=fields.filter(f=>fieldLinksClause(f,clause));
+    const obligations=profile.kinds.map(kind=>({id:`${clause.id}-${kind}`,kind,actor:profile.actor,applicability:profile.applicability,phase:profile.phase,evidenceCount:kind==='PHOTO'?profile.photoCount:null,fieldIds:linked.filter(f=>f.kind===kind).map(f=>f.id)}));
     const missing=obligations.filter(o=>!o.fieldIds.length).map(o=>o.kind);
     const decision=decisions.find(d=>d.id===clause.id);
     const phaseIssue=profile.issues.find(i=>i.startsWith('Post-refund'));

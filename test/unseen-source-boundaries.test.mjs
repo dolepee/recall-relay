@@ -152,3 +152,13 @@ test('the closed response grammar still publishes the supported Relay Home and c
   assert.doesNotThrow(()=>assertExecutableSource({remedies},fields),quote);
  }
 });
+
+test('a prohibition does not become an external handoff and photographed receipt nouns stay supported',()=>{
+ const photo='Upload one photograph of the product label.',source={remedies:[photo,'Do not submit photographs by email.']},fields=[{id:'p',kind:'PHOTO',quote:photo}];
+ assert.equal(sourceInstructionProfile(source.remedies[1]).externalAction,false);
+ assert.doesNotThrow(()=>assertExecutableSource(source,fields,[{id:'clause-1-0',disposition:'INFORMATION',reason:'The source prohibits this action.'}]));
+ for(const quote of ['Upload one photograph of the shipping and return labels.','Upload one photograph of the product label and email receipt.']){
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},[{id:'p',kind:'PHOTO',quote}]),quote);
+ }
+});

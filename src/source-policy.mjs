@@ -16,10 +16,10 @@ const PHOTO_OBJECT_WORDS=new Set(`a an the this that these those your its their 
 product products label labels sample cup cups item items unit units device devices dresser lamp packaging box carton container
 rim latch plate serial number numbers code codes lot name date address receipt invoice order orders claim claims purchase purchases card cards form forms
 photo photograph photographs picture pictures image images side sides front back top bottom panel panels marking markings model models base bases identifier identifiers description descriptions amount price quantity size color registration return e-mail sticker tag sleeve cap lid
-marked damaged destroyed broken recalled affected disassembled personal original provided showing shows printed written must be legible
+marked damaged destroyed broken recalled affected disassembled personal original provided showing shows printed written must be legible shipping
 and or of on in with for notice ui test fixture setup manufacturer firm retailer company brand
 word recall crystal glass permanent black marker`.split(/\s+/));
-const PHOTO_RETURN_OBJECTS=new Set(['address','label','receipt','policy','instructions','period','window','shipping']);
+const PHOTO_RETURN_OBJECTS=new Set(['address','addresses','label','labels','receipt','receipts','policy','policies','instruction','instructions','period','periods','window','windows','shipping']);
 const photoObjectTokens=object=>[...object.matchAll(/[A-Za-z0-9][A-Za-z0-9'’.-]*/g)].map(match=>match[0].toLowerCase().replace(/[’']s$/,'').replace(/^[.-]+|[.-]+$/g,''));
 function photoObjectIssue(object){
   const tokens=photoObjectTokens(object);
@@ -28,6 +28,12 @@ function photoObjectIssue(object){
     const word=tokens[i],next=tokens[i+1],previous=tokens[i-1];
     // A handoff noun can decorate a label, but it cannot become a second action.
     if(word==='return'&&!PHOTO_RETURN_OBJECTS.has(next||''))return 'The response combines a photograph with an unsupported return or handoff. Keep this instruction manual.';
+    // An email noun can name a photographed receipt; the verb form would take
+    // a determiner and must not become a second handoff.
+    if(word==='email'){
+      if(!['receipt','receipts','invoice','invoices','confirmation','confirmations','message','messages'].includes(next||''))return 'The response introduces an unsupported e-mail action. Keep this instruction manual.';
+      continue;
+    }
     // A passive source phrase is descriptive; any other 'by' would introduce a destination.
     if(word==='by'){
       if(previous!=='provided')return 'The response introduces an unsupported destination or means. Keep this instruction manual.';
@@ -102,7 +108,7 @@ export function sourceInstructionProfile(quote){
     new RegExp(actionStart+'contact\\b[^.!?]{0,160}\\b(?:refund|remedy)\\b','i'),
     new RegExp(actionStart+'(?:register|sign in|log in|(?:fill out|complete) (?:an?|the) (?:online )?registration form)\\b','i'),
     new RegExp(actionStart+'reply\\b[^.!?]{0,160}\\b(?:e-?mail|confirmation)\\b','i'),
-    new RegExp(actionStart+'e-?mail\\b','i'),
+    new RegExp(actionStart+'e-?mail\\b(?!\\s+(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\\b)','i'),
     /\b(?:send|submit|upload|provide)\b[^.!?]{0,240}\bto\s+[^\s@]+@[^\s@]+/i,
     /\b(?:send|submit|upload|provide|email|e-mail)\b[^.!?]{0,240}\b(?:by|via|through)\s+(?:e-?mail|email)\b/i,
     /\b(?:send|submit|upload|provide|email|e-mail)\b[^.!?]{0,240}\b(?:by|via|through)\s+(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form)\b/i,
@@ -113,12 +119,12 @@ export function sourceInstructionProfile(quote){
   // and similar handoffs make the whole instruction manual.
   const nonResponseVerb=/^(?:(?:please|also|then)\s+)?(?:return|ship|mail|contact|register|sign in|log in|reply|e-?mail)\b/i;
   const residualParts=quote.split(/(?:;|:|—|–|\band\b|\bthen\b|\balso\b)/i).slice(1).map(part=>part.trim()).filter(Boolean);
-  const secondHandoff=residualParts.some(part=>nonResponseVerb.test(part)&&!/^return\s+(?:address|label|policy|instructions?|period|window|shipping)\b/i.test(part));
+  const secondHandoff=residualParts.some(part=>nonResponseVerb.test(part)&&!/^(?:return\s+(?:address(?:es)?|label(?:s)?|polic(?:y|ies)|instruction(?:s)?|period(?:s)?|window(?:s)?|shipping)|e-?mail\s+(?:receipt(?:s)?|invoice(?:s)?|confirmation(?:s)?|message(?:s)?))\b/i.test(part));
   const residual=photoResidualIssue(quote);
   const externalDestination=/\b(?:by|via|through)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(quote)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(quote);
   const prerequisite=/\b(?:after|once|upon|following)\b[^.!?]{0,100}\b(?:return(?:ing|ed)?|send(?:ing)? back|ship(?:ping)? back|hav(?:e|ing) (?:returned|shipped|sent))\b/i.test(quote);
   const applicability=/\b(?:for|only for)\s+(?:purchases?|products?|items?|orders?)\s+(?:made|purchased|bought)\b|\b(?:except|excluding|other than)\b/i.test(quote);
-  const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0)||secondHandoff||externalDestination||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
+  const externalAction=affirmative&&(handoffPatterns.some(pattern=>pattern.test(instruction))||externalDependencies({remedies:[quote]}).length>0||secondHandoff||externalDestination)||externalActionParts(quote).slice(1).some(part=>externalDependencies({remedies:[part]}).length>0);
   if(kinds.length&&/\b(?:do not|must not|not required|not necessary|optional)\b/i.test(quote))issues.push('Mixed optional or prohibited responses need a manual workflow; this form cannot make a waived response mandatory.');
   if(residual)issues.push(residual);
   if(externalAction)issues.push('An external customer handoff needs a manual workflow; this portal does not complete returns, manufacturer contact, registration or email submission.');

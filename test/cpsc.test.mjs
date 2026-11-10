@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {recallDraft,fetchRecallDraft} from '../src/cpsc.mjs';
+import {classifyRemedyRoute} from '../src/remedy-route.mjs';
 import {planClaim} from '../src/plan.mjs';
 import {purchase,evidence,now} from '../fixtures.mjs';
 
@@ -47,4 +48,9 @@ test('negated original-payment promises and verb check do not become payment rou
  assert.equal(route('Check the label and request a refund.'),'REFUND_ROUTE_UNSPECIFIED');
  assert.equal(route('The refund, in the form of a check, will be mailed to the consumer.'),'CHECK_REFUND');
  assert.equal(recallDraft({...record,RemedyOptions:[{Option:'Refund'},{Option:'Replacement'}]}).route,'CHOICE_REQUIRES_REVIEW');
+});
+
+test('a receipt waiver does not negate an original-payment refund promise',()=>{
+ const route=remedies=>classifyRemedyRoute(remedies,['Refund']);
+ assert.equal(route(['Refunds will be issued to the original form of payment without a receipt.']),'ORIGINAL_PAYMENT_CANDIDATE');
 });

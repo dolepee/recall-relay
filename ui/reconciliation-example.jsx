@@ -7,13 +7,13 @@ const loadStudio=()=>import('./reconciliation-studio.jsx');
 const media=typeof window==='undefined'?null:window.matchMedia('(min-width: 1280px)');
 const subscribe=cb=>{media?.addEventListener('change',cb);return()=>media?.removeEventListener('change',cb);};
 export default function ReconciliationExample(){
- const [corrected,setCorrected]=useState(false),[selected,select]=useState('1:0'),[destination,setDestination]=useState(null);
+ const [corrected,setCorrected]=useState(false),[selected,select]=useState('1:0'),[destination,setDestination]=useState(null),[filter,setFilter]=useState('ALL'),[handoff,setHandoff]=useState(null);
  const detailHeading=useRef(null),destinationHeading=useRef(null),assumption=useRef(null),guideHeading=useRef(null),correctionStatus=useRef(null);
  const wide=useSyncExternalStore(subscribe,()=>media?.matches===true,()=>false);
  const result=useMemo(()=>examplePlan(corrected),[corrected]);
  useEffect(()=>{document.title='Try reconciliation · Recall Relay';},[]);
  useEffect(()=>{if(!destination)return;const frame=requestAnimationFrame(()=>{destinationHeading.current?.focus();destinationHeading.current?.scrollIntoView({block:'start'});});return()=>cancelAnimationFrame(frame);},[destination]);
- const value={result,selected,select:key=>{select(key);if(!wide)requestAnimationFrame(()=>{detailHeading.current?.focus();detailHeading.current?.scrollIntoView({block:'start'});});},detailHeading,busy:false,openClaim:()=>setDestination('claim'),openBinding:()=>setDestination('binding'),correct:()=>{guideHeading.current?.focus();guideHeading.current?.scrollIntoView({block:'center'});}};
+ const value={result,selected,select:key=>{select(key);if(!wide)requestAnimationFrame(()=>{detailHeading.current?.focus();detailHeading.current?.scrollIntoView({block:'start'});});},detailHeading,filter,setFilter,handoff,setHandoff,busy:false,openClaim:()=>setDestination('claim'),openBinding:()=>setDestination('binding'),correct:()=>{guideHeading.current?.focus();guideHeading.current?.scrollIntoView({block:'center'});}};
  function reset(){setCorrected(false);select('1:0');setDestination(null);}
  return <div className="rr-app"><AppShell current="/practice/reconciliation" note="Synthetic example · no funds move.">
   <div className="rr-page-head"><p className="text-sm font-semibold text-slate-600">Try reconciliation</p><h1>Find the purchases that need action.</h1><p className="rr-lede">One fictional ledger. See what is affected, what is missing, and which claim to open next.</p></div>

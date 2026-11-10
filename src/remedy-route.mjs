@@ -6,11 +6,7 @@ export function classifyRemedyRoute(remedies,options){
  // Scope negation to the refund/payment promise. A later availability caveat
  // (for example, a replacement being unavailable) does not deny the promise.
  const caveat=/\b(?:because|since|due to|if|when|while|unless)\b/i;
- const negated=s=>{
-  // Remove comma-delimited parentheticals structurally, not by an aside vocabulary.
-  const main=String(s).replace(/,\s*[^,]*,\s*/g,' ');
-  return /\b(?:not|never|cannot|can't|won't|unable|no longer|unavailable|isn't|aren't|doesn't|don't|instead of|rather than)\b/i.test(main.split(caveat)[0]);
- };
+ const negated=s=>/\b(?:not|never|cannot|can't|won't|unable|no longer|unavailable|isn't|aren't|doesn't|don't|instead of|rather than)\b/i.test(String(s).split(caveat)[0]);
  const original=mentions.some(s=>!negated(s)&&/\brefund/i.test(s));
  const denied=mentions.some(negated);
  const check=/\b(?:in the form of|by|via|using|issue[ds]?|mail(?:ed)?|receive)\s+(?:an?\s+)?(?:refund\s+)?(?:check|cheque)\b|\b(?:check|cheque)\b[^.!?]{0,45}\b(?:mailed|issued|sent)\b/i.test(text);

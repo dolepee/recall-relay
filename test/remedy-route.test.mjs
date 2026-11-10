@@ -15,4 +15,5 @@ test('an unavailable replacement does not negate an original-payment promise',()
  for(const aside of ['as previously agreed','as requested','as noted in the letter']){
   assert.notEqual(classifyRemedyRoute([`Refunds to the original form of payment, ${aside}, are not available.`],['Refund']),'ORIGINAL_PAYMENT_CANDIDATE',aside);
  }
+ assert.notEqual(classifyRemedyRoute(['Refunds, not to the original form of payment, are available.'],['Refund']),'ORIGINAL_PAYMENT_CANDIDATE','negated parenthetical');
 });

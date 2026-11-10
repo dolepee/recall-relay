@@ -142,7 +142,13 @@ test('a reviewed case can return to evidence and request correction without reop
  await act(async()=>{button('Back to evidence review').click();await tick();});
  assert.match(text(document.querySelector('#claim-heading')),/Review this claim/);
  assert.match(text(document.body),/Reviewed · revision 1/);
+ assert.ok(button('Continue to refund approval'));
  assert.ok(document.querySelector('#correction-details'));
+ await act(async()=>{button('Continue to refund approval').click();await tick();});
+ assert.match(text(document.querySelector('#claim-heading')),/Approve the refund/);
+ assert.equal(calls.length,0,'back and continue make no API call or mutation');
+ await act(async()=>{button('Back to evidence review').click();await tick();});
+ assert.match(text(document.querySelector('#claim-heading')),/Review this claim/);
  const area=document.querySelector('#correction-message');
  await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set.call(area,'Please upload a clearer label.');area.dispatchEvent(new Event('input',{bubbles:true}));await tick();});
  await act(async()=>{button('Request customer update').click();await tick();});

@@ -299,7 +299,7 @@ function RecordedEvidence({value}){
   </dl>;
 }
 
-function ReviewStage({value,run,busy,error,stale,onRefresh}){
+function ReviewStage({value,run,busy,error,stale,onRefresh,onReturnToApproval}){
   const c=value.case;
   const [acknowledged,setAcknowledged]=useState(false);
   const [message,setMessage]=useState('');
@@ -378,6 +378,7 @@ function ReviewStage({value,run,busy,error,stale,onRefresh}){
           {c.correction?.state==='REQUESTED'&&<p className="rr-muted">This revision cannot be reviewed while a correction request is open.</p>}
           <div className="rr-actions">
             <Button disabled={!confirmable||busy} onClick={()=>run('review',{...binding,confirmed:true})}>{busy?'Saving review…':'Confirm evidence review'}</Button>
+            {onReturnToApproval&&<Button variant="secondary" type="button" disabled={busy} onClick={onReturnToApproval}>Continue to refund approval</Button>}
             <Button variant="secondary" type="button" disabled={busy} onClick={()=>{const d=document.getElementById('correction-details');if(d){d.open=true;d.scrollIntoView({block:'center'});d.querySelector('textarea')?.focus();}}}>Request correction</Button>
           </div>
         </div>
@@ -580,7 +581,7 @@ export default function Practice(){
       </Card>:<div style={{marginTop:20}}>
         {expired&&<div style={{marginBottom:16}}><Callout tone="attention" title="This practice case expired" actions={<Button onClick={()=>run('new',{})} disabled={busy}>Start a fresh practice case</Button>}><p>Practice cases are kept for 24 hours in this session. A fresh case starts the journey again.</p></Callout></div>}
         {current===1?<CustomerStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh} expired={expired}/>
-          :current===2?<ReviewStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh}/>
+          :current===2?<ReviewStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh} onReturnToApproval={returnToReview&&canReturn?()=>setReturnToReview(false):undefined}/>
           :<ApproveStage value={state} run={run} busy={busy} error={error} stale={stale} onRefresh={refresh} onReturnToReview={canReturn?()=>setReturnToReview(true):undefined}/>}
       </div>}
     </AppShell>

@@ -101,8 +101,9 @@ function photoTextOutside(segment){
   // connector, "order-number image" is a photo object name, not a TEXT request.
   if(TEXT_VALUE_NOUN.test(before)&&/(?:[;,]|\b(?:and|then|also|plus)\b)/i.test(before))return true;
   if(/\b(?:along with|together with|plus|and include|and provide|and submit)\b[\s\S]*\b(?:name|address|order|serial|lot|code|number|postal|phone|receipt|invoice)\b/i.test(after))return true;
-  // "label showing the product name and lot code" keeps those values pictured.
-  if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing)\b/i.test(after))return false;
+  // "label showing the product name" and "name and address printed on the
+  // label" keep those values inside the physical photo object.
+  if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(after))return false;
   return /(?:[,;]|\b(?:and|plus)\b)\s*(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(after);
 }
 function photoObjectRequest(segment){
@@ -314,7 +315,12 @@ function nominalKinds(quote){
   const waived=/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?(?:photo|photograph|picture|image)s?\b|\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,30}\b(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(quote);
   const kinds=[];
   if(!waived&&/\b(?:photo|photograph|picture|image)s?\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote))kinds.push('PHOTO');
-  if(/\b(?:attestations?|confirmations?|certifications?|declarations?)\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(quote)&&!/\b(?:confirmation|confirmations)\s+e-?mail\b/i.test(quote))kinds.push('CONFIRMATION');
+  const mandatoryConfirmation=quote.split(/[;,]|\b(?:but|and|then|also)\b/i).some(part=>{
+    if(!/\b(?:attestations?|confirmations?|certifications?|declarations?)\b[^.!?]{0,80}\b(?:is|are)\s+(?:required|requested|needed)\b/i.test(part))return false;
+    if(/\b(?:confirmation|confirmations)\s+e-?mail\b/i.test(part))return false;
+    return !/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?(?:attestations?|confirmations?|certifications?|declarations?)\b|\b(?:attestations?|confirmations?|certifications?|declarations?)\b[^.!?]{0,30}\b(?:is|are)\s+not\s+(?:required|necessary)\b/i.test(part);
+  });
+  if(mandatoryConfirmation)kinds.push('CONFIRMATION');
   return kinds;
 }
 function canonicalKinds(quote){

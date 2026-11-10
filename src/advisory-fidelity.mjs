@@ -23,7 +23,15 @@ export function advisoryFidelityIssue(quote,value){
  const eNeg=/\b(?:not|never|no|without|unreadable|ineligible|unavailable|prohibited)\b/.test(eCore);
  if(qNeg!==eNeg)return 'Negation differs from the source.';
  if(actor==='MANUFACTURER'&&/^(?:consumers?|customers?|you)\b/.test(e))return 'The explanation changes the responsible actor.';
- if(actor==='CUSTOMER'&&/^(?:the )?(?:manufacturer|merchant|retailer|company|firm)\b/.test(e))return 'The explanation changes the responsible actor.';
+ // A closed outcome polarity set catches the common inversion that changes a
+ // promise into a refusal without changing negation or actor. It is deliberately
+ // narrow; an unrecognized outcome is not treated as semantically verified.
+ const positiveOutcome=/\b(?:issue|issued|issuing|provide|provided|providing|pay|paid|paying|refund|refunded|refunding|approve|approved|approving|replace|replaced|replacing|ship|shipped|shipping|send|sent|sending|honor|honored|deliver|delivered|delivering)\b/i;
+ const negativeOutcome=/\b(?:decline|declined|declining|deny|denied|denying|refuse|refused|refusing|reject|rejected|rejecting|withhold|withheld|withholding|cancel|cancelled|canceled|cancelling|canceling|stop|stopped|stopping|delay|delayed|delaying|ignore|ignored|ignoring)\b/i;
+ if(positiveOutcome.test(q)&&negativeOutcome.test(e))return 'The explanation reverses a supported outcome.';
+ if(negativeOutcome.test(q)&&positiveOutcome.test(e))return 'The explanation reverses a supported outcome.';
+ const identifiers=['serial number','order number','lot code','model number','batch number','item number','product number','receipt number','claim number','tracking number'];
+ for(const term of identifiers)if(new RegExp('\b'+term.replace(/ /g,'\\s+')+'\b','i').test(e)&&!new RegExp('\b'+term.replace(/ /g,'\\s+')+'\b','i').test(q))return 'The explanation introduced an identifier not present in the source.';
  for(const [sourceTerm,expected] of [['serial number','serial'],['order number','order'],['lot code','lot'],['model number','model'],['unreadable','unreadable']]){
   if(new RegExp('\\b'+sourceTerm.replace(/ /g,'\\s+')+'\\b','i').test(q)&&!new RegExp('\\b'+expected+'\\b','i').test(e))return 'A required source identifier or condition was changed.';
  }

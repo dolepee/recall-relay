@@ -23,3 +23,11 @@ test('inverted negation, object, actor and condition explanations are withheld',
  ];
  for(const [quote,explanation,changes] of cases)assert.equal(run(quote,{...changes,explanation}).interpretationAvailable,false,quote);
 });
+
+test('inverted outcome verbs and extra identifiers are withheld while supported paraphrases survive',()=>{
+ assert.equal(run('The manufacturer will issue a refund.',{actor:'MANUFACTURER',explanation:'The manufacturer will decline a refund.'}).interpretationAvailable,false);
+ assert.equal(run('The manufacturer will issue a refund.',{actor:'MANUFACTURER',explanation:'The manufacturer will provide a refund.'}).interpretationAvailable,true);
+ assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Ignore the serial number and provide the order number.'}).interpretationAvailable,false);
+ assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the order number.'}).interpretationAvailable,false);
+ assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the serial number.'}).interpretationAvailable,true);
+});

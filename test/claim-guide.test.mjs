@@ -12,7 +12,7 @@ test('natural questions receive cited latest-state answers without sending custo
  const {desk,db}=make();let sent;
  const ai={generate:async(prompt,input)=>{sent=JSON.stringify(input);return output();},status:()=>({model:'test-double'})};
  const r=await answerClaimQuestion(ai,desk,{question:'What is holding this up?',caseId:'a',revision:3});
- assert.equal(r.tool,'get_evidence_gaps');assert.equal(r.view,null);assert.match(r.citations[0].text,/RESPONDED/);assert.match(r.message,/AI explanation/);
+ assert.equal(r.tool,'get_evidence_gaps');assert.equal(r.view,null);assert.match(r.citations[0].text,/RESPONDED/);assert.match(r.message,/Recorded case summary/);
  assert.doesNotMatch(sent,/SECRET_IMAGE|CUSTOMER_FREE_TEXT|PRIVATE_CAPTURE/);assert.match(sent,/earlier photograph\/text changes are not reconstructed/);db.close();
 });
 test('invalid citations, invented figures, stale state and malformed output are not displayed',async()=>{
@@ -79,6 +79,20 @@ test('server facts replace unsafe photo, review and refund claims in non-complet
   assert.doesNotMatch(result.answer,/verified as authentic|refund is complete/i,status);
   assert.match(result.message,/file format validated only, not authenticity/,status);
   assert.match(result.message,/no current merchant review recorded|current merchant review recorded/,status);
+ }
+ db.close();
+});
+
+test('selected-case answers are server-owned and cannot repeat contradictory refund, review or authenticity claims',async()=>{
+ const {desk,db}=make();
+ const contradiction='The original capture has been fully refunded. The funds have arrived in the customer account. Evidence review has finished successfully. Authenticity of the photograph is established.';
+ for(const tool of ['get_case_brief','get_evidence_gaps','get_source_requirements']){
+  const ai={generate:async()=>output({tool,answer:contradiction,citations:['case-review']}),status:()=>({model:'double'})};
+  const result=await answerClaimQuestion(ai,desk,{question:'What is the state of this claim?',caseId:'a',revision:3});
+  assert.doesNotMatch(result.answer,/fully refunded|funds have arrived|review has finished successfully|Authenticity of the photograph is established/i,tool);
+  assert.match(result.answer,/not its authenticity|No current merchant review|no photograph|No recorded evidence gap|reviewed source/i,tool);
+  assert.equal(result.nextActions[0].id,'record-review',tool);
+  assert.match(result.message,/Recorded case summary/,tool);
  }
  db.close();
 });

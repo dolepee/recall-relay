@@ -12,6 +12,28 @@ function factText(f){
  const photo=f.photoPresent?'present; file format validated only, not authenticity':'not present';
  return `Recorded facts: status ${f.statusCode}; evidence revision ${f.revision}; ${f.reviewRecorded?`current merchant review recorded at revision ${f.reviewRevision}`:'no current merchant review recorded'}; photograph ${photo}; ${f.approvalRecorded?'an approval/refund attempt is recorded':'no approval recorded'}; provider outcome ${f.providerOutcome}.`;
 }
+function safeNextActions(f,context){
+ if(f.statusCode==='COMPLETED'||f.providerCompleted)return [{id:'none',label:'No further evidence review or refund action is available.',kind:'NONE'}];
+ if(f.paymentState)return [{id:'reconcile-payment',label:'Reconcile the recorded payment attempt using the recovery controls.',kind:'RECOVERY'}];
+ if(!f.reviewRecorded)return [{id:'record-review',label:'Record a human evidence review before any refund decision.',kind:'REVIEW'}];
+ return [{id:'approval-controls',label:'Use the merchant approval controls for the refund decision.',kind:'APPROVAL'}];
+}
+// Model prose is not authoritative for selected-case facts. These answers are
+// assembled from the same server snapshot that supplies the citations, so a
+// free-form model claim cannot contradict review, payment or photograph state.
+function selectedCaseAnswer(tool,f,context){
+ const review=f.reviewRecorded?`A current merchant review is recorded at revision ${f.reviewRevision}.`:`No current merchant review is recorded for evidence revision ${f.revision}.`;
+ const photo=f.photoPresent?'A photograph is present; only its file format is validated, not its authenticity.':'No photograph is recorded.';
+ const payment=f.providerCompleted?'A completed provider receipt is recorded.':f.paymentState?`A payment attempt is recorded with state ${f.paymentState}.`:'No approval or refund attempt is recorded.';
+ if(tool==='get_case_brief')return `This claim is at ${f.statusCode}. ${f.statusReason} ${review} ${photo} ${payment}`;
+ if(tool==='get_evidence_gaps'){
+  const gaps=context.gaps||[];
+  return gaps.length?`The recorded gaps are: ${gaps.slice(0,2).join(' ')}${gaps.length>2?` ${gaps.length-2} more.`:''} ${photo}`:`No recorded evidence gap. ${review} ${photo}`;
+ }
+ if(tool==='get_source_requirements')return `The reviewed source has ${context.clauses.length} cited clauses. Read every complete quotation and its conditions; this guide cannot decide whether the claim meets them.`;
+ return '';
+}
+
 function unsafeAnswer(answer,f){
  const a=answer.toLowerCase();
  if(!f.reviewRecorded&&/\b(?:merchant (?:has )?reviewed|review (?:is )?(?:complete|completed)|reviewed and approved|approved)\b/.test(a))return true;
@@ -41,7 +63,7 @@ function evidenceFor(desk,input){
   // Fingerprint the full state on the server. Evidence/payment transitions need not
   // increment the customer revision; never return an answer from the older state.
   const selectedItem=context?state.cases.find(c=>c.id===input.caseId):null;
-  return {evidence,contextDigest:hash(state),selected:selectedItem?{caseId:input.caseId,revision:input.revision,order:selectedItem.order||input.caseId,statusCode:selectedItem.status.code,facts:{statusCode:selectedItem.status.code,statusReason:selectedItem.status.reason,revision:selectedItem.revision,reviewRecorded:context.facts.reviewRevision===selectedItem.revision,reviewRevision:context.facts.reviewRevision,correctionState:context.facts.correctionState||'none',photoPresent:context.facts.photoPresent,photoValidation:'FORMAT_ONLY',lotMatches:context.facts.lotMatches,approvalRecorded:Boolean(selectedItem.payment),paymentState:selectedItem.payment?.state||null,providerCompleted:selectedItem.receipt?.status==='COMPLETED',providerOutcome:selectedItem.receipt?.status||selectedItem.payment?.state||'NOT_STARTED'}}:null};
+  return {evidence,contextDigest:hash(state),selected:selectedItem?{caseId:input.caseId,revision:input.revision,order:selectedItem.order||input.caseId,statusCode:selectedItem.status.code,gaps:context.gaps,clauses:context.clauses,facts:{statusCode:selectedItem.status.code,statusReason:selectedItem.status.reason,revision:selectedItem.revision,reviewRecorded:context.facts.reviewRevision===selectedItem.revision,reviewRevision:context.facts.reviewRevision,correctionState:context.facts.correctionState||'none',photoPresent:context.facts.photoPresent,photoValidation:'FORMAT_ONLY',lotMatches:context.facts.lotMatches,approvalRecorded:Boolean(selectedItem.payment),paymentState:selectedItem.payment?.state||null,providerCompleted:selectedItem.receipt?.status==='COMPLETED',providerOutcome:selectedItem.receipt?.status||selectedItem.payment?.state||'NOT_STARTED'}}:null};
 }
 export async function answerClaimQuestion(ai,desk,input){
   if(!input||Object.keys(input).some(k=>!['question','caseId','revision'].includes(k))||typeof input.question!=='string'||!input.question.trim()||input.question.length>1500||input.caseId!==undefined&&(typeof input.caseId!=='string'||!Number.isSafeInteger(input.revision)))throw new Error('Ask a question under 1,500 characters about the current claim or workspace.');
@@ -66,16 +88,26 @@ export async function answerClaimQuestion(ai,desk,input){
     result.answer='The cited records separate evidence and review work, unresolved payment outcomes and completed receipts. An incomplete subtotal is not a zero total. These records cover this workspace, not total business liability or an approved refund balance.';
     result.citations=[...new Set(['amount-OPEN','amount-PAYMENT','amount-COMPLETED',...result.citations.filter(id=>id.startsWith('amount-'))])].slice(0,6);
   }
+  const selectedTool=snapshot.selected&&['get_case_brief','get_evidence_gaps','get_source_requirements'].includes(result.tool);
+  if(selectedTool){
+    result.answer=selectedCaseAnswer(result.tool,snapshot.selected.facts,snapshot.selected);
+    const gapCitations=snapshot.evidence.filter(e=>e.id.startsWith('gap-')).map(e=>e.id);
+    const sourceCitations=snapshot.evidence.filter(e=>e.id.startsWith('source-')).map(e=>e.id);
+    result.citations=result.tool==='get_case_brief'?['case-facts','case-review']:result.tool==='get_evidence_gaps'?['case-review',...(gapCitations.length?gapCitations:['case-review'])]:(result.citations.some(id=>id.startsWith('source-'))?result.citations.filter(id=>id.startsWith('source-')):sourceCitations).slice(0,6);
+    result.citations=result.citations.filter(id=>snapshot.evidence.some(e=>e.id===id)).slice(0,6);
+    if(!result.citations.length)result.citations=['case-review'];
+  }
   const lockedCase=snapshot.selected&&['COMPLETED','RESERVED','UNKNOWN','PENDING','FAILED','CANCELLED'].includes(snapshot.selected.statusCode)&&['get_case_brief','get_case_changes','get_evidence_gaps'].includes(result.tool);
   if(lockedCase){
     result.answer=snapshot.selected.statusCode==='COMPLETED'?'This claim is complete. Its recorded receipt is the result; no further evidence review or refund action is available.':'This claim already has a recorded payment attempt. Use its status and recovery controls to reconcile that attempt. A new evidence review or replacement refund is not available here.';
     result.citations=['case-state','case-review'];
   }
-  if(snapshot.selected&&unsafeAnswer(result.answer,snapshot.selected.facts)){
+  if(snapshot.selected&&!selectedTool&&unsafeAnswer(result.answer,snapshot.selected.facts)){
     result.answer=factText(snapshot.selected.facts);
     result.citations=[...new Set(['case-facts',...result.citations])].slice(0,6);
   }
   const citations=result.citations.map(id=>snapshot.evidence.find(e=>e.id===id));
   const recordedFacts=snapshot.selected?`\n\n${factText(snapshot.selected.facts)}`:'';
-  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${lockedCase?'Recorded case boundary':result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':result.tool==='get_financial_summary'?'Recorded financial summary':'AI explanation · check the cited records'}\n${result.answer.trim()}${recordedFacts}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
+  const nextActions=snapshot.selected?safeNextActions(snapshot.selected.facts,snapshot.selected):[];
+  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,nextActions,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${lockedCase?'Recorded case boundary':result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':result.tool==='get_financial_summary'?'Recorded financial summary':selectedTool?'Recorded case summary':'AI explanation · check the cited records'}\n${result.answer.trim()}${recordedFacts}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
 }

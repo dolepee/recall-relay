@@ -22,7 +22,7 @@ async function freePort() {
   });
 }
 
-async function waitForServer(url, timeout = 30000) {
+async function waitForServer(url, timeout = 30000, readLogs = () => '') {
   const deadline = Date.now() + timeout;
   let last;
   while (Date.now() < deadline) {
@@ -32,7 +32,7 @@ async function waitForServer(url, timeout = 30000) {
     } catch (error) { last = error; }
     await new Promise(resolve => setTimeout(resolve, 250));
   }
-  throw new Error(`wrangler dev did not start: ${last?.message || 'timeout'}`);
+  throw new Error(`wrangler dev did not start: ${last?.message || 'timeout'}\n${readLogs()}`);
 }
 
 // Real workerd through the local wrangler runtime: the actual PracticeCase
@@ -65,7 +65,7 @@ test('a real PracticeCase alarm expires the object and the same instance recover
   child.stderr.on('data', chunk => { logs += chunk; });
   try {
     const token = 't'.repeat(43), id = practiceObjectName(token);
-    const open = await waitForServer(`${origin}/?id=${id}&token=${token}&fresh=1`);
+    const open = await waitForServer(`${origin}/?id=${id}&token=${token}&fresh=1`, 30000, () => logs);
     assert.equal(open.status, 200);
     const opened = await open.json();
     assert.equal(opened.status, 200, logs);
@@ -80,7 +80,16 @@ test('a real PracticeCase alarm expires the object and the same instance recover
     assert.doesNotMatch(String(result.value.error), /no such table/i);
   } finally {
     try { process.kill(-child.pid, 'SIGTERM'); } catch { try { child.kill('SIGTERM'); } catch {} }
-    await new Promise(resolve => child.once('exit', resolve));
+    // The child may already have exited before this cleanup starts. Waiting for
+    // a second exit event would hang the test and hide the real startup error.
+    await new Promise(resolve => {
+      if (child.exitCode !== null || child.signalCode !== null) return resolve();
+      const timer = setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch {}
+        resolve();
+      }, 5000);
+      child.once('exit', () => { clearTimeout(timer); resolve(); });
+    });
     await rm(dir, {recursive: true, force: true});
   }
 });

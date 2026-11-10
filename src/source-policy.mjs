@@ -145,9 +145,27 @@ export function sourceCoverage(source,fields,decisions=[]){
     const decision=decisions.find(d=>d.id===clause.id);
     const phaseIssue=profile.issues.find(i=>i.startsWith('Post-refund'));
     const issue=phaseIssue||((profile.conditional||profile.externalAction)?profile.issues[0]:null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
-    // An INFORMATION decision cannot waive a detected customer obligation.
-    const disposition=issue?'MANUAL':obligations.length?(missing.length?'UNRESOLVED':'FIELD'):linked.length?'MANUAL':decision?.disposition||'UNRESOLVED';
-    return {...clause,fieldIds:linked.map(f=>f.id),obligations,missingKinds:missing,issue,disposition,reason:issue||(obligations.length?(missing.length?`Missing response: ${missing.join(', ')}.`:''):linked.length?'Selected field does not establish a supported customer response.':decision?.reason||'')};
+    // A merchant's explicit MANUAL decision dominates any derived FIELD result.
+    // It is a veto, not a note attached to an executable obligation. INFORMATION
+    // is never allowed to waive a detected, still-missing customer response.
+    let disposition,reason;
+    if(decision?.disposition==='MANUAL'){
+      disposition='MANUAL';reason=decision.reason;
+    }else if(issue){
+      disposition='MANUAL';reason=issue;
+    }else if(obligations.length){
+      if(missing.length){
+        disposition='UNRESOLVED';
+        reason=`Missing response: ${missing.join(', ')}.${decision?.disposition==='INFORMATION'?' Information cannot waive a required customer response.':''}`;
+      }else{
+        disposition='FIELD';reason='';
+      }
+    }else if(linked.length){
+      disposition='MANUAL';reason='Selected field does not establish a supported customer response.';
+    }else{
+      disposition=decision?.disposition||'UNRESOLVED';reason=decision?.reason||'';
+    }
+    return {...clause,fieldIds:linked.map(f=>f.id),obligations,missingKinds:missing,issue,disposition,reason};
   });
 }
 export function assertExecutableSource(source,fields,decisions=[]){

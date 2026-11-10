@@ -150,7 +150,7 @@ test('a later implicit imperative after a business narrative does not inherit it
 });
 
 test('business nouns in a customer instruction are not positive business subjects',async()=>{
-  for(const instruction of ['Contact the manufacturer and provide your order number.','Speak to the retailer and provide your order number.']){
+  for(const instruction of ['Contact the manufacturer and provide your order number.','Speak to the retailer and provide your order number.','Contact the manufacturer and send your confirmation.']){
     const {desk,ws}=fixture(['Upload a photograph of the item.',instruction],[['PHOTO'],[]]);
     try{
       let row=await ws.suggest((await ws.import('TEST')).id,1);
@@ -293,7 +293,7 @@ test('a confirmation received by the manufacturer remains a manual handoff',asyn
 });
 
 test('known incoming confirmation notifications stay informational',async()=>{
-  for(const quote of ['Your confirmation has been sent by the manufacturer.','Your confirmation will be issued by the manufacturer.','Your confirmation will be sent to you.','You will receive a confirmation.']){
+  for(const quote of ['Your confirmation has been sent by the manufacturer.','Your confirmation will be issued by the manufacturer.','Your confirmation will be sent to you.','You will receive a confirmation.','The manufacturer will also send a confirmation.']){
     const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],[]]);
     try{
       let row=await ws.suggest((await ws.import('TEST')).id,1);

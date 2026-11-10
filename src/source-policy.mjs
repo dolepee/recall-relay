@@ -335,11 +335,18 @@ function nominalConfirmationObligation(quote){
     return NOMINAL_CONFIRMATION_OBLIGATION.test(after);
   });
 }
+function positiveBusinessSender(part){
+  return [...part.matchAll(/\b(?:send|sent|provide|provided|issue|issued|email|emailed)\b/gi)].some(match=>{
+    const clause=part.slice(0,match.index).split(/[;,:—–]|\b(?:and|then|but)\b/i).at(-1).trim();
+    return positiveBusinessPrefix(clause);
+  });
+}
 function knownNominalNotification(part){
   const business='(?:manufacturer|retailer|merchant|company|firm|brand|we|it)';
   const verb='(?:send|sent|provide|provided|issue|issued|email|emailed)';
-  // A positively named business sender.
-  if(new RegExp(`\\b(?:the\\s+)?${business}\\b[^.!?]{0,60}\\b${verb}\\b`,'i').test(part))return true;
+  // Require a positive business subject before the notification verb, not a
+  // business noun that happens to appear earlier as an object or recipient.
+  if(positiveBusinessSender(part))return true;
   // A passive notification explicitly attributed to a business sender.
   if(new RegExp(`\\b(?:has|have|was|were|will be|is being)\\s+(?:been\\s+)?${verb}\\b[^.!?]{0,40}\\bby\\s+(?:the\\s+)?${business}\\b`,'i').test(part))return true;
   // A positively named customer recipient.
@@ -348,7 +355,9 @@ function knownNominalNotification(part){
   return false;
 }
 function nominalConfirmationFallback(quote){
-  return quote.split(/[;,]|\b(?:but|and|then|also)\b/i).some(part=>{
+  // "also" remains an adverb before the first business action; the positive
+  // sender predicate handles that case without splitting the notification.
+  return quote.split(/[;,]|\b(?:but|and|then)\b/i).some(part=>{
     const noun=NOMINAL_CONFIRMATION_NOUN.exec(part);
     if(!noun)return false;
     const before=part.slice(0,noun.index),after=part.slice(noun.index+noun[0].length);

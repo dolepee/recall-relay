@@ -253,6 +253,7 @@ test('incoming notifications are informational, not customer evidence handoffs',
   'You will receive a confirmation by email.',
   'The manufacturer will send a confirmation by email.',
   'You will receive an email confirmation via the portal.',
+  'You will be sent a confirmation by email.',
  ]){
   const source={remedies:[photo,receive]};
   const decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'The confirmation is a business notification, not a customer response.'}];
@@ -265,6 +266,8 @@ test('incoming notifications are informational, not customer evidence handoffs',
   'Evidence must be submitted by email.',
   'Evidence should be sent by email.',
   'Evidence must be uploaded by email.',
+  'Evidence must be sent by email.',
+  'Documents are required to be sent by email.',
   'Evidence is required to be submitted by email.',
  ]){
   const profile=sourceInstructionProfile(quote);

@@ -263,6 +263,8 @@ function customerOutgoingDestination(quote){
       const subject=(before.match(/\b(?:you|consumers?|customers?|manufacturer|retailer|company|firm|brand|we|it)\b/gi)||[]).at(-1)?.toLowerCase();
       if(subject&&/^(?:manufacturer|retailer|company|firm|brand|we|it)$/.test(subject))continue;
       const passive=/\b(?:(?:must|should|shall|are|is|will|can)\s+be|(?:is|are|was|were|will\s+be|can\s+be)\s+required\s+to\s+be|required\s+to\s+be)\s*$/i.test(before);
+      const passiveIncoming=word==='sent'&&((/^\s*(?:you|consumers?|customers?)\b/i.test(before)&&/\b(?:will|shall|must|should|are|is)\s+be\s*$/i.test(before)&&/^\s+(?:a|an|the|your)?\s*(?:confirmation|receipt|invoice|notice|message|label)s?\b/i.test(after))||/^\s*(?:a|an|the|your)\s+(?:confirmation|receipt|invoice|notice|message|label)s?\b/i.test(before.trim()));
+      if(passiveIncoming)continue;
       const imperative=/^\s*(?:please\s+)?(?:send|submit|upload|provide|e-?mail)\b/i.test(clause);
       if(!subject&&!passive&&!imperative)continue;
       if(/\b(?:by|via|through|using)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(after)||/\bto\s+[^\s@]+@[^\s@]+/i.test(after)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(after))return true;

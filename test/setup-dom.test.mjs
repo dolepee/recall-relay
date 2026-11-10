@@ -261,7 +261,7 @@ test('a linked field reads as a linked response, not an unresolved extra step',a
  assert.match(document.body.textContent,/The linked response is the customer step/);
  const linked=treatment;
  await act(async()=>{linked.value='MANUAL';linked.dispatchEvent(new Event('change',{bubbles:true}));});
- assert.match(document.body.textContent,/Publication stays blocked until this is resolved or explicitly accepted as manual with a reason/);
+ assert.match(document.body.textContent,/Manual handling blocks connected publication, even after you save a reason\. Resolve this requirement before publishing\./);
  assert.equal([...document.querySelectorAll('label')].some(l=>l.textContent.startsWith('Reason')),true,'manual treatment requires a reason');
  await act(async()=>root.unmount());
 });

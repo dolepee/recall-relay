@@ -122,7 +122,7 @@ export function SourceSetup(){
               <label className="mt-3 block text-sm">Treatment<select className={inputClass} value={chosen} onChange={e=>{setConfirmed(false);setPublishConfirmed(false);setDecisions(old=>{const next={...old};if(!e.target.value)delete next[c.id];else next[c.id]={id:c.id,reason:old[c.id]?.reason||'',disposition:e.target.value};return next;})}}><option value="">{blankLabel}</option><option value="INFORMATION">Information only</option><option value="MANUAL">Manual — blocks publication</option></select></label>
               {c.disposition==='FIELD'&&!chosen&&<p className="mt-2 text-sm leading-6 text-slate-600">The linked response is the customer step. No extra treatment is required.</p>}
               {c.disposition==='INFORMATION'&&!chosen&&<p className="mt-2 text-sm leading-6 text-slate-600">Information only; no customer response is collected for this sentence.</p>}
-              {c.disposition==='MANUAL'&&<p className="rr-warning mt-2 text-sm leading-6">Publication stays blocked until this is resolved or explicitly accepted as manual with a reason.</p>}
+              {c.disposition==='MANUAL'&&<p className="rr-warning mt-2 text-sm leading-6">Manual handling blocks connected publication, even after you save a reason. Resolve this requirement before publishing.</p>}
               {chosen&&<label className="mt-3 block text-sm">Reason<textarea className={inputClass} maxLength={600} value={decisions[c.id]?.reason||''} onChange={e=>{setConfirmed(false);setPublishConfirmed(false);setDecisions(old=>({...old,[c.id]:{id:c.id,disposition:old[c.id]?.disposition||'',reason:e.target.value}}));}}/></label>}
             </div>;
           })}

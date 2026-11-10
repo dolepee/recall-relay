@@ -12,8 +12,8 @@ const amount=n=>n===null?'Unknown':money(n);
 const label=s=>s.toLowerCase().replaceAll('_',' ');
 export function ReconciliationSummary(){const {result}=useContext(ReconciliationContext);return <section className="h-full overflow-auto p-4" aria-label="Reconciliation amounts"><h3 className="font-semibold">Scope and amounts</h3><p className="mt-3">{result.summary.affected} in declared recall scope · {result.summary.excluded} outside · {result.summary.unknown} unknown</p><p className="mt-3 text-sm font-semibold">Declared planning subtotal (USD)</p><p className="text-xl font-semibold">{money(result.summary.declaredAffectedCents)}</p><p className="text-sm text-slate-600">From declared affected item balances, including planning assumptions. Blocked rows are excluded. Not a verified refundable balance. {result.summary.unknownAffectedAmounts} affected amounts unknown.</p><p className="mt-3 text-sm">Refundable amount: <strong>Not established</strong> — this plan has not checked a PayPal balance.</p><p className="mt-3 text-sm">{result.summary.linked} {result.synthetic?'fictional claims linked. No provider is connected.':'existing claims linked. Reconciliation does not approve or refund.'}</p></section>;}
 export function ReconciliationDetail(){
- const [handoffState,setHandoff]=useState(null);const handoffHeading=useRef(null);
- const {result,selected,openClaim,openBinding,correct,busy,detailHeading}=useContext(ReconciliationContext);const row=selected==='__none__'?null:result.lines.find(r=>r.rowKey===selected)||result.lines[0];
+ const handoffHeading=useRef(null);
+ const context=useContext(ReconciliationContext);const {result,selected,openClaim,openBinding,correct,busy,detailHeading}=context;const [localHandoff,setLocalHandoff]=useState(null);const handoffState=context.handoff!==undefined?context.handoff:localHandoff;const setHandoff=context.setHandoff??setLocalHandoff;const row=selected==='__none__'?null:result.lines.find(r=>r.rowKey===selected)||result.lines[0];
  const handoff=handoffState?.planId===result.id&&handoffState?.rowKey===row?.rowKey?handoffState:null;
  useEffect(()=>{if(handoff)handoffHeading.current?.focus();},[handoff]);
  if(!row)return <section className="h-full overflow-auto p-4" aria-label="Selected purchase line"><h3 ref={detailHeading} tabIndex={-1} className="font-semibold">No purchase in this view</h3><p className="mt-2 text-sm">Choose another next-action view to inspect a purchase.</p></section>;
@@ -26,7 +26,7 @@ export function ReconciliationDetail(){
  </section>;
 }
 export function ReconciliationList(){
- const {result,selected,select}=useContext(ReconciliationContext);const [filter,setFilter]=useState('ALL');
+ const context=useContext(ReconciliationContext);const {result,selected,select}=context;const [localFilter,setLocalFilter]=useState('ALL');const filter=context.filter??localFilter;const setFilter=context.setFilter??setLocalFilter;
  const matches=(row,key)=>key==='ALL'||(key==='EXCLUDED'?row.scope==='EXCLUDED':row.scope!=='EXCLUDED'&&row.readiness===key);
  const filters=[['ALL','All purchases'],['NEEDS_EVIDENCE','Needs evidence'],['NEEDS_BINDING','Needs purchase binding'],['LINKED_CLAIM','Linked claims'],['BLOCKED','Blocked for manual review'],['EXCLUDED','Outside recall scope']];
  const rows=result.lines.filter(r=>matches(r,filter));

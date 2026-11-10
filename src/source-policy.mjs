@@ -108,8 +108,10 @@ function photoTextOutside(segment){
   for(const part of parts.slice(1)){
     const clean=part.trim().replace(/^(?:and|plus)\s+/i,'');
     if(!clean)continue;
-    if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(clean))continue;
+    // A later hard-separated object with a written value head is a new
+    // obligation even if that value is also described as printed on a label.
     if(/^(?:(?:your|the|a|an|its|their)\s+)?(?:order|serial|lot|name|address|number|code|postal|phone|receipt|invoice|barcode)\b/i.test(clean))return true;
+    if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(clean))continue;
   }
   const tail=parts.at(-1);
   if(/\b(?:showing|displaying|marked\s+with|printed\s+with|with|bearing|(?:printed|written|shown|displayed|visible|marked)\s+(?:on|in))\b/i.test(tail))return false;
@@ -339,12 +341,13 @@ function nominalConfirmationFallback(quote){
     if(!noun)return false;
     const before=part.slice(0,noun.index),after=part.slice(noun.index+noun[0].length);
     if(/^\s*e-?mail\b/i.test(after))return false;
-    if(!/\b(?:your|you|consumers?|customers?)\b/i.test(part))return false;
     if(/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?$/i.test(before))return false;
     if(/^\s*(?:(?:will|shall|must|is|are)\s+)?not\s+(?:be\s+)?(?:required|requested|needed|necessary|mandatory)\b/i.test(after))return false;
     if(/\b(?:optional|not\s+(?:required|necessary|mandatory))\b/i.test(after))return false;
     if(/\b(?:will|may|should|can)\s+(?:be sent|receive|be given)\b[^.!?]{0,50}\b(?:confirmation|attestation|certification|declaration)\b/i.test(part))return false;
     if(/\b(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand)\b[^.!?]{0,60}\b(?:send|sent|provide|provides|issue|issues)\b/i.test(part))return false;
+    if(/\b(?:has|have|was|were|will be|is being)\s+(?:sent|provided|issued|emailed)\b/i.test(after))return false;
+    if(/\bby\s+(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand)\b/i.test(part))return false;
     return true;
   });
 }

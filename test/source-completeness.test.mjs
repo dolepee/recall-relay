@@ -260,6 +260,7 @@ test('a pictured modifier does not cross any hard clause boundary',async()=>{
     'Include a photograph of the label showing the serial number; your order number.',
     'Include a photograph of the label showing the serial number; your name and address.',
     'Include a photograph of the label showing the serial number; your name; your order number.',
+    'Include a photograph of the label showing the serial number; your order number printed on the label.',
   ]){
     const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['PHOTO']]);
     try{
@@ -328,17 +329,18 @@ test('a compound photo-object name is never a TEXT request',async()=>{
   }
 });
 
-test('an unknown positive customer nominal is retained as manual, not waived',async()=>{
-  const quote='Your disposal attestation is essential.';
-  assert.deepEqual(sourceInstructionProfile(quote).kinds,['CONFIRMATION']);
-  const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['CONFIRMATION']]);
-  try{
-    let row=await ws.suggest((await ws.import('TEST')).id,1);
-    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION']);
-    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive an unknown positive nominal.'}]);
-    assert.equal(row.review.coverage[1].disposition,'MANUAL');
-    assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i);
-  }finally{desk.close();}
+test('unknown non-waived nominals remain manual without a pronoun',async()=>{
+  for(const quote of ['Disposal attestation is essential.','Your disposal attestation is essential.']){
+    assert.deepEqual(sourceInstructionProfile(quote).kinds,['CONFIRMATION'],quote);
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['CONFIRMATION']]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','CONFIRMATION'],quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Attempt to waive an unknown positive nominal.'}]);
+      assert.equal(row.review.coverage[1].disposition,'MANUAL',quote);
+      assert.throws(()=>activate(ws,row,desk),/manual|missing|unresolved/i,quote);
+    }finally{desk.close();}
+  }
 });
 
 test('a parsed text request does not gain an extra confirmation kind',()=>{

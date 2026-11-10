@@ -335,6 +335,18 @@ function nominalConfirmationObligation(quote){
     return NOMINAL_CONFIRMATION_OBLIGATION.test(after);
   });
 }
+function knownNominalNotification(part){
+  const business='(?:manufacturer|retailer|merchant|company|firm|brand|we|it)';
+  const verb='(?:send|sent|provide|provided|issue|issued|email|emailed)';
+  // A positively named business sender.
+  if(new RegExp(`\\b(?:the\\s+)?${business}\\b[^.!?]{0,60}\\b${verb}\\b`,'i').test(part))return true;
+  // A passive notification explicitly attributed to a business sender.
+  if(new RegExp(`\\b(?:has|have|was|were|will be|is being)\\s+(?:been\\s+)?${verb}\\b[^.!?]{0,40}\\bby\\s+(?:the\\s+)?${business}\\b`,'i').test(part))return true;
+  // A positively named customer recipient.
+  if(/\b(?:you|consumers?|customers?)\b[^.!?]{0,50}\b(?:will|may|should|can|are|is)\s+(?:be sent|receive|be given|get)\b[^.!?]{0,50}\b(?:confirmation|attestation|certification|declaration)\b/i.test(part))return true;
+  if(/\b(?:confirmation|attestation|certification|declaration)\b[^.!?]{0,50}\b(?:will|shall|may|should|can|is|are)\s+(?:be\s+)?(?:sent|provided|issued|emailed|given)\s+(?:to|for)\s+you\b/i.test(part))return true;
+  return false;
+}
 function nominalConfirmationFallback(quote){
   return quote.split(/[;,]|\b(?:but|and|then|also)\b/i).some(part=>{
     const noun=NOMINAL_CONFIRMATION_NOUN.exec(part);
@@ -344,10 +356,7 @@ function nominalConfirmationFallback(quote){
     if(/\b(?:no|not)\s+(?:a\s+|an\s+|the\s+)?$/i.test(before))return false;
     if(/^\s*(?:(?:will|shall|must|is|are)\s+)?not\s+(?:be\s+)?(?:required|requested|needed|necessary|mandatory)\b/i.test(after))return false;
     if(/\b(?:optional|not\s+(?:required|necessary|mandatory))\b/i.test(after))return false;
-    if(/\b(?:will|may|should|can)\s+(?:be sent|receive|be given)\b[^.!?]{0,50}\b(?:confirmation|attestation|certification|declaration)\b/i.test(part))return false;
-    if(/\b(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand)\b[^.!?]{0,60}\b(?:send|sent|provide|provides|issue|issues)\b/i.test(part))return false;
-    if(/\b(?:has|have|was|were|will be|is being)\s+(?:sent|provided|issued|emailed)\b/i.test(after))return false;
-    if(/\bby\s+(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand)\b/i.test(part))return false;
+    if(knownNominalNotification(part))return false;
     return true;
   });
 }

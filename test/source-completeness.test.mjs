@@ -232,7 +232,7 @@ test('a waived nominal confirmation remains informational',async()=>{
 });
 
 test('nominal confirmation obligations survive tense changes and future waivers stay informational',async()=>{
-  for(const quote of ['Your disposal attestation will be required.','Your confirmation must be provided.','Your confirmation is mandatory.','Your confirmation will be needed.']){
+  for(const quote of ['Your disposal attestation will be required.','Your confirmation must be provided.','Your confirmation must be received by the manufacturer.','Your confirmation is mandatory.','Your confirmation will be needed.','Your confirmation will be sent.','Your confirmation has been sent.']){
     const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],['CONFIRMATION']]);
     try{
       let row=await ws.suggest((await ws.import('TEST')).id,1);
@@ -249,6 +249,20 @@ test('nominal confirmation obligations survive tense changes and future waivers 
       assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],quote);
       assert.deepEqual(sourceInstructionProfile(quote).kinds,[],quote);
       row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'The source explicitly waives confirmation in the future.'}]);
+      assert.equal(row.review.coverage[1].disposition,'INFORMATION',quote);
+      assert.ok(activate(ws,row,desk).publishedCampaign,quote);
+    }finally{desk.close();}
+  }
+});
+
+test('known incoming confirmation notifications stay informational',async()=>{
+  for(const quote of ['Your confirmation has been sent by the manufacturer.','Your confirmation will be issued by the manufacturer.','Your confirmation will be sent to you.','You will receive a confirmation.']){
+    const {desk,ws}=fixture(['Upload a photograph of the item.',quote],[['PHOTO'],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],quote);
+      assert.deepEqual(sourceInstructionProfile(quote).kinds,[],quote);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Known incoming notification; no customer response requested.'}]);
       assert.equal(row.review.coverage[1].disposition,'INFORMATION',quote);
       assert.ok(activate(ws,row,desk).publishedCampaign,quote);
     }finally{desk.close();}

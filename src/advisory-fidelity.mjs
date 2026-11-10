@@ -30,8 +30,9 @@ export function advisoryFidelityIssue(quote,value){
  const negativeOutcome=/\b(?:decline|declined|declining|deny|denied|denying|refuse|refused|refusing|reject|rejected|rejecting|withhold|withheld|withholding|cancel|cancelled|canceled|cancelling|canceling|stop|stopped|stopping|delay|delayed|delaying|ignore|ignored|ignoring)\b/i;
  if(positiveOutcome.test(q)&&negativeOutcome.test(e))return 'The explanation reverses a supported outcome.';
  if(negativeOutcome.test(q)&&positiveOutcome.test(e))return 'The explanation reverses a supported outcome.';
+ if(/\bfrom\s+(?:the\s+)?(?:consumer|customers?|you)\b/i.test(e)&&!/\bfrom\s+(?:the\s+)?(?:consumer|customers?|you)\b/i.test(q))return 'The explanation reverses the customer/provider direction.';
  const identifiers=['serial number','order number','lot code','model number','batch number','item number','product number','receipt number','claim number','tracking number'];
- for(const term of identifiers)if(new RegExp('\b'+term.replace(/ /g,'\\s+')+'\b','i').test(e)&&!new RegExp('\b'+term.replace(/ /g,'\\s+')+'\b','i').test(q))return 'The explanation introduced an identifier not present in the source.';
+ for(const term of identifiers)if(new RegExp('\\b'+term.replace(/ /g,'\\s+')+'\\b','i').test(e)&&!new RegExp('\\b'+term.replace(/ /g,'\\s+')+'\\b','i').test(q))return 'The explanation introduced an identifier not present in the source.';
  for(const [sourceTerm,expected] of [['serial number','serial'],['order number','order'],['lot code','lot'],['model number','model'],['unreadable','unreadable']]){
   if(new RegExp('\\b'+sourceTerm.replace(/ /g,'\\s+')+'\\b','i').test(q)&&!new RegExp('\\b'+expected+'\\b','i').test(e))return 'A required source identifier or condition was changed.';
  }

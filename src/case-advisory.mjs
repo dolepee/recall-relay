@@ -33,6 +33,16 @@ function auditRead(desk,input,section){
   db.prepare('INSERT INTO advisory_reads VALUES (?,?,?)').run(now,input.caseId,section);
 }
 export function caseContext(desk,input){inputCheck(input,true);const context=snapshot(desk,input);auditRead(desk,input,input.section);return context;}
+// The model may choose the structural fields, but the displayed explanation is
+// rendered by the server from those fields and the exact source. Free-form model
+// prose is never presented as an interpretation, so an unseen inversion cannot
+// become a customer-facing claim.
+const actorLabel={CUSTOMER:'Customer',MERCHANT:'Merchant',MANUFACTURER:'Manufacturer',PROVIDER:'Payment provider',UNKNOWN:'Actor not established'};
+const timingLabel={BEFORE_ACTION:'before the action',AFTER_ACTION:'after the action',AT_SUBMISSION:'at submission',CONDITIONAL:'conditional',UNSPECIFIED:'timing not specified'};
+function structuredExplanation(value,source){
+ const condition=value.condition?`; condition: “${value.condition}”`:'';
+ return `${actorLabel[value.actor]}; ${timingLabel[value.timing]}${condition}. Bounded source classification; read the complete quotation.`;
+}
 export function validateAdvisory(raw,context){
   const invalid=()=>fail('INVALID_ADVISORY','The model did not return a complete cited interpretation. Review the source directly.');
   let value;try{if(typeof raw!=='string'||raw.length>18000)return invalid();value=JSON.parse(raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,''));}catch{return invalid();}
@@ -53,7 +63,7 @@ export function validateAdvisory(raw,context){
     if(/\b(?:do not|must not|never)\b/.test(q)&&!/\b(?:not|never|prohibit)\b/.test(e))return abstain();
     if(/\b(?:should|may)\b/.test(q)&&!/\bmust\b/.test(q)&&/\b(?:must|required|mandatory)\b/.test(e))return abstain();
     if(/\bconfirm(?:ation)?\b/.test(q)&&!/\bverif/.test(q)&&/\bverif/.test(e))return abstain();
-    seen.add(c.citationId);return {...source,actor:c.actor,timing:c.timing,condition:c.condition,explanation:c.explanation.trim(),interpretationAvailable:true};
+    seen.add(c.citationId);return {...source,actor:c.actor,timing:c.timing,condition:c.condition,explanation:structuredExplanation(c,source),interpretationAvailable:true};
   });
   return clauses;
 }

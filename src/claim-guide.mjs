@@ -33,6 +33,10 @@ function selectedCaseAnswer(tool,f,context){
  if(tool==='get_source_requirements')return `The reviewed source has ${context.clauses.length} cited clauses. Read every complete quotation and its conditions; this guide cannot decide whether the claim meets them.`;
  return '';
 }
+function showViewAnswer(view){
+ const labels={ALL:'all',OPEN:'open',REVIEW:'review',READY:'ready for approval',WAITING:'waiting',MANUAL:'manual',PAYMENT:'payment',COMPLETED:'completed'};
+ return `Showing the ${labels[view]||view.toLowerCase()} queue. The view changed only; no evidence, approval or refund action was taken.`;
+}
 
 function unsafeAnswer(answer,f){
  const a=answer.toLowerCase();
@@ -97,17 +101,17 @@ export async function answerClaimQuestion(ai,desk,input){
     result.citations=result.citations.filter(id=>snapshot.evidence.some(e=>e.id===id)).slice(0,6);
     if(!result.citations.length)result.citations=['case-review'];
   }
+  if(result.tool==='show_claim_view'){
+    result.answer=showViewAnswer(result.view);
+    result.citations=['workspace'];
+  }
   const lockedCase=snapshot.selected&&['COMPLETED','RESERVED','UNKNOWN','PENDING','FAILED','CANCELLED'].includes(snapshot.selected.statusCode)&&['get_case_brief','get_case_changes','get_evidence_gaps'].includes(result.tool);
   if(lockedCase){
     result.answer=snapshot.selected.statusCode==='COMPLETED'?'This claim is complete. Its recorded receipt is the result; no further evidence review or refund action is available.':'This claim already has a recorded payment attempt. Use its status and recovery controls to reconcile that attempt. A new evidence review or replacement refund is not available here.';
     result.citations=['case-state','case-review'];
   }
-  if(snapshot.selected&&!selectedTool&&unsafeAnswer(result.answer,snapshot.selected.facts)){
-    result.answer=factText(snapshot.selected.facts);
-    result.citations=[...new Set(['case-facts',...result.citations])].slice(0,6);
-  }
   const citations=result.citations.map(id=>snapshot.evidence.find(e=>e.id===id));
   const recordedFacts=snapshot.selected?`\n\n${factText(snapshot.selected.facts)}`:'';
   const nextActions=snapshot.selected?safeNextActions(snapshot.selected.facts,snapshot.selected):[];
-  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,nextActions,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${lockedCase?'Recorded case boundary':result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':result.tool==='get_financial_summary'?'Recorded financial summary':selectedTool?'Recorded case summary':'AI explanation · check the cited records'}\n${result.answer.trim()}${recordedFacts}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
+  return {tool:result.tool,view:result.tool==='show_claim_view'?result.view:null,answer:result.answer.trim(),citations,selected:snapshot.selected,nextActions,readOnly:true,model:(ai.advisoryStatus?.()||ai.status()).model,message:`${snapshot.selected?`Claim ${snapshot.selected.order} · revision ${snapshot.selected.revision}`:'Workspace summary'}\n${lockedCase?'Recorded case boundary':result.tool==='UNSUPPORTED'?'Read-only boundary':result.tool==='get_case_changes'?'Recorded change limit':result.tool==='get_financial_summary'?'Recorded financial summary':result.tool==='show_claim_view'?'Read-only queue view':selectedTool?'Recorded case summary':'Read-only answer'}\n${result.answer.trim()}${recordedFacts}\n\n${citations.map(c=>`[${c.id}] ${c.text}`).join('\n\n')}\n\nNo photo inspection or payment authority.`};
 }

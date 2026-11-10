@@ -96,3 +96,16 @@ test('selected-case answers are server-owned and cannot repeat contradictory ref
  }
  db.close();
 });
+
+test('queue and financial tools also use server-owned answers, not model prose',async()=>{
+ const {desk,db}=make();
+ const view=await answerClaimQuestion({generate:async()=>output({tool:'show_claim_view',view:'COMPLETED',answer:'All refunds are complete.',citations:['workspace']}),status:()=>({model:'double'})},desk,{question:'Show completed claims'});
+ assert.equal(view.view,'COMPLETED');
+ assert.doesNotMatch(view.answer,/All refunds are complete/i);
+ assert.match(view.answer,/Showing the completed queue/);
+ const money=await answerClaimQuestion({generate:async()=>output({tool:'get_financial_summary',answer:'All refunds are approved.',citations:['amount-COMPLETED']}),status:()=>({model:'double'})},desk,{question:'How much awaits review?',caseId:'a',revision:3});
+ assert.doesNotMatch(money.answer,/All refunds are approved/i);
+ assert.match(money.answer,/incomplete subtotal is not a zero total/);
+ assert.equal(money.citations[0].id,'amount-OPEN');
+ db.close();
+});

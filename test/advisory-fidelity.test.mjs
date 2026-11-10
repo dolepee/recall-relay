@@ -31,3 +31,12 @@ test('inverted outcome verbs and extra identifiers are withheld while supported 
  assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the order number.'}).interpretationAvailable,false);
  assert.equal(run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the serial number.'}).interpretationAvailable,true);
 });
+
+test('accepted explanations are rendered from server-owned structure, not model prose',()=>{
+ const r=run('Provide the serial number.',{actor:'CUSTOMER',explanation:'Provide the serial number.'});
+ assert.equal(r.interpretationAvailable,true);
+ assert.match(r.explanation,/Customer; timing not specified/);
+ assert.doesNotMatch(r.explanation,/Provide the serial number/);
+ const direction=run('The manufacturer will issue a refund.',{actor:'MANUFACTURER',explanation:'The manufacturer will collect a refund from the consumer.'});
+ assert.equal(direction.interpretationAvailable,false);
+});

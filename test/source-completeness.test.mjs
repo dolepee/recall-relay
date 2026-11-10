@@ -100,7 +100,7 @@ test('a rejected proposal cannot leave coverage FIELD',async()=>{
 });
 
 test('ordinary informational narratives remain publishable beside a valid photo',async()=>{
-  for(const narrative of ['The manufacturer will send a confirmation email.','The manufacturer will also send a confirmation email.','Refunds take six weeks.','Refunds take 4-6 weeks.','The retailer will still send a receipt.','Payments take 4–6 weeks.']){
+  for(const narrative of ['The manufacturer will send a confirmation email.','The manufacturer will also send a confirmation email.','The manufacturer will promptly send a confirmation email.','The retailer will automatically send a receipt.','Refunds take six weeks.','Refunds take 4-6 weeks.','The retailer will still send a receipt.','Payments take 4–6 weeks.']){
     const quote='Upload a photograph of the item.';
     const {desk,ws}=fixture([quote,narrative],[[ 'PHOTO' ],[]]);
     try{

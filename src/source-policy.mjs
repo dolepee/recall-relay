@@ -165,6 +165,13 @@ function prohibitionObjectAllowed(part){
   const tokens=photoObjectTokens(part);
   return Boolean(tokens.length)&&tokens.every(token=>PHOTO_OBJECT_WORDS.has(token)||/^\d+$/.test(token));
 }
+const businessSubject=/^(?:the\s+)?(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\b/i;
+function positiveBusinessPrefix(value){
+  return businessSubject.test(value)
+    && /\b(?:will|shall|must|may|can|should|is|are|has|have)\b/i.test(value)
+    && !/[;,:—–]|\b(?:and|then|but)\b/i.test(value)
+    && !/\b(?:consumers?|customers?|you|please)\b/i.test(value);
+}
 
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'').replace(/^(?:(?:fill out|complete)\s+(?:an?|the)\s+(?:online\s+)?form\s+and\s+)/i,'');
@@ -214,10 +221,11 @@ function parseResponseGrammar(quote){
     // a new response segment.
     if(word==='photograph'&&(PHOTO_PREFIX_WORDS.has(before.toLowerCase())||/^\d+$/.test(before)))continue;
     const beforeText=text.slice(0,match.index),afterText=text.slice(match.index+match[0].length).trim();
-    // A business subject can carry adverbs and auxiliaries ("will also send").
-    // It remains a notification, not a customer action.
-    const businessActor=/\b(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\s+(?:(?:will|shall|must|may|can|should|is|are|has|have|also|then|still|now|currently|generally|typically|likely)\s+)*$/i;
-    if(businessActor.test(beforeText))continue;
+    // A positive business subject with no customer actor is a notification
+    // context. Do not enumerate adverbs; the subject and absence of a customer
+    // actor are the boundary. Notification verbs are skipped, while later
+    // customer instructions keep their own verb and remain parseable.
+    if(businessSubject.test(beforeText)&&!/\b(?:consumers?|customers?|you|please)\b/i.test(beforeText)&&/^(?:send|sent|provide|provides|issue|issues|email|e-mail)$/i.test(word))continue;
     // "Take six weeks" and "take 4-6 weeks" are timing narrative. A non-duration
     // "take the product to the store" remains a customer handoff and is manual.
     if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText)){
@@ -236,7 +244,7 @@ function parseResponseGrammar(quote){
     // A parser error is customer-facing unless the prefix is positively a known
     // business/no-action narrative. Absence of "you/consumer" is not evidence of
     // non-customer context: an unknown prefix is ambiguous and fails closed.
-    const knownBusiness=/\b(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\s+(?:(?:will|shall|must|may|can|should|is|are|has|have|also|then|still|now|currently|generally|typically|likely)\s+)*$/i.test(prefix);
+    const knownBusiness=positiveBusinessPrefix(prefix);
     // A business notification followed by an explicit customer instruction is
     // still a customer response. Strip the narrative lead and parse the later
     // instruction; a business notification alone remains non-customer.

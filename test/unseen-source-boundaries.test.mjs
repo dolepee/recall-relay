@@ -258,3 +258,90 @@ test('text and confirmation responses cannot smuggle a physical handoff after th
   assert.throws(()=>assertExecutableSource(source,fields),/manual|handoff|unsupported/i,quote);
  }
 });
+
+test('ambiguous provide and send choose their kind from the parsed object',()=>{
+ assert.deepEqual(sourceInstructionProfile('Provide the serial number.').kinds,['TEXT']);
+ assert.deepEqual(sourceInstructionProfile('Send the serial number.').kinds,['TEXT']);
+ assert.deepEqual(sourceInstructionProfile('Provide a photograph of the product label.').kinds,['PHOTO']);
+ assert.deepEqual(sourceInstructionProfile('Send a photograph of the product label.').kinds,['PHOTO']);
+});
+
+test('every known-positive text, confirmation and compound segment consumes unknown tokens',()=>{
+ const positives=[
+  ['Upload one photograph of the product label.','Upload one glorp photograph of the product label.','Upload one photograph of the product label wug.'],
+  ['Provide the serial number.','Provide the glorp serial number.','Provide the serial number wug.'],
+  ['Enter the lot code printed on the sample label.','Enter the glorp lot code printed on the sample label.','Enter the lot code printed on the sample label wug.'],
+  ['Confirm the product serial number.','Confirm the glorp product serial number.','Confirm the product serial number wug.'],
+  ['Confirm that this submission belongs to this claim.','Confirm that this glorp submission belongs to this claim.','Confirm that this submission belongs to this claim wug.'],
+  ['Attest that you disposed of it.','Attest that you glorp disposed of it.','Attest that you disposed of it wug.'],
+  ['Upload one photograph of the product label and confirm the product serial number.','Upload one photograph of the product label and confirm the glorp product serial number.','Upload one photograph of the product label and confirm the product serial number wug.'],
+  ['Upload one photograph of the product label; enter the serial number.','Upload one photograph of the product label; enter the glorp serial number.','Upload one photograph of the product label; enter the serial number wug.'],
+  ['Upload one photograph of the product label: enter the serial number.','Upload one photograph of the product label: enter the glorp serial number.','Upload one photograph of the product label: enter the serial number wug.'],
+  ['Upload one photograph of the product label — confirm the product serial number.','Upload one photograph of the product label — confirm the glorp product serial number.','Upload one photograph of the product label — confirm the product serial number wug.'],
+ ];
+ for(const [positive,unknownObject,unknownTail] of positives){
+  for(const quote of [unknownObject,unknownTail]){
+   const profile=sourceInstructionProfile(quote);
+   assert.ok(profile.issues.length>0,quote);
+   const kinds=profile.kinds;
+   const fields=[];
+   if(!kinds.includes('PHOTO'))fields.push({id:'base-photo',kind:'PHOTO',quote:'Upload one photograph of the product label.'});
+   for(const [i,kind] of kinds.entries())fields.push({id:`f${i}`,kind,quote});
+   assert.equal(sourceCoverage({remedies:[positive,quote]},fields)[1].disposition,'MANUAL',quote);
+   assert.throws(()=>assertExecutableSource({remedies:[positive,quote]},fields),/manual|unsupported|object/i,quote);
+  }
+ }
+});
+
+test('supported responses after colons and dashes publish as compound controls',()=>{
+ for(const [quote,kinds] of [
+  ['Upload one photograph of the product label: enter the serial number.',['PHOTO','TEXT']],
+  ['Upload one photograph of the product label — confirm the product serial number.',['PHOTO','CONFIRMATION']],
+ ]){
+  const fields=kinds.map((kind,i)=>({id:`p${i}`,kind,quote}));
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.doesNotThrow(()=>assertExecutableSource({remedies:[quote]},fields),quote);
+ }
+});
+
+test('the independent 28-case closed-grammar contract passes as a synthetic check',()=>{
+ const positive=[
+  ['PHOTO','Upload one photograph of the product label.'],
+  ['TEXT','Enter the lot code printed on the sample label.'],
+  ['TEXT','Provide the serial number.'],
+  ['TEXT','Send the serial number.'],
+  ['CONFIRMATION','Confirm that this submission belongs to this claim.'],
+  ['CONFIRMATION','Attest that you disposed of it.'],
+  ['PHOTO+TEXT','Upload one photograph of the label; enter the serial number.'],
+  ['PHOTO+CONFIRMATION','Upload one photograph of the label and confirm the lot code.'],
+  ['PHOTO','Upload one photograph of the shipping and return labels.'],
+  ['PHOTO','Upload one photograph of the product label and email receipt.'],
+ ];
+ const publishes=(quote,kinds)=>{
+  const remedies=[quote],fields=kinds.map((kind,i)=>({id:`f${i}`,kind,quote}));
+  if(!kinds.includes('PHOTO')){remedies.push('Upload one photograph of the product label.');fields.push({id:'p',kind:'PHOTO',quote:remedies.at(-1)});}
+  try{assertExecutableSource({remedies},fields);return true;}catch{return false;}
+ };
+ for(const [kinds,quote] of positive){
+  const split=kinds.split('+');
+  assert.deepEqual(sourceInstructionProfile(quote).issues,[],quote);
+  assert.equal(publishes(quote,split),true,quote);
+  const tail=quote.replace(/\.$/,'')+' and wug.';
+  assert.ok(sourceInstructionProfile(tail).issues.length>0,tail);
+  assert.equal(publishes(tail,split),false,tail);
+ }
+ for(const [kinds,quote] of [
+  ['TEXT','Enter the glorp lot code.'],
+  ['CONFIRMATION','Confirm glorp ownership.'],
+  ['PHOTO','Upload one glorp photo of the label.'],
+  ['PHOTO+TEXT','Upload one photograph of the label and enter the glorp lot code.'],
+  ['TEXT','Enter the lot code and surrender the item to the retailer.'],
+  ['CONFIRMATION','Confirm ownership and remit the item to the retailer.'],
+  ['TEXT','Provide the serial number to the retailer.'],
+  ['PHOTO','Submit a photograph to the manufacturer.'],
+ ]){
+  const split=kinds.split('+');
+  assert.ok(sourceInstructionProfile(quote).issues.length>0,quote);
+  assert.equal(publishes(quote,split),false,quote);
+ }
+});

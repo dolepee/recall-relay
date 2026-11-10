@@ -62,24 +62,66 @@ const textRequest=quote=>TEXT_CUE.test(quote.replace(/[^\s@<>]+@[^\s@<>]+/g,'des
 // connector/object token is consumed by the supported grammar. This is a bounded
 // parser, not a general semantic understanding of the notice.
 const PHOTO_VERBS=/^(?:upload|submit|send|e-?mail|take|provide|photograph)$/i;
-const TEXT_VERBS=/^(?:enter|provide|send|supply|state|describe|identify|list|include|write|tell)$/i;
+const TEXT_VERBS=/^(?:enter|provide|send|e-?mail|submit|supply|state|describe|identify|list|include|write|tell)$/i;
 const CONFIRM_VERBS=/^(?:confirm|attest|certify|verify|declare)$/i;
-const OBJECT_UNSUPPORTED=/\b(?:after|before|once|upon|obtain(?:s|ed|ing)?|deliver(?:s|ed|ing)?|using|via|through|contact(?:s|ed|ing)?|return(?:s|ed|ing)?|ship(?:s|ped|ping)?|mail(?:s|ed|ing)?|register(?:s|ed|ing)?|registration|e-?mail(?:s|ed|ing)?|visit(?:s|ed|ing)?|call(?:s|ed|ing)?|surrender(?:s|ed|ing)?|hand(?:s|ed|ing)?\s+(?:over|in|back)|turn(?:s|ed|ing)?\s+in|drop(?:s|ped|ping)?\s+off|take(?:s|n|ing)?\s+(?:it|them|the|your|this|that|these|those)\b|bring(?:s|ing)?|give(?:s|n|ing)?|dispose|discard(?:s|ed|ing)?|destroy(?:s|ed|ing)?|for\s+(?:orders?|purchases?|products?|items?)|placed|purchased|bought|ordered|replace(?:s|d|ment)?|authorization|authorisation)\b/i;
+const PHOTO_PREFIX_WORDS=new Set(`a an the this that these those your its their our one two both any each every all a single clear digital new original marked damaged destroyed recalled provided`.split(/\s+/));
 const ACTOR_PREFIX=/^(?:(?:consumers?|customers?|you)\s+(?:(?:(?:are|will be)\s+(?:asked|required)\s+to\s+)|(?:(?:need|have)\s+to\s+)|(?:(?:should|must|shall|may|can|will)\s+))?(?:immediately\s+)?|please\s+)/i;
 const FIRM_PREFIX=/^(?:the\s+)?(?:firm|manufacturer|retailer|company)\s+will\s+ask\s+(?:consumers?|customers?|you)\s+to\s+/i;
+const TEXT_OBJECT_WORDS=new Set(`a an the this that these those your my its their our one two both
+serial serials lot lots order orders purchase purchase's product products item items unit units device devices
+number numbers code codes identifier identifiers id ids sku skus batch batches model models tracking
+name names address addresses postcode postcodes postal zip zipcode e-mail email phone telephone contact
+date dates time times receipt receipts invoice invoices proof purchase purchases amount amounts price prices cost costs quantity quantities size sizes color colour model
+description descriptions detail details reason reasons damage damaged condition condition defect defects issue issue
+label labels sample samples packaging box boxes carton cartons container containers base bases
+original linked affected recalled new used opened sealed full
+printed writing written shown showing marked engraved stamped listed
+on in at of from for with to by and or
+must be legible
+submission claim claims ownership disposed disposal proper has have been was were is are you it they them
+belongs this that from linked
+first last home shipping billing work notice notices required step steps described mention mentions`.split(/\s+/));
+const CONFIRM_OBJECT_WORDS=new Set(`a an the this that these those your my its their our one two both
+submission claim claims ownership disposed disposal proper commitment product products item items unit units device devices
+serial serials lot lots order orders purchase purchases number numbers code codes identifier identifiers id ids
+has have been was were is are you it they them belongs from linked original affected recalled new used opened sealed
+of to in on at for with by and or the
+label labels sample samples packaging box boxes carton cartons container containers base bases
+provided showing printed written marked engraved stamped verified complete completed required step steps described notice notices mention mentions
+disposed disposed_of`.split(/\s+/));
 function responseVerb(word){return PHOTO_VERBS.test(word)||TEXT_VERBS.test(word)||CONFIRM_VERBS.test(word);}
-function responseKind(word){return PHOTO_VERBS.test(word)?'PHOTO':TEXT_VERBS.test(word)?'TEXT':'CONFIRMATION';}
+function responseKind(word,segment){
+  if(CONFIRM_VERBS.test(word))return 'CONFIRMATION';
+  if(/^(?:enter|supply|state|describe|identify|list|include|write|tell)$/i.test(word))return 'TEXT';
+  if(/^(?:upload|take|photograph)$/i.test(word))return 'PHOTO';
+  // provide/send/submit/e-mail are ambiguous until the parsed object is known.
+  return /(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b/i.test(segment)?'PHOTO':'TEXT';
+}
+function objectTokens(value){return photoObjectTokens(value);}
+function closedObjectIssue(kind,object){
+  const tokens=objectTokens(object);
+  if(!tokens.length)return kind==='TEXT'?'A written response needs a value or description. Keep this instruction manual.':'A confirmation response needs a statement to confirm. Keep this instruction manual.';
+  const allowed=kind==='TEXT'?TEXT_OBJECT_WORDS:CONFIRM_OBJECT_WORDS;
+  for(const token of tokens){
+    if(!allowed.has(token)&&!/^\d+$/.test(token))return 'The response contains an unsupported word in its object. Keep this instruction manual.';
+  }
+  return null;
+}
 function responseObjectIssue(kind,segment){
   if(kind==='PHOTO'){
     const match=/(?:^|\s)(?:photographs?|photos?|pictures?|images?)\b\s*(?:of|showing)?\s*([\s\S]*)$/i.exec(segment);
-    if(match)return photoObjectIssue(match[1]);
+    if(match){
+      const prefix=segment.slice(0,match.index);
+      for(const token of objectTokens(prefix)){
+        if(!PHOTO_PREFIX_WORDS.has(token)&&!/^\d+$/.test(token))return 'The photograph response contains an unsupported object modifier. Keep this instruction manual.';
+      }
+      return photoObjectIssue(match[1]);
+    }
     const verb=/^(?:photograph)\s+([\s\S]+)$/i.exec(segment.trim());
     return verb?photoObjectIssue(verb[1]):'A photograph response needs a supported object. Keep this instruction manual.';
   }
   const object=segment.trim().replace(/^[:\s]+/,'');
-  if(!object)return kind==='TEXT'?'A written response needs a value or description. Keep this instruction manual.':'A confirmation response needs a statement to confirm. Keep this instruction manual.';
-  if(OBJECT_UNSUPPORTED.test(object))return 'The response contains an unsupported action, timing or destination. Keep this instruction manual.';
-  return null;
+  return closedObjectIssue(kind,object);
 }
 function parseResponseGrammar(quote){
   let text=quote.trim().replace(FIRM_PREFIX,'').replace(ACTOR_PREFIX,'').replace(/^please\s+/i,'');
@@ -94,7 +136,7 @@ function parseResponseGrammar(quote){
     if(!responseVerb(word))continue;
     if(word==='photograph'&&/^(?:a|an|the|one|two|both|this|that|these|those)$/i.test(before))continue;
     if((word==='email'||word==='e-mail')&&/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(text.slice(match.index+match[0].length).trim()))continue;
-    verbs.push({...match,kind:responseKind(word)});
+    verbs.push({...match,word});
   }
   if(!verbs.length)return {issue:null,segments:[]};
   const prefix=text.slice(0,verbs[0].index).trim();
@@ -103,14 +145,11 @@ function parseResponseGrammar(quote){
   for(let i=0;i<verbs.length;i++){
     const start=verbs[i].index+verbs[i][0].length;
     const end=verbs[i+1]?.index??text.length;
-    let segment=text.slice(start,end).replace(/[\s,;:]*(?:(?:and|then|also)\s*)?$/i,'').trim();
-    if(i+1<verbs.length){
-      const between=text.slice(start,end).replace(/[\s,;:]*(?:(?:and|then|also)\s*)?$/i,'').trim();
-      segment=between;
-    }
-    const issue=responseObjectIssue(verbs[i].kind,segment);
+    const segment=text.slice(start,end).replace(/[\s,;:—–-]*(?:(?:and|then|also)\s*)?$/i,'').trim();
+    const kind=responseKind(verbs[i].word,segment);
+    const issue=responseObjectIssue(kind,segment);
     if(issue)return {issue,segments};
-    segments.push({kind:verbs[i].kind,text:segment});
+    segments.push({kind,text:segment});
   }
   return {issue:null,segments};
 }

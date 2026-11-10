@@ -21,5 +21,6 @@ test('an unavailable replacement does not negate an original-payment promise',()
   'Refunds to the original form of payment when a replacement is unavailable are not available.',
   'Refunds to the original form of payment, since a replacement is unavailable, are not available.',
   'Because a replacement is unavailable, refunds to the original form of payment are not available.',
+  'Refunds to the original form of payment because a replacement is unavailable.',
  ])assert.notEqual(classifyRemedyRoute([remedy],['Refund']),'ORIGINAL_PAYMENT_CANDIDATE',remedy);
 });

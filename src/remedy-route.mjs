@@ -12,7 +12,8 @@ export function classifyRemedyRoute(remedies,options){
  const pureCaveat=/^\b(?:because|since|due to|if|when|while|unless)\b\s+(?:an?\s+|the\s+)?(?:replacement|substitute|stock|inventory|supply|product|item)\b(?:\s+(?:is|are|was|were|be|been|being))?(?:\s+(?:currently|temporarily|still|presently|not|no longer)){0,3}\s+(?:available|unavailable|in stock|out of stock)\s*[.!?]?$/i;
  const caveatAssessment=s=>{
   const text=String(s),matches=[...text.matchAll(/\b(?:because|since|due to|if|when|while|unless)\b/gi)];
-  const trailing=matches.length===1&&matches[0].index>0&&pureCaveat.test(text.slice(matches[0].index));
+  const positivePayment=/\b(?:will|shall|must|can|may|are|is|was|were)\b[^.!?]{0,60}\b(?:refund(?:ed|s)?|reimburs(?:e|ed|es|ement)?|return(?:ed|s)?|issue[ds]?|pa(?:y|id|ys)?|provid(?:e|ed|es)?|credit(?:ed|s)?|available)\b/i;
+  const trailing=matches.length===1&&matches[0].index>0&&positivePayment.test(text.slice(0,matches[0].index))&&pureCaveat.test(text.slice(matches[0].index));
   return {ambiguous:matches.length>0&&!trailing,negated:denial.test(trailing?text.slice(0,matches[0].index):text)};
  };
  const assessed=mentions.map(s=>({s,...caveatAssessment(s)}));

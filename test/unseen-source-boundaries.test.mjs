@@ -246,19 +246,25 @@ test('a purchase cutoff survives a no-response sentence and an INFORMATION decis
  assert.throws(()=>assertExecutableSource(source,fields,decisions),/manual|eligibility|cutoff/i);
 });
 
-test('a business notification by email is informational, not an evidence handoff',()=>{
+test('incoming notifications are informational, not customer evidence handoffs',()=>{
  const photo='Upload one photograph of the product label.';
- const receive='You will receive a confirmation by email.';
- const source={remedies:[photo,receive]};
  const fields=[field(photo)];
- const decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'The confirmation is a business notification, not a customer response.'}];
- const profile=sourceInstructionProfile(receive);
- assert.equal(profile.externalAction,false,receive);
- assert.equal(sourceCoverage(source,fields,decisions)[1].disposition,'INFORMATION',receive);
- assert.doesNotThrow(()=>assertExecutableSource(source,fields,decisions),receive);
+ for(const receive of [
+  'You will receive a confirmation by email.',
+  'The manufacturer will send a confirmation by email.',
+  'You will receive an email confirmation via the portal.',
+ ]){
+  const source={remedies:[photo,receive]};
+  const decisions=[{id:'clause-1-0',disposition:'INFORMATION',reason:'The confirmation is a business notification, not a customer response.'}];
+  const profile=sourceInstructionProfile(receive);
+  assert.equal(profile.externalAction,false,receive);
+  assert.equal(sourceCoverage(source,fields,decisions)[1].disposition,'INFORMATION',receive);
+  assert.doesNotThrow(()=>assertExecutableSource(source,fields,decisions),receive);
+ }
  for(const quote of [
   'You will receive a confirmation by email, then submit a photograph by email.',
   'You will receive a confirmation by email and send a photograph by email.',
+  'The manufacturer will send a confirmation by email, then submit a photograph by email.',
  ]){
   assert.equal(sourceInstructionProfile(quote).externalAction,true,quote);
   assert.throws(()=>assertExecutableSource({remedies:[photo,quote]},[field(photo)]),/manual|handoff|external/i,quote);

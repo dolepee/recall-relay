@@ -247,6 +247,29 @@ export function sourceClauses(source){
 }
 export const SOURCE_POLICY_VERSION=8;
 // A bounded executable subset, not a general natural-language policy engine.
+// A destination matters only when the customer is being asked to send something
+// out. Business notifications and the noun "email" are not customer submissions.
+function customerOutgoingDestination(quote){
+  const clauses=String(quote).split(/(?:[;—–]|:(?=\s)|\b(?:and|then|also|but)\b)/i);
+  const verbs=/\b(?:send|submit(?:ted)?|upload(?:ed)?|provide[ds]?|e-?mail)\b/gi;
+  for(const clause of clauses){
+    for(const match of clause.matchAll(verbs)){
+      const word=match[0].toLowerCase();
+      const after=clause.slice(match.index+match[0].length);
+      if(word.startsWith('e-mail')||word==='email'){
+        if(!/^\s+(?:a|an|the|your|this|these|those|photograph|photo|image|picture|label|serial|lot|code|number|document|evidence)\b/i.test(after))continue;
+      }
+      const before=clause.slice(0,match.index);
+      const subject=(before.match(/\b(?:you|consumers?|customers?|manufacturer|retailer|company|firm|brand|we|it)\b/gi)||[]).at(-1)?.toLowerCase();
+      if(subject&&/^(?:manufacturer|retailer|company|firm|brand|we|it)$/.test(subject))continue;
+      const passive=/\b(?:must|should|shall|are|is|will be|can be)\s*$/i.test(before);
+      const imperative=/^\s*(?:please\s+)?(?:send|submit|upload|provide|e-?mail)\b/i.test(clause);
+      if(!subject&&!passive&&!imperative)continue;
+      if(/\b(?:by|via|through|using)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b/i.test(after)||/\bto\s+[^\s@]+@[^\s@]+/i.test(after)||/\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i.test(after))return true;
+    }
+  }
+  return false;
+}
 // Drafts may retain richer quotations for review; only direct, unconditional,
 // pre-refund customer responses with one photo can become an executable form.
 export function sourceInstructionProfile(quote){
@@ -269,10 +292,6 @@ export function sourceInstructionProfile(quote){
     new RegExp(actionStart+'(?:register|sign in|log in|(?:fill out|complete) (?:an?|the) (?:online )?registration form)\\b','i'),
     new RegExp(actionStart+'reply\\b[^.!?]{0,160}\\b(?:e-?mail|confirmation)\\b','i'),
     new RegExp(actionStart+'e-?mail\\b(?!\\s+(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\\b)','i'),
-    /\b(?:send|submit|upload|provide)\b[^.!?]{0,240}\bto\s+[^\s@]+@[^\s@]+/i,
-    /\b(?:send|submit|upload|provide|email|e-mail)\b[^.!?]{0,240}\b(?:by|via|through)\s+(?:e-?mail|email)\b/i,
-    /\b(?:send|submit|upload|provide|email|e-mail)\b[^.!?]{0,240}\b(?:by|via|through)\s+(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form)\b/i,
-    /\b(?:by|via|through)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+/i,
   ];
   // The executable subset has a positive response shape. A second action after
   // the response is not automatically a response: returns, registration, email
@@ -284,7 +303,7 @@ export function sourceInstructionProfile(quote){
   // does not excuse an unconsumed object, connector, prerequisite or cutoff.
   const parser=parseResponseGrammar(quote);
   const outgoingVerb='(?:send|submit|upload|provide|e-?mail)';
-  const externalDestination=!negative&&(new RegExp(String.raw`(?<!by\s)(?<!via\s)(?<!through\s)\b${outgoingVerb}\b[^.!?]{0,200}\b(?:by|via|through)\s+(?:e-?mail|email|(?:the\s+)?(?:manufacturer|retailer|company|firm|brand)?\s*(?:portal|web ?site|registration page|online form))\b`,'i').test(quote)||new RegExp(String.raw`(?<!by\s)(?<!via\s)(?<!through\s)\b${outgoingVerb}\b[^.!?]{0,200}\b(?:by|via)\s+e-?mail(?:ing)?\s+[^\s@]+@[^\s@]+`,'i').test(quote));
+  const externalDestination=!negative&&customerOutgoingDestination(quote);
   const prerequisite=/\b(?:after|once|upon|following)\b[^.!?]{0,100}\b(?:return(?:ing|ed)?|send(?:ing)? back|ship(?:ping)? back|hav(?:e|ing) (?:returned|shipped|sent))\b/i.test(quote);
   const applicability=/\b(?:for|only for)\s+(?:purchases?|products?|items?|orders?)\s+(?:made|purchased|bought|placed|ordered)\b|\b(?:orders?|purchases?|products?|items?)\s+(?:placed|made|purchased|bought|ordered)\s+(?:before|after|on|by)\b|\b(?:except|excluding|other than)\b/i.test(quote);
   // A remedy narrative can carry a cutoff without asking for customer evidence.

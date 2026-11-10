@@ -12,3 +12,14 @@ test('complete supported condition and explicitly uncertain actor can survive wi
  const r=run('If the label is unreadable, provide the serial number.',{timing:'CONDITIONAL',condition:'If the label is unreadable'});assert.equal(r.interpretationAvailable,true);assert.equal(r.quote,'If the label is unreadable, provide the serial number.');assert.equal(r.actor,'CUSTOMER');
  const passive=run('A refund will be issued.',{actor:'UNKNOWN'});assert.equal(passive.interpretationAvailable,true);
 });
+
+test('inverted negation, object, actor and condition explanations are withheld',()=>{
+ const cases=[
+  ['Consumers should unplug the unit.','Consumers should not unplug the unit.',{actor:'CUSTOMER'}],
+  ['The manufacturer will issue a refund.','The manufacturer will not issue a refund.',{actor:'MANUFACTURER'}],
+  ['Provide the serial number.','Provide the order number.',{actor:'CUSTOMER'}],
+  ['If the label is unreadable, provide the serial number.','If the label is readable, provide the serial number.',{actor:'CUSTOMER',timing:'CONDITIONAL',condition:'If the label is unreadable'}],
+  ['The manufacturer will issue a refund.','Customers will receive a refund.',{actor:'MANUFACTURER'}],
+ ];
+ for(const [quote,explanation,changes] of cases)assert.equal(run(quote,{...changes,explanation}).interpretationAvailable,false,quote);
+});

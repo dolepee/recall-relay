@@ -15,6 +15,18 @@ export function advisoryFidelityIssue(quote,value){
  else if(/^(?:the )?(?:merchant|retailer)\b/.test(subject))actor='MERCHANT';
  else if(/^(?:paypal|the payment provider)\b/.test(subject))actor='PROVIDER';
  if(value.actor!=='UNKNOWN'&&value.actor!==actor)return 'Actor lacks a supported source anchor.';
+ // A changed negation or swapped actor/object is not a paraphrase; it changes
+ // the instruction. Withhold it rather than presenting a confident inversion.
+ const qNeg=/\b(?:not|never|no|without|unreadable|ineligible|unavailable)\b/.test(q);
+ // A caveat such as "this does not confirm" is not an instruction negation.
+ const eCore=e.replace(/\b(?:does not|do not|is not|are not)\s+(?:confirm|verify|establish|mean|prove|record|indicate|imply|authorize|guarantee)[^.;]*/gi,'');
+ const eNeg=/\b(?:not|never|no|without|unreadable|ineligible|unavailable|prohibited)\b/.test(eCore);
+ if(qNeg!==eNeg)return 'Negation differs from the source.';
+ if(actor==='MANUFACTURER'&&/^(?:consumers?|customers?|you)\b/.test(e))return 'The explanation changes the responsible actor.';
+ if(actor==='CUSTOMER'&&/^(?:the )?(?:manufacturer|merchant|retailer|company|firm)\b/.test(e))return 'The explanation changes the responsible actor.';
+ for(const [sourceTerm,expected] of [['serial number','serial'],['order number','order'],['lot code','lot'],['model number','model'],['unreadable','unreadable']]){
+  if(new RegExp('\\b'+sourceTerm.replace(/ /g,'\\s+')+'\\b','i').test(q)&&!new RegExp('\\b'+expected+'\\b','i').test(e))return 'A required source identifier or condition was changed.';
+ }
  const before=/\bbefore\b|prior to/.test(q),after=/\bafter\b|following|upon receipt|once (?:the |your )?(?:refund|payment)|\bonce\b[^.!?]{0,80}\b(?:receives?|received|arrives?|arrived|completed)\b/.test(q),at=/\bat (?:the time of )?submission\b|\bwhen submitting\b/.test(q);
  const expected=conditional?'CONDITIONAL':before&&!after?'BEFORE_ACTION':after&&!before?'AFTER_ACTION':at?'AT_SUBMISSION':'UNSPECIFIED';
  if(value.timing!==expected)return 'Timing differs from the supported source sequence.';

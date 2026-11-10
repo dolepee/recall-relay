@@ -2,12 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SourceWorkspace} from '../src/source-workspace.mjs';
 import {assertExecutableCampaign} from '../src/source-policy.mjs';
+import {sourceDraftInput} from '../src/source-extraction.mjs';
 import {ClaimDesk} from '../src/claims.mjs';
 
-const source=quote=>({title:'Synthetic completeness test',recallNumber:'TEST',sourceDigest:'c'.repeat(64),sourceUrl:'https://example.invalid/fixture',route:'ORIGINAL_PAYMENT_CANDIDATE',remedies:[quote]});
+const source=remedies=>({title:'Synthetic completeness test',recallNumber:'TEST',sourceDigest:'c'.repeat(64),sourceUrl:'https://example.invalid/fixture',route:'ORIGINAL_PAYMENT_CANDIDATE',remedies});
 function fixture(quote,kinds){
+  const remedies=Array.isArray(quote)?quote:[quote];
+  const clauses=sourceDraftInput({remedies}).clauses;
+  const values=Array.isArray(kinds[0])?kinds:[kinds];
+  const byClause=clauses.map((_,index)=>values[index]||[]);
   const desk=new ClaimDesk({path:':memory:',provider:async()=>{throw new Error('No provider call');}});
-  const ws=new SourceWorkspace(desk.db,{loadSource:async()=>source(quote),ai:{status:()=>({available:true,model:'controlled'}),generate:async()=>JSON.stringify({clauses:[{clauseId:'clause-0-0',kinds}]})}});
+  const ws=new SourceWorkspace(desk.db,{loadSource:async()=>source(remedies),ai:{status:()=>({available:true,model:'controlled'}),generate:async()=>JSON.stringify({clauses:clauses.map((clause,index)=>({clauseId:clause.clauseId,kinds:byClause[index]}))})}});
   return {desk,ws};
 }
 function reviewAll(ws,row,decisions=[]){
@@ -91,6 +96,37 @@ test('a rejected proposal cannot leave coverage FIELD',async()=>{
     row=reviewAll(ws,row);
     assert.notEqual(row.review.coverage[0].disposition,'FIELD');
     assert.throws(()=>activate(ws,row,desk),/missing responses|manual|unresolved/i);
+  }finally{desk.close();}
+});
+
+test('ordinary informational narratives remain publishable beside a valid photo',async()=>{
+  for(const narrative of ['The manufacturer will send a confirmation email.','Refunds take six weeks.']){
+    const quote='Upload a photograph of the item.';
+    const {desk,ws}=fixture([quote,narrative],[[ 'PHOTO' ],[]]);
+    try{
+      let row=await ws.suggest((await ws.import('TEST')).id,1);
+      assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO'],narrative);
+      row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Business notification or settlement timing; no customer response requested.'}]);
+      assert.equal(row.review.coverage[1].disposition,'INFORMATION',narrative);
+      assert.ok(activate(ws,row,desk).publishedCampaign,narrative);
+    }finally{desk.close();}
+  }
+});
+
+test('a supported whole controlled notice keeps every response and allows INFORMATION narratives',async()=>{
+  const notice=[
+    'Upload a photograph of the item and submit your order number.',
+    'The manufacturer will send a confirmation email.',
+    'Refunds take six weeks.',
+  ];
+  const {desk,ws}=fixture(notice,[['PHOTO','TEXT'],[],[]]);
+  try{
+    let row=await ws.suggest((await ws.import('TEST')).id,1);
+    assert.deepEqual(row.suggestion.requirements.map(f=>f.kind),['PHOTO','TEXT']);
+    row=reviewAll(ws,row,[{id:'clause-1-0',disposition:'INFORMATION',reason:'Business notification; no customer response requested.'},{id:'clause-2-0',disposition:'INFORMATION',reason:'Settlement timing only; no customer response requested.'}]);
+    assert.equal(row.review.coverage[1].disposition,'INFORMATION');
+    assert.equal(row.review.coverage[2].disposition,'INFORMATION');
+    assert.ok(activate(ws,row,desk).publishedCampaign);
   }finally{desk.close();}
 });
 

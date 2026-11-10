@@ -182,9 +182,9 @@ function parseResponseGrammar(quote){
     // A prohibition is information, but a later affirmative response after a
     // separator is still parsed. Do not swallow the rest of the sentence.
     const separator=/[;—–]|:(?=\s)|\b(?:and|then|also|but)\b/i.exec(text);
-    if(!separator)return {issue:null,segments:[],consumed:text,remainder:''};
+    if(!separator)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
     const rest=text.slice(separator.index+separator[0].length).trim();
-    if(!rest)return {issue:null,segments:[],consumed:text,remainder:''};
+    if(!rest)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
     // "..., but a photo is not required" waives the photo, not the preceding
     // written request. Keep the preceding response for canonical classification;
     // the waiver itself remains a manual issue in sourceInstructionProfile.
@@ -197,9 +197,9 @@ function parseResponseGrammar(quote){
     for(const [index,part] of tailParts.entries()){
       if(responseStart.test(part)){firstResponse=index;break;}
       if(PROHIBITION_CONTINUATION.test(part)||prohibitionObjectAllowed(part))continue;
-      return {issue:'The instruction after a prohibition is unsupported. Keep this instruction manual.',segments:[],consumed:text.slice(0,separator.index+separator[0].length),remainder:rest};
+      return {issue:'The instruction after a prohibition is unsupported. Keep this instruction manual.',segments:[],consumed:text.slice(0,separator.index+separator[0].length),remainder:rest,customerIssue:true};
     }
-    if(firstResponse<0)return {issue:null,segments:[],consumed:text,remainder:''};
+    if(firstResponse<0)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
     text=rest.slice(rest.indexOf(tailParts[firstResponse]));
     }
   }
@@ -213,18 +213,20 @@ function parseResponseGrammar(quote){
     // 'a digital photograph'), not only a determiner. A verb position still starts
     // a new response segment.
     if(word==='photograph'&&(PHOTO_PREFIX_WORDS.has(before.toLowerCase())||/^\d+$/.test(before)))continue;
-    const beforeText=text.slice(0,match.index);
+    const beforeText=text.slice(0,match.index),afterText=text.slice(match.index+match[0].length).trim();
     if(/\b(?:manufacturer|retailer|merchant|company|firm|brand|we|it)\s+(?:(?:will|shall|must|may|can|should|is|are|has|have)\s+)?$/i.test(beforeText))continue;
-    if((word==='email'||word==='e-mail')){
-      const after=text.slice(match.index+match[0].length).trim();
-      if(/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(after))continue;
-      if(/\bby\s*$/i.test(beforeText)||/\b(?:receive|receives|received|receiving)\s+(?:an?|the|your)?\s*$/i.test(beforeText))continue;
+    // "Take six weeks" and "take the product to the store" are timing/handoff
+    // narrative, not a photograph request. A real photograph object keeps PHOTO.
+    if(word==='take'&&!/^(?:(?:a|an|the|your|one|two|three|both|any|each|clear|digital|new|original|marked|damaged|destroyed|recalled|provided)\s+)*(?:photograph|photo|picture|image)s?\b/i.test(afterText))continue;
+    if(word==='email'||word==='e-mail'){
+      if(/^(?:receipt|receipts|invoice|invoices|confirmation|confirmations|message|messages)\b/i.test(afterText))continue;
+      if(/\bby\s*$/i.test(beforeText)||/\b(?:receive|receives|received|receiving)\s+(?:an?|the|your)?\s*$/i.test(beforeText)||/(?:\b(?:a|an|the|your|confirmation|receipt|invoice|message)\s*)$/i.test(beforeText))continue;
     }
     verbs.push({...match,word});
   }
-  if(!verbs.length)return {issue:null,segments:[],consumed:text,remainder:''};
+  if(!verbs.length)return {issue:null,segments:[],consumed:text,remainder:'',customerIssue:false};
   const prefix=text.slice(0,verbs[0].index).trim();
-  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix))return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text};
+  if(prefix&&!/^(?:(?:and|then|also|please)\s*)+$/i.test(prefix))return {issue:'The instruction begins with an unsupported phrase. Keep this instruction manual.',segments:[],consumed:'',remainder:text,customerIssue:true};
   const allKinds=new Set();
   for(let i=0;i<verbs.length;i++){
     const start=verbs[i].index+verbs[i][0].length,end=verbs[i+1]?.index??text.length;
@@ -240,10 +242,10 @@ function parseResponseGrammar(quote){
     if(verbs[i].word==='tell')segment=segment.replace(/^us\s+/i,'');
     const kinds=responseKinds(verbs[i].word,segment);
     const issue=responseObjectIssue(kinds[0],segment);
-    if(issue)return {issue,segments,consumed:text.slice(0,start),remainder:text.slice(start),kinds:[...allKinds]};
+    if(issue)return {issue,segments,consumed:text.slice(0,start),remainder:text.slice(start),kinds:[...allKinds],customerIssue:true};
     segments.push({kind:kinds[0],kinds,text:segment});
   }
-  return {issue:null,segments,consumed:text,remainder:'',kinds:[...allKinds]};
+  return {issue:null,segments,consumed:text,remainder:'',kinds:[...allKinds],customerIssue:false};
 }
 
 // One response-classification source for drafting, coverage and publication.
@@ -418,7 +420,8 @@ export function sourceCoverage(source,fields,decisions=[]){
     // Eligibility, timing and destination constraints survive even when the
     // sentence requests no customer response. An INFORMATION decision explains
     // the narrative; it cannot waive an unsupported cutoff or handoff.
-    const nonWaivableIssue=profile.parser?.issue||profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite|An unrecognized mandatory customer instruction|The instruction after a prohibition)/.test(i));
+    const parserIssue=profile.parser?.customerIssue?profile.parser.issue:null;
+    const nonWaivableIssue=parserIssue||profile.issues.find(i=>/^(?:Purchase eligibility|Residual timing|Post-refund|An external customer handoff|Submitting evidence outside|A return or other prerequisite|An unrecognized mandatory customer instruction|The instruction after a prohibition)/.test(i));
     const conditionalIssue=profile.issues.find(i=>i.startsWith('Conditional'));
     const issue=phaseIssue||nonWaivableIssue||((profile.conditional||profile.externalAction)?(conditionalIssue||profile.issues[0]):null)||(profile.kinds.length?profile.issues[0]||linked.map(sourceFieldIssue).find(Boolean)||null:null);
     // A merchant's explicit MANUAL decision dominates any derived FIELD result.

@@ -245,3 +245,23 @@ test('the homepage example deep link creates once in a fresh workspace and reuse
   }
  }finally{dom.reconfigure({url:'https://fixture.invalid/setup'});if(previousLocation===undefined)delete globalThis.location;else globalThis.location=previousLocation;}
 });
+
+test('a linked field reads as a linked response, not an unresolved extra step',async()=>{
+ const quote='Upload one photograph of the marked cup.';
+ const field={id:'field-1',kind:'PHOTO',quote};
+ const setup={id:'copy-state',revision:1,source:{recallNumber:'COPY',title:'Synthetic copy test',products:[{name:'Fictional cup'}],description:'Controlled copy fixture',retrievedAt:'2026-11-10T00:00:00Z',route:'ORIGINAL_PAYMENT_CANDIDATE',sourceUrl:'https://example.invalid/notice',sourceDigest:'c'.repeat(64),remedies:[quote],requirements:[]},suggestion:{model:'fixture',createdAt:'2026-11-10T00:00:00Z',requirements:[field]},review:{revision:1,digest:'d'.repeat(64),fields:[field],coverage:[{id:'clause-0-0',quote,fieldIds:['field-1'],disposition:'FIELD',reason:''}]}};
+ const state={ai:{available:false},activeCampaign:null,setups:[setup]};
+ globalThis.fetch=async()=>new Response(JSON.stringify(state));
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>{root.render(React.createElement(SourceSetup));await tick();await tick();});
+ await act(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Edit reviewed fields').click();});
+ const treatment=[...document.querySelectorAll('select')].find(s=>s.parentElement.textContent.startsWith('Treatment'));
+ assert.ok(treatment);assert.match(treatment.textContent,/Use linked response/);assert.doesNotMatch(treatment.textContent,/Unresolved — choose a treatment/);
+ assert.equal([...document.querySelectorAll('label')].some(l=>l.textContent.startsWith('Reason')),false,'a linked response does not demand a manual reason');
+ assert.match(document.body.textContent,/The linked response is the customer step/);
+ const linked=treatment;
+ await act(async()=>{linked.value='MANUAL';linked.dispatchEvent(new Event('change',{bubbles:true}));});
+ assert.match(document.body.textContent,/Publication stays blocked until this is resolved or explicitly accepted as manual with a reason/);
+ assert.equal([...document.querySelectorAll('label')].some(l=>l.textContent.startsWith('Reason')),true,'manual treatment requires a reason');
+ await act(async()=>root.unmount());
+});

@@ -26,4 +26,8 @@ test('the complete fictional source fits the unchanged source policy and require
 
 test('the versioned public notice includes every complete canonical instruction',async()=>{
  const html=await readFile('public/assets/relay-home-notice-v1.html','utf8');for(const quote of exampleNotice.remedies)assert.ok(html.includes(quote));assert.match(html,/Fictional test notice/);assert.match(html,/never damage or dispose of a real product/);
+ assert.ok(html.indexOf('relay-home-rh-cup-label-a.png')>html.indexOf('</ol>'));
+ assert.match(html,/href="\/assets\/relay-home-rh-cup-label-a.png"/);
+ assert.match(html,/href="\/assets\/relay-home-rh-cup-label-b.png"/);
+ for(const asset of ['a','b'])assert.ok((await readFile(`public/assets/relay-home-rh-cup-label-${asset}.png`)).length>1000);
 });
